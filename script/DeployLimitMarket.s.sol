@@ -6,15 +6,15 @@ import {LimitMarket_v1} from "../src/LimitMarket_v1.sol";
 import { console} from "forge-std/Test.sol";
 
 contract DeployLimitMarket is Script {
-    function run(address enforcer, address token) external returns (LimitMarket_v1) {
+    function run(/*address enforcer, address token*/) external returns (LimitMarket_v1) {
         vm.startBroadcast();
         LimitMarket_v1 limitMarket = new LimitMarket_v1();
-        limitMarket.updateContracts(enforcer,token);
+        // limitMarket.updateContracts(enforcer,token);
         //  console.log("msg dot sender",address(msg.sender));
         //  console.log("token",limitMarket.getTokenContractAddress());
         //  console.log("token direct",token);
         //  console.log("enforcer direct",enforcer);
         vm.stopBroadcast();
-        return limitMarket;
+        return limitMarket; 
     }
 }

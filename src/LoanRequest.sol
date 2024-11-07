@@ -3,12 +3,12 @@ pragma solidity ^0.8.20;
 
 import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
+library LoanRequest {
+
 error InsufficientFunds(uint256 balance, uint256 requestedAmount);
 error UnauthorizedAccess(address caller, address owner);
 error debugging(address);
 error executeLoanRequestFailed();
-
-library LoanRequest {
     using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     enum RequestState {
@@ -232,7 +232,7 @@ library LoanRequest {
     }
 
     function withdrawLendFunds(LendRequest storage request, address contractAddress, address recipient, uint256 amount)
-        internal
+        internal 
     {
         if (request.state == RequestState.OPEN) revert UnauthorizedAccess(contractAddress, contractAddress);
         else if (request.state == RequestState.CANCELLING) request.state = RequestState.CANCELLED;
