@@ -41,21 +41,18 @@ import {LendingRequest_v1} from "./LendingRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {BorrowRequest_v1} from "./BorrowRequest_v1.sol";
 import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+///////////////////
+/// Interfaces ///
+/////////////////
 
-    //////////////////
-    /// Interface ///
-    ////////////////
+interface ISupportedTokens {
+    function checkTokenIsApproved(address token) external view returns (bool);
+}
 
-    interface ISupportedTokens {
-         function checkTokenIsApproved(address token) external view returns (bool);
-    }
-
-// Contract Definition
-contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
-
-    using erc20TokenLibrary for erc20TokenLibrary.tokenData;
-
+// LimitMarket_v1 Contract Definition
+contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ////////////////
     /// Errors ///
     //////////////
@@ -70,20 +67,21 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /////////////////////////
     /// Type Declarations ///
     ///////////////////////
+    using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     /////////////////////////
     /// State variables ///
     ///////////////////////
 
-
     address private supportedTokensAddress;
     ISupportedTokens supportedTokensContract;
-    LendingRequest_v1[] public totalActiveLendRequestArray;//get this and only display the active
-    BorrowRequest_v1[] public totalActiveBorrowRequestArray;
+    LendingRequest_v1[] public totalLendRequestArray; //get this and only display the active
+    BorrowRequest_v1[] public totalBorrowRequestArray;
     address private enforcerContract;
     mapping(address => address[]) public userToBorrowRequestAddress;
     mapping(address => address[]) public userToLendRequestContracts;
-    mapping(address lendrequest => uint256 positionOnQue) public lendRequestToPositionOnActiveRequestQue;// pending
+    mapping(address lendrequest => uint256 positionOnQue)
+        public lendRequestToPositionOnActiveRequestQue; // pending
     mapping(address => uint256) private totalReceivedFromContracts;
     mapping(address => bool) private authorizedContracts;
 
@@ -102,7 +100,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         address indexed multiSigAddress,
         uint256 amountLended
     );
-   
+
     event TokensDeposited(
         address indexed user,
         address tokenAddress,
@@ -113,11 +111,11 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /// Modifiers ////
     ////////////////
 
-    ////////////////  
+    //////////////////
     /// Functions ///
-    //////////////
+    ////////////////
 
-    constructor() {}
+    constructor() Ownable(msg.sender) {}
 
     receive() external payable /*onlyDeployedContracts*/ {
         totalReceivedFromContracts[msg.sender] += msg.value;
@@ -133,18 +131,16 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     ) external nonReentrant {
         // checks
         if (collateralAmount == 0) revert NoCollateralSent(collateralAmount);
-        if (!supportedTokensContract.checkTokenIsApproved(address(token))) revert LimitMarket__unSupportedToken(token);
-         if (address(enforcerContract) == address(0)) revert();
+        if (!supportedTokensContract.checkTokenIsApproved(address(token)))
+            revert LimitMarket__unSupportedToken(token);
+        if (address(enforcerContract) == address(0)) revert();
         if (address(enforcerContract) != address(enforcerContract)) revert();
         // checks to add
         // check if collateral amount is greater or equal to dollar minimum allowed value
         // check token address is valid erc20 within supportedTokens contract
 
         // effects
-        address[2] memory owners = [
-            msg.sender,
-            address(enforcerContract)
-        ];
+        address[2] memory owners = [msg.sender, address(enforcerContract)];
 
         BorrowRequest_v1 borrowRequest = new BorrowRequest_v1(
             owners,
@@ -153,14 +149,14 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         );
         // authorizedContracts[address(borrowRequest)] = true;
         userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-        totalActiveBorrowRequestArray.push(borrowRequest);
-        
+        totalBorrowRequestArray.push(borrowRequest);
+
         // emits
         emit BorrowRequestCreated(msg.sender, address(token), collateralAmount);
-        emit TokensDeposited(msg.sender, address(token), collateralAmount); 
+        emit TokensDeposited(msg.sender, address(token), collateralAmount);
 
         // interactions
-     erc20TokenLibrary.transferFromTokens(
+        erc20TokenLibrary.transferFromTokens(
             address(token),
             msg.sender,
             address(borrowRequest),
@@ -168,45 +164,44 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         );
     }
 
-   
     function lend() external payable nonReentrant {
-
         // checks
         if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
-        if (msg.value > msg.sender.balance) revert InvalidAmount(msg.sender.balance, msg.value);
-        if (msg.value >= msg.sender.balance) revert InsufficientBalance(msg.sender.balance, msg.value);
+        if (msg.value > msg.sender.balance)
+            revert InvalidAmount(msg.sender.balance, msg.value);
+        if (msg.value >= msg.sender.balance)
+            revert InsufficientBalance(msg.sender.balance, msg.value);
         if (address(enforcerContract) == address(0)) revert();
         if (address(enforcerContract) != address(enforcerContract)) revert();
         // checks to add
         // msg.value should be equal or greater than dollar price of the minimum allowed amount
 
         // effects
-        address[2] memory owners = [
-            msg.sender,
-            address(enforcerContract)
-        ];
-        
+        address[2] memory owners = [msg.sender, address(enforcerContract)];
+
         LendingRequest_v1 lendingRequest = new LendingRequest_v1(
             owners,
             msg.value
         );
-         
-        userToLendRequestContracts[msg.sender].push(address(lendingRequest));
-        totalActiveLendRequestArray.push(lendingRequest);
-    
-        // emits
-        emit LendRequestCreated(msg.sender, address(lendingRequest),  msg.value);
-        
-        //  interactions
-        (bool success, ) = payable(lendingRequest).call{value: msg.value, gas: 2300}("");
-        if (!success) revert TransferFailed(address(lendingRequest), msg.value);
 
+        userToLendRequestContracts[msg.sender].push(address(lendingRequest));
+        totalLendRequestArray.push(lendingRequest);
+
+        // emits
+        emit LendRequestCreated(msg.sender, address(lendingRequest), msg.value);
+
+        //  interactions
+        (bool success, ) = payable(lendingRequest).call{
+            value: msg.value,
+            gas: 2300
+        }("");
+        if (!success) revert TransferFailed(address(lendingRequest), msg.value);
     }
 
-    // update enforcer contract    
+    // update enforcer contract
     function updateContracts(
         address enforcerAddress,
-        address _supportedTokensAddress    
+        address _supportedTokensAddress
     ) external onlyOwner notUpdating {
         _setUpdating(UpdateState.UPDATING);
         enforcerContract = enforcerAddress;
@@ -215,99 +210,204 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
-    function getEnforcerContractAddress() public view onlyOwner returns (address) {
-        return enforcerContract;
-    }
-
-    // Add this function to your LimitMarket_v1 contract
-    function getTotalActiveBorrowRequestArray()
-        public
-        view
-        returns (address[] memory)
-    {
-        address[] memory borrowRequests = new address[](
-            totalActiveBorrowRequestArray.length
-        );
-        for (uint256 i = 0; i < totalActiveBorrowRequestArray.length; i++) {
-            borrowRequests[i] = address(totalActiveBorrowRequestArray[i]);
-        }
-        return borrowRequests;
-    }
-
     ////////////////////////
     /// Public Functions ///
     ////////////////////////
 
-    function getUserToLendRequestAddresses(  
-        address user
-    ) public view returns (address[] memory) {
-        return userToLendRequestContracts[user];
-    }
+    // **** borrow requests functions ****//
 
-    // Function to retrieve all borrow request contracts for a user
+    // Function to retrieve all borrow request contracts for a user // legacy
     function getUserToBorrowRequestAddresses(
         address user
     ) public view returns (address[] memory) {
         return userToBorrowRequestAddress[user];
     }
 
-    // Function to get total fees of a specific lending request contract
-    function getTotalFeesEarnedOnLendRequests(
-        address contractAddress
-    ) public view onlyOwner returns (uint256) {
-        return totalReceivedFromContracts[contractAddress];
-    }
-  function getLendRequestPositionOnActiveRequestQue(address lendRequest) public view returns(uint256 position){
-     address[] memory lendRequests = getTotalActiveLendRequestArray();
-     for (uint256 i = 0; i < lendRequests.length; i++) 
-     {
-        if (lendRequests[i] == address(lendRequest)) {
-            
-            position = i + 1;
-        }
-     }
-     return  position;
-  }
-    function getTotalActiveLendRequestArray()
+    // @dev returns the total active borrow requests addresses.
+    function getTotalActiveBorrowRequestContractAddresses()
         public
         view
         returns (address[] memory)
     {
-        address[] memory lendRequest = new address[](totalActiveLendRequestArray.length);
+        address[] memory borrowRequest = new address[](
+            totalBorrowRequestArray.length
+        );
         uint256 counter = 0;
-        for (uint256 i = 0; i < totalActiveLendRequestArray.length; i++) {
-            LendingRequest_v1 lendingRequest_v1 = LendingRequest_v1(payable(address(totalActiveLendRequestArray[i])));
-            // uint8 status = uint8(lendingRequest_v1.getRequestState());
-            if (uint8(lendingRequest_v1.getRequestState()) != 0 ) { 
-            continue;
+        for (uint256 i = 0; i < totalBorrowRequestArray.length; i++) {
+            BorrowRequest_v1 borrowRequest_v1 = BorrowRequest_v1(
+                payable(address(totalBorrowRequestArray[i]))
+            );
+            uint8 status = uint8(borrowRequest_v1.getRequestState());
+            if (status != 0) {
+                continue;
             }
-             lendRequest[counter] = address(totalActiveLendRequestArray[i]);
-             counter++;
+            borrowRequest[counter] = address(totalBorrowRequestArray[i]);
+            counter++;
         }
 
-         address[] memory activeLendRequest = new address[](counter);
-         for (uint256 i=0 ; i < counter; i++) 
-         {
+        address[] memory activeBorrowRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            activeBorrowRequest[i] = borrowRequest[i];
+        }
+
+        return activeBorrowRequest;
+    }
+
+    
+    // @dev returns the specific index of an active borrow requests within the array of active borrow request.
+    function getBorrowRequestPositionOnActiveRequestQue(
+        address borrowRequest
+    ) public view returns (uint256 position) {
+        address[]
+            memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+        for (uint256 i = 0; i < borrowRequests.length; i++) {
+            if (borrowRequests[i] == address(borrowRequest)) {
+                position = i + 1;
+            }
+        }
+        return position;
+    }
+
+    // @dev returns the specific index of an active borrow requests within the array of active borrow request.
+    function getActiveBorrowRequestContractAddressViaIndex(
+        uint256 index
+    ) public view returns (address borrowRequest) {
+        address[]
+            memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+        address targetBorrowRequestContract;
+        for (uint256 i = 0; i < borrowRequests.length; i++) {
+            if (borrowRequests[i] == borrowRequests[index]) {
+                targetBorrowRequestContract = address(borrowRequests[i]);
+            }
+        }
+        return targetBorrowRequestContract;
+    }
+
+    
+
+    // @dev returns the total active borrow requests count.
+    function getTotalActiveBorrowRequestContractCount()
+        public
+        view
+        returns (uint256 count)
+    {
+        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+        return borrowRequests.length;
+    }
+
+
+    // returns specific number of requests using a start and end limit
+    function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 requestedNumber) public view returns(address[] memory borrowRequests) {
+        address[] memory borrowRequest = new address[](
+            getTotalActiveBorrowRequestContractAddresses().length
+        );
+         uint256 counter = 0;
+        for (uint256 i = 0; i < borrowRequest.length; i++) {
+            if ( i < startIndex) {
+                continue;
+            } else if(i >= startIndex){
+            borrowRequest[counter] = address(borrowRequest[i]);
+            if ( counter >= requestedNumber) {
+                break;
+            }
+            counter++;
+            }
+        }
+        address[] memory requestedBorrowRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            requestedBorrowRequest[i] = borrowRequest[i];
+        }
+        return requestedBorrowRequest;
+    }
+
+    // **** lend requests functions ****//
+
+    function getUserToLendRequestAddresses(
+        address user
+    ) public view returns (address[] memory) {
+        return userToLendRequestContracts[user];
+    }
+
+    function getTotalActiveLendRequestContractAddresses()
+        public
+        view
+        returns (address[] memory)
+    {
+        address[] memory lendRequest = new address[](
+            totalLendRequestArray.length
+        );
+        uint256 counter = 0;
+        for (uint256 i = 0; i < totalLendRequestArray.length; i++) {
+            LendingRequest_v1 lendingRequest_v1 = LendingRequest_v1(
+                payable(address(totalLendRequestArray[i]))
+            );
+            uint8 status = uint8(lendingRequest_v1.getRequestState());
+            if (status != 0) {
+                continue;
+            }
+            lendRequest[counter] = address(totalLendRequestArray[i]);
+            counter++;
+        }
+
+        address[] memory activeLendRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
             activeLendRequest[i] = lendRequest[i];
-         }
-      
+        }
+
         return activeLendRequest;
     }
 
+    function getLendRequestPositionOnActiveRequestQue(
+        address lendRequest
+    ) public view returns (uint256 position) {
+        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
+        for (uint256 i = 0; i < lendRequests.length; i++) {
+            if (lendRequests[i] == address(lendRequest)) {
+                position = i + 1;
+            }
+        }
+        return position;
+    }
+
+    // @dev returns the specific index of an active borrow requests within the array of active borrow request.
+    function getActiveLendRequestContractAddressViaIndex(
+        uint256 index
+    ) public view returns (address borrowRequest) {
+        address[]
+            memory lendRequests = getTotalActiveLendRequestContractAddresses();
+        address targetLendRequestContract;
+        for (uint256 i = 0; i < lendRequests.length; i++) {
+            if (lendRequests[i] == lendRequests[index]) {
+                targetLendRequestContract = address(lendRequests[i]);
+            }
+        }
+        return targetLendRequestContract;
+    }
+
+    
+
+    // @dev returns the total active borrow requests count.
+    function getTotalActiveLendRequestContractCount()
+        public
+        view
+        returns (uint256 count)
+    {
+        address[]
+            memory lendRequests = getTotalActiveLendRequestContractAddresses();
+        return lendRequests.length;
+    }
+
+    function getEnforcerContractAddress()
+        public
+        view
+        onlyOwner
+        returns (address)
+    {
+        return enforcerContract;
+    }
     ////////////////////////
     /// Internal Functions ///
     ////////////////////////
-
-   
-    function _transferToMultiSig(
-        address contractAddress,
-        uint256 amount
-    ) internal  {
-        (bool success, ) = payable(contractAddress).call{value: amount, gas: 2300}(
-            ""
-        );
-        if (!success) revert TransferFailed(contractAddress, amount);
-    }
 
     ////////////////////////
     /// Private Functions ///

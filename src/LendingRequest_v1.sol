@@ -14,11 +14,11 @@ contract LendingRequest_v1 {
 
     event LoanOffered(address borrower, uint256 LoanAmountRecieved);
 
-    address public immutable s_lender;
+    address public immutable i_lender;
 
     constructor(address[2] memory _owners, uint256 amountLended) payable {
         s_lendRequest = LoanRequest.createLendRequest(_owners, amountLended);
-        s_lender = _owners[0];
+        i_lender = _owners[0];
         // console.log()
     }
 

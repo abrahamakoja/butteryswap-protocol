@@ -97,28 +97,27 @@ error executeLoanRequestFailed();
     }
 
     function cancelBorrowRequest(BorrowRequest storage request, address contractAddress) internal {
-        if (request.collateral == 0) revert InsufficientFunds(contractAddress.balance, request.collateral);
-        // effects
         request.state = RequestState.CANCELLING;
+        if (request.collateral == 0) revert InsufficientFunds(contractAddress.balance, request.collateral);
+        if (request.state == RequestState.OPEN) revert();//do proper reverts
+        if (request.state == RequestState.CLOSED) revert(); //do proper reverts;
+        // effects
         request.feeEarned = (request.collateral * 5) / 100;
         request.balanceMinusFee = request.collateral - request.feeEarned;
 
         // Use the token's transfer function from the erc20TokenLibrary
+        //  request.state = RequestState.CANCELLED;
+        request.state = RequestState.CLOSED;
+        emit FundsWithdrawn(request.balanceMinusFee, contractAddress.balance);
+        emit contractClosed(request.owners, address(this).balance);
+
         erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[0]), request.balanceMinusFee);
-        withdrawBorrowFunds(request, contractAddress, request.owners[1]);
+        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[1]), request.feeEarned);
     }
 
-    function withdrawBorrowFunds(BorrowRequest storage request, address contractAddress, address recipient) internal {
-        if (request.state == RequestState.OPEN) revert UnauthorizedAccess(contractAddress, recipient);
-        else if (request.state == RequestState.CANCELLING) request.state = RequestState.CANCELLED;
-        else if (request.state == RequestState.CLOSED) revert UnauthorizedAccess(contractAddress, recipient);
-
-        // Use the token's transfer function from the erc20TokenLibrary
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[1]), request.feeEarned);
-        emit FundsWithdrawn(request.balanceMinusFee, contractAddress.balance);
-        delete request.owners;
-        request.state = RequestState.CLOSED;
-        emit contractClosed(request.owners, address(this).balance);
+  
+     function getBorrowRequestState(BorrowRequest storage request) internal view returns(RequestState){
+        return  request.state;
     }
 
     function getBorrowOwners(BorrowRequest storage request) internal view returns (address[2] memory) {
@@ -207,6 +206,8 @@ error executeLoanRequestFailed();
     function getLendRequestState(LendRequest storage request) internal view returns(RequestState){
         return  request.state;
     }
+
+   
  
     // Function to get the details of a lendRequest details
     function getLendRequestDetails(LendRequest storage request)

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title SupportedTokens
- * @author Abraham akoja
+ * @author Akoja
  * @notice This contract stores the list of supported ERC20 tokens for the ButterySwap protocol.
  * this contract handles the logic for adding new tokens, deleting listed tokens,validating and managing the healthFactor of all ERC20 tokens interacting with the Butteryswap protocol.
  */
@@ -76,7 +76,7 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
     /// @dev Private variable of the listing fee to be paid by caller when calling "requestTokenListing()".
     uint256 constant LISTING_FEE = 1 ether;
     /// @dev Mapping of token address to token details struct.
-    mapping(address tokenAddress => tokenDetails _tokenRequstDetails) private s_tokenDetails;
+    mapping(address tokenAddress => tokenDetails _tokenDetails) private s_tokenDetails;
     /// @dev Maps a token address to it's index in the pending list .
     mapping(address tokenAddress => uint256 index) private s_pendingTokenIndex;
     /// @dev Mapping of token address to bool if requested
@@ -101,12 +101,15 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
     /// Modifier ///
     ///////////////
 
+   /// @dev tokenIsActive modifier ensures token state is active else it reverts with the error invalidToken 
     modifier tokenIsActive(address token) {
         if( s_tokenDetails[token]._tokenState == tokenState.APPROVED){
             revert invalidToken(token);
         }
         _;
-    }    
+    }   
+
+    /// @dev tokenIsListed modifier ensures token is listed else it reverts with the error SupportedTokens_TokenAlreadyListed
     modifier tokenIsListed(address token) {
         if ( s_islisted[token]) {
             revert SupportedTokens_TokenAlreadyListed();
@@ -130,7 +133,7 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
     ///External Functions ///
     ////////////////////////
 
-    ///  @param ERC20TokenAddress: The ERC20 token address of the caller wishes to get listed.
+    ///  @param ERC20TokenAddress  The ERC20 token address of the caller wishes to get listed.
     ///  @notice This function alllows caller to add an ERC20 token to the list of supported tokens on the Butteryswap protocol.
     ///  @dev this function is payable and requires caller to pay ETH when calling, the amount of ETH to be sent is stored in the private variable "s_listingFee".
     function requestTokenListing(
@@ -244,8 +247,8 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
         return s_pendingTokenRequets;
     }
 
-    /// @notice this function returns the index of a pending token request struct.
-    function getTokenRequestDetails(
+    /// @notice this function returns the struct details of a token.
+    function getTokenDetails(
         address ERC20TokenAddress
     ) external view returns (tokenDetails memory _tokenDetails) {
         return s_tokenDetails[ERC20TokenAddress];

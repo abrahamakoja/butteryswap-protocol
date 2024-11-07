@@ -4,13 +4,14 @@ pragma solidity ^0.8.20;
 import {LoanRequest} from "./LoanRequest.sol";
 
 contract BorrowRequest_v1 {
+
     error UnauthorizedTransaction();
 
     event LoanAccepted(address activeLoan);
     // move token library integration off this contract,only loan request library should remain
 
     mapping(address => bool) isOwner;
-    address[3] public Owners;
+    address[3] public Owners;// replace this with just the borrower refer to lend contract
 
     using LoanRequest for LoanRequest.BorrowRequest;
 
@@ -28,9 +29,13 @@ contract BorrowRequest_v1 {
             Owners[i] = _owners[i];
             isOwner[_owners[i]] = true;
         }
-    }
+    }     
 
     receive() external payable {}
+
+    function getRequestState() public view  returns (LoanRequest.RequestState ) {
+        return LoanRequest.getBorrowRequestState(s_borrowRequest);
+    }
 
     // Implement the getTokenBalance function 
     function getTokenBalance() external view returns (uint256) {
@@ -43,7 +48,6 @@ contract BorrowRequest_v1 {
 
     function cancelRequest() external onlyOwner {
         LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
-        delete s_borrowRequest;
     }
 
     function withdrawTokenBalance(uint256 amount) external {

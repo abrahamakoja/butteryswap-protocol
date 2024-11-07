@@ -10,7 +10,7 @@ abstract contract ButteryRun_v1 {
         UPDATING
     }
 
-    address private deployer;
+    address private deployer;// use ownable
     UpdateState private currentState;
 
     modifier notUpdating() {
@@ -18,10 +18,10 @@ abstract contract ButteryRun_v1 {
         _;
     }
 
-    modifier onlyOwner() {
-        if (msg.sender != deployer) revert OnlyOwnerAllowed(); // Reverts if the caller is not an owner
-        _;
-    }
+    // modifier onlyOwner() {
+    //     if (msg.sender != deployer) revert OnlyOwnerAllowed(); // Reverts if the caller is not an owner
+    //     _;
+    // }
 
     constructor() {
         deployer = msg.sender;
