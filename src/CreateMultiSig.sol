@@ -6,8 +6,7 @@ contract CreateMultiSig {
     address[] public owners;
     mapping(address => bool) public isOwner;
     uint256 public numConfirmationsRequired;
-
-    mapping(uint256 => mapping(address => bool)) public isConfirmed;
+    // mapping(uint256 => mapping(address => bool)) public isConfirmed;
 
     // Constructor: Initializes the contract with the owners and required confirmations
     constructor(address[2] memory _owners, uint256 _numConfirmationsRequired) {
