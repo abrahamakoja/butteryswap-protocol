@@ -13,7 +13,7 @@ pragma solidity ^0.8.20;
 /// Imports ///
 //////////////
 
-import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import  {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import  {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract SupportedTokens is ReentrancyGuard {
@@ -25,8 +25,8 @@ contract SupportedTokens is ReentrancyGuard {
     ////////////////////////
 
 /// @notice This struct stores the token details.
-/// @dev This is only updated when the "addToken()" function is called.
-/// @param dev stores the address of the "addtoken()" function caller.
+/// @dev This is only updated when the "requestTokenListing()" function is called.
+/// @param dev stores the address of the "requestTokenListing()" function caller.
 /// @param feeAddresess stores the whitelisted address(es) to recieve fees on the listed token.
 /// @param timeListed stores the block.timestamp of the token when it was listed.
     struct tokenDetails {
@@ -41,7 +41,7 @@ contract SupportedTokens is ReentrancyGuard {
 
     /// @dev Array of addresses storing a list of supported tokens.
     address[] private s_supportedTokens;
-    /// @dev Private variable of the listing fee to be paid by caller when calling "addToken()".
+    /// @dev Private variable of the listing fee to be paid by caller when calling "requestTokenListing()".
     private private s_listingFee;
     /// @dev Mapping of token address to token details struct.
     mapping(address tokenAddress => tokenDetails _tokenDetails) private s_tokenDetails;
@@ -67,7 +67,7 @@ contract SupportedTokens is ReentrancyGuard {
      * @notice This function alllows caller to add an ERC20 token to the list of supported tokens on the Butteryswap protocol.
      * @dev this function is payable and requires caller to pay ETH when calling, the amount of ETH to be sent is stored in the private variable "s_listingFee".
      */
-    function addToken(address ERC20TokenAddress) external view payable nonReentrant{
+    function requestTokenListing(address ERC20TokenAddress) external view payable nonReentrant{
         //checks
         //check address is valid.
         //check address dont already exists
