@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
- contract ButteryRun_v1 {
+ abstract contract ButteryRun_v1 {
     error protocolUpdateInprogress();
     error OnlyOwnerAllowed();
-
+ 
     enum UpdateState { NOTUPDATING, UPDATING }
 
     address private deployer;
-    UpdateState private currentState;
+    UpdateState private currentState;  
      
-    modifier notUpdating() {
+    modifier notUpdating() {   
         
         if(currentState == UpdateState.UPDATING) revert protocolUpdateInprogress();
         _;
@@ -25,6 +25,7 @@ pragma solidity ^0.8.20;
     constructor() {
       deployer = msg.sender;
     }
+
      function _setUpdating(UpdateState state) internal {
         currentState = state;
     }
