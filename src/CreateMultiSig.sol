@@ -21,29 +21,32 @@ contract CreateMultiSig {
     address[] public owners;
     mapping(address => bool) public isOwner;
     uint256 public numConfirmationsRequired;
- uint256 public balanceMinusFee;
-address private constant LIMITMARKETCONTRACT = 0x05898eB9924012c537B69b87DA3E91823ec4c899;
+    uint256 public balanceMinusFee;
+    address private LIMITMARKETCONTRACT;
 
     // Event to log withdrawals
     event Withdrawn(uint256 amount, address indexed to);
-      event TransferAttempted(uint256 amount, address to);
-      event LimitMarket(address LimitMarketContract);
-
+    event TransferAttempted(uint256 amount, address to);
+    event LimitMarket(address LimitMarketContract);
+    event OwnersAdded(address LimitMarketContract, address borrower);
 
     // Constructor
-    constructor(address  _borrower) {
+    constructor(address[2] memory _owners) {
         // if (_numConfirmationsRequired == 0 || _numConfirmationsRequired > _owners.length) revert InsufficientConfirmations();
 
-        
-            if (_borrower == address(0)) revert InvalidOwner();
-            if (isOwner[_borrower]) revert OwnerNotUnique();
+for (uint256 i; _owners.length >i; i++) 
+{
+    if (_owners[0] == address(0)) revert InvalidOwner();
+        if (isOwner[_owners[i]]) revert OwnerNotUnique();
+    
+        owners.push(_owners[i]);
+        isOwner[address(_owners[i])] = true;
+        // owners.push(LIMITMARKETCONTRACT);
+        // isOwner[address(LIMITMARKETCONTRACT)] = true;
+}
+       
 
-            owners.push(_borrower);
-            owners.push(LIMITMARKETCONTRACT);
-            isOwner[address(_borrower)] = true;
-            isOwner[address(LIMITMARKETCONTRACT)] = true;
-        
-
+        emit OwnersAdded(_owners[0], _owners[1]);
         // numConfirmationsRequired = _numConfirmationsRequired;
     }
 
@@ -54,34 +57,31 @@ address private constant LIMITMARKETCONTRACT = 0x05898eB9924012c537B69b87DA3E918
 
     // Function to withdraw the entire balance to the caller (msg.sender) if they are an owner
     function withdrawSpecificAmount(uint256 amount) external {
-    if (!isOwner[msg.sender]) revert OnlyOwnerAllowed();  // Ensure the caller is an owner
+        if (!isOwner[msg.sender]) revert OnlyOwnerAllowed(); // Ensure the caller is an owner
 
-    uint256 balance = address(this).balance;
-    if (balance == 0) revert NoFundsToWithdraw();  // Ensure there are funds to withdraw
-    if (balance < amount) revert TransferFailed();  // Ensure enough balance to withdraw the specific amount
+        uint256 balance = address(this).balance;
+        if (balance == 0) revert NoFundsToWithdraw(); // Ensure there are funds to withdraw
+        if (balance < amount) revert TransferFailed(); // Ensure enough balance to withdraw the specific amount
 
-    // Transfer the specific amount to the caller
-    (bool success, ) = payable(msg.sender).call{value: (amount*1e18)}("");
-    if (!success) revert TransferFailed();  // Ensure the transfer is successful
+        // Transfer the specific amount to the caller
+        (bool success, ) = payable(msg.sender).call{value: (amount * 1e18)}("");
+        if (!success) revert TransferFailed(); // Ensure the transfer is successful
 
-    emit Withdrawn(amount, msg.sender);
-}
-
+        emit Withdrawn(amount, msg.sender);
+    }
 
     function withdrawToLimitContract(uint256 amount) external {
+        if (!isOwner[msg.sender]) revert OnlyOwnerAllowed(); // Ensure the caller is an owner
 
-    if (!isOwner[msg.sender]) revert OnlyOwnerAllowed();  // Ensure the caller is an owner
+        (bool success, ) = payable(owners[1]).call{
+            value: (amount * 1e18),
+            gas: 50000
+        }("");
         emit TransferAttempted(amount, owners[1]);
-    // if (address(this).balance < amount) revert NoFundsToWithdraw();  // Check if the contract has enough balance
-    //  address LimitMarketContract = address(0x05898eB9924012c537B69b87DA3E91823ec4c899);
-    // Transfer the specified amount to the caller
-    (bool success, ) = payable(LIMITMARKETCONTRACT).call{value: (amount*1e18), gas: 50000}("");
-        emit TransferAttempted(amount, LIMITMARKETCONTRACT);
-    if (!success) revert TransferFailed();  // Ensure the transfer is successful
+        if (!success) revert TransferFailed(); // Ensure the transfer is successful
 
-    emit Withdrawn(amount, LIMITMARKETCONTRACT);
-}
-
+        emit Withdrawn(amount, owners[1]);
+    }
 
     // Fallback function to accept Ether
     receive() external payable {
@@ -93,8 +93,8 @@ address private constant LIMITMARKETCONTRACT = 0x05898eB9924012c537B69b87DA3E918
         return address(this).balance;
     }
 
-    function getLimitMarketAddress() external returns(address){
-                 emit LimitMarket( owners[1]);
-               return owners[1];
+    function getLimitMarketAddress() external view returns (address) {
+        //  emit LimitMarket(LIMITMARKETCONTRACT);
+        return owners[1];
     }
 }
