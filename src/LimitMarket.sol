@@ -24,10 +24,12 @@ struct MultiSigDetails {
 contract LimitMarket {
     using SafeERC20 for IERC20;
 
+
     // State Variables
     mapping(address => address[]) public userToMultiSigs; // Mapping for all multisigs created by users
     mapping(address => MultiSigDetails) public multiSigDetails; // Struct holding multisig details
     mapping(address => address[]) public borrowRequests; // Supports multiple multisig requests per contract
+
 
     // Events
     event MultiSigCreated(
@@ -58,6 +60,7 @@ contract LimitMarket {
 
         // Store the deployed MultiSig contract address
         userToMultiSigs[msg.sender].push(address(multiSig));
+
 
         // Store the multisig details in the struct
         multiSigDetails[address(multiSig)] = MultiSigDetails({
@@ -103,5 +106,6 @@ contract LimitMarket {
     }
      receive() external payable {
         // Ether is received and stored in the contract
+
     }
 }
