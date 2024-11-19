@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 contract CreateBorrowRequest_v1 {
 
     // Errors
-    error InvalidOwner();     
+    error InvalidOwner();        
     error OwnerNotUnique();
     error InsufficientConfirmations();
     error OnlyOwnerAllowed();

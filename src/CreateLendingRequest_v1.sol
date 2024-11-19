@@ -4,12 +4,12 @@ pragma solidity ^0.8.20;
 // Contract Definition
 contract CreateLendingRequest_v1 {
 
-    // Errors
+    // Errors   
     error InvalidOwner();     
     error OwnerNotUnique();
     error InsufficientConfirmations();
     error OnlyOwnerAllowed();
-    error NoFundsToWithdraw(uint256 s_BALANCE, uint256 contracAddress);
+    error NoFundsToWithdraw(uint256 s_BALANCE, uint256 contractAddress);
     error StillOpen();
     error TransferFailed(uint256 balanceMinusFee, uint256 contractBalance);
     error finalTransferFailed(address contractAddress, uint256 contractBalance);
@@ -36,7 +36,7 @@ contract CreateLendingRequest_v1 {
     event finalBalanceWithdrawn(uint256 contractBalance, address contractAddress);
     event TransferAttempted(uint256 amount, address to);
     event LimitMarket(address LimitMarketContract);
-    event OwnersAdded(address LimitMarketContract, address borrower);
+    event OwnersAdded( address borrower,address LimitMarketContract);
     event userWithdrawnCollateral(uint256 amountWithDrawn, uint256 amountSentToContract);
 
      // Modifier to restrict function calls to owners only
@@ -52,7 +52,7 @@ contract CreateLendingRequest_v1 {
         for (uint256 i; _owners.length > i; i++) {
             if (_owners[0] == address(0)) revert InvalidOwner();
             if (isOwner[_owners[i]]) revert OwnerNotUnique();
-            
+             
             owners.push(_owners[i]);
             isOwner[address(_owners[i])] = true;
             NativeTokenAmount = _NativeTokenAmount;
@@ -66,7 +66,7 @@ contract CreateLendingRequest_v1 {
 
    
     // Function to get all the owners of the multisig contract
-    function getOwners() external view returns (address[] memory) {
+    function getOwners() external onlyOwner view returns (address[] memory)  {
         return owners;
     }
 
@@ -90,7 +90,7 @@ contract CreateLendingRequest_v1 {
         if (s_contractState == ContractState.CLOSED) {
             withdrawBalanceToLimitMarketContract();
         }
-    }
+    }    
 
     function withdrawBalanceToLimitMarketContract() internal onlyOwner {
         // checks
@@ -113,11 +113,11 @@ contract CreateLendingRequest_v1 {
     }
 
     // Function to check the contract's balance
-    function getBalance() external view returns (uint256) {
+    function getBalance() external onlyOwner view returns (uint256) {
         return address(this).balance;
     }
 
-    function getFeesEarned()external view returns(uint256){
+    function getFeesEarned() external onlyOwner view returns(uint256){
          return s_feeEarned;
 
     }
