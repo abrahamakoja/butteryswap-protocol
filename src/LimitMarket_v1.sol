@@ -4,24 +4,26 @@ pragma solidity ^0.8.20;
 // Imports  
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";      
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";    
-import {CreateBorrowRequest_v1} from "./CreateBorrowRequest_v1.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";     
+// import {CreateBorrowRequest_v1} from "./CreateBorrowRequest_v1.sol";
 import {CreateLendingRequest_v1} from "./CreateLendingRequest_v1.sol";  
-import {smoothRun_v1} from "./smoothRun_v1.sol";    
+import {ButteryRun_v1} from "./ButteryRun_v1.sol";    
+import {Loan} from "./Loan.sol";
 
-// Contract Definition 
-contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
+
+// Contract Definition   
+contract LimitMarket_v1 is ReentrancyGuard ,ButteryRun_v1{
     using SafeERC20 for IERC20;
-
+  
     // Errors    
     error LimitMarket__drainFailed(uint256 contractBalance);
-    error NoCollateralSent(uint256 collateral);
+    error NoCollateralSent(uint256 collateral);  
     error TransferFailed(address borrowRequest, uint256 sentAmount);
     error InsufficientBalance(uint256 balance, uint256 collateral);
     error InvalidAmount(uint256 balance, uint256 amountSent);  
     error NoAmountSent(uint256 balance, uint256 amountSent);
     error InvalidInterestRate(uint256 interestRate);
-
+ 
     // Type Declarations
     struct BorrowRequestDetails {
         uint256 depositedAmount;
@@ -31,17 +33,17 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
 
     struct LendRequestDetails {
         uint256 supply;
-        uint256 position;
+        uint256 position; 
     }
-
+           
     // State Variables   
     uint256 public totalBorrowersCount;
-    uint256 public totalFeesEarned;
+    uint256 private totalFeesEarned;
     uint256 public totalLendersCount;
     CreateLendingRequest_v1[] public totalActiveLendRequestArray;
     address private s_enforcer_v1;
     address[] public totalActiveBorrowRequestArray;
-    address[] public protocolUsers;
+    address[] private protocolUsers;//not used yet   
     mapping(address => BorrowRequestDetails) public userToBorrowRequestDetails;
     mapping(address => LendRequestDetails) public userToLendRequestDetails;
     mapping(address => address[]) public userToBorrowRequestAddress;
@@ -51,7 +53,7 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
     mapping(address => bool) public authorizedContracts;
 
     // Events
-    event MultiSigCreated(
+    event MultiSigCreated( 
         address indexed user,
         address indexed multiSigAddress,
         uint256 amountTransferred
@@ -78,25 +80,48 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
         (success, ) = payable(contractAddress).call{value: amount, gas: 2300}("");
         if (!success) revert TransferFailed(contractAddress, amount);
     }
+    //  function createOldBorrowRequest(uint256 _collateral) external payable nonReentrant {
+    //     if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
+    //     if (msg.value > msg.sender.balance) revert InvalidAmount(msg.sender.balance, msg.value);
+    //     if (_collateral == 0) revert NoCollateralSent(_collateral);
+    //     if (_collateral >= msg.sender.balance) revert InsufficientBalance(msg.sender.balance, _collateral);
 
-    // Function to create a multisig contract for borrowing
-    function createBorrowRequest(uint256 _collateral) external payable nonReentrant {
+    //     address[3] memory owners = [msg.sender, address(this),address(s_enforcer_v1)];
+    //     uint256 amountSent = msg.value;
+    //     CreateBorrowRequest_v1 borrowRequest = new CreateBorrowRequest_v1(owners, amountSent);
+
+    //     // Transfer Ether to multisig
+    //     _transferToMultiSig(address(borrowRequest), amountSent);
+    //     emit MultiSigCreated(msg.sender, address(borrowRequest), amountSent);
+    //     emit MultiSigDetailsUpdated(address(borrowRequest), amountSent, amountSent);
+
+    //     totalBorrowersCount++;
+    //     userToBorrowRequestDetails[address(borrowRequest)] =
+    //         BorrowRequestDetails({depositedAmount: amountSent, collateral: _collateral, position: totalBorrowersCount});
+
+    //     totalActiveBorrowRequestArray.push(address(borrowRequest));
+    //     userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
+    // }
+
+    // Function to create a multisig contract for borrowing  
+    function borrow(uint256 _collateral) external payable nonReentrant {
         if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
         if (msg.value > msg.sender.balance) revert InvalidAmount(msg.sender.balance, msg.value);
         if (_collateral == 0) revert NoCollateralSent(_collateral);
         if (_collateral >= msg.sender.balance) revert InsufficientBalance(msg.sender.balance, _collateral);
-  
-        address[2] memory owners = [msg.sender, address(this)];
-        uint256 amountSent = msg.value;
-        CreateBorrowRequest_v1 borrowRequest = new CreateBorrowRequest_v1(owners, amountSent);
-
-        // Transfer Ether to multisig
-        _transferToMultiSig(address(borrowRequest), amountSent);
+ 
+       
+        address[3] memory owners = [msg.sender, address(this), address(s_enforcer_v1)];  
+        uint256 amountSent = msg.value;   
+        Loan borrowRequest = new Loan(owners, _collateral); 
+      
+        // Transfer Ether to multisig 
         emit MultiSigCreated(msg.sender, address(borrowRequest), amountSent);
-        emit MultiSigDetailsUpdated(address(borrowRequest), amountSent, amountSent);
+        emit MultiSigDetailsUpdated(address(borrowRequest), amountSent, amountSent); 
+        _transferToMultiSig(address(borrowRequest), amountSent);
 
         totalBorrowersCount++;
-        userToBorrowRequestDetails[address(borrowRequest)] = BorrowRequestDetails({
+        userToBorrowRequestDetails[address(borrowRequest)] = BorrowRequestDetails({ 
             depositedAmount: amountSent,
             collateral: _collateral,
             position: totalBorrowersCount
@@ -104,8 +129,8 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
 
         totalActiveBorrowRequestArray.push(address(borrowRequest));
         userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-    }
-   
+    }     
+         
     // Function to create a multisig contract for lending
     function createLendRequest(uint256 _interestRate) external payable nonReentrant {
         // check value
@@ -133,11 +158,11 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
 
         emit MultiSigCreated(msg.sender, address(lendingRequest), amountSent);
         emit ContractFunded(address(lendingRequest), amountSent);
-
-        totalLendersCount++;
+   
+        totalLendersCount++;  
         userToLendRequestDetails[address(lendingRequest)] = LendRequestDetails({
-            supply: amountSent,
-            position: totalLendersCount
+            supply: amountSent,   
+            position: totalLendersCount 
         });
 
         authorizedContracts[address(lendingRequest)] = true; 
@@ -177,8 +202,12 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
     // update enforcer contract
     function updateEnforcerContract(address enforcer_v1)  external onlyOwner notUpdating{
         _setUpdating(UpdateState.UPDATING);
-       s_enforcer_v1 = enforcer_v1;
+       s_enforcer_v1 = enforcer_v1;  
         _setUpdating(UpdateState.NOTUPDATING);
+    }
+
+     function getEnforcerContractAddress() public  view returns (address) {
+        return s_enforcer_v1;
     }
  
     // Fallback to receive Ether from deployed contracts
@@ -186,5 +215,5 @@ contract LimitMarket_v1 is ReentrancyGuard ,smoothRun_v1{
         totalReceivedFromContracts[msg.sender] += msg.value;  
     }
 
- 
+  
 }

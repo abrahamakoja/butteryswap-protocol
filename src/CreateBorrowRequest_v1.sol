@@ -3,9 +3,8 @@ pragma solidity ^0.8.20;
 
 // Contract Definition
 contract CreateBorrowRequest_v1 {
-
     // Errors
-    error InvalidOwner();        
+    error InvalidOwner();
     error OwnerNotUnique();
     error InsufficientConfirmations();
     error OnlyOwnerAllowed();
@@ -16,7 +15,9 @@ contract CreateBorrowRequest_v1 {
 
     // Type declarations
     enum ContractState {
-        OPEN, CANCELLING, CLOSED
+        OPEN,
+        CANCELLING,
+        CLOSED
     }
 
     // State Variables
@@ -37,12 +38,11 @@ contract CreateBorrowRequest_v1 {
     event OwnersAdded(address LimitMarketContract, address borrower);
     event userWithdrawnCollateral(uint256 amountWithDrawn, uint256 amountSentToContract);
 
-     // Modifier to restrict function calls to owners only
+    // Modifier to restrict function calls to owners only
     modifier onlyOwner() {
         if (!isOwner[msg.sender]) revert OnlyOwnerAllowed(); // Reverts if the caller is not an owner
         _;
     }
-
 
     // Constructor
     constructor(address[2] memory _owners, uint256 _memeCoinAmountSent) {
@@ -50,7 +50,7 @@ contract CreateBorrowRequest_v1 {
         for (uint256 i; _owners.length > i; i++) {
             if (_owners[0] == address(0)) revert InvalidOwner();
             if (isOwner[_owners[i]]) revert OwnerNotUnique();
-            
+
             owners.push(_owners[i]);
             isOwner[address(_owners[i])] = true;
             memeCoinAmountSent = _memeCoinAmountSent;
@@ -61,7 +61,6 @@ contract CreateBorrowRequest_v1 {
     // Fallback function to accept Ether
     receive() external payable {}
 
-   
     // Function to get all the owners of the multisig contract
     function getOwners() external view returns (address[] memory) {
         return owners;
@@ -75,13 +74,16 @@ contract CreateBorrowRequest_v1 {
 
         // effects
         s_contractState = ContractState.CANCELLING;
-        balanceMinusFee = address(this).balance ;
-      
+        balanceMinusFee = address(this).balance;
 
         // interactions
-        (bool success, ) = payable(msg.sender).call{value: balanceMinusFee - ((address(this).balance * 5) / 1000)}("");
+        (bool success,) = payable(msg.sender).call{value: balanceMinusFee - ((address(this).balance * 5) / 1000)}("");
         if (!success) revert TransferFailed(balanceMinusFee, address(this).balance);
-        if(success) emit userWithdrawnCollateral( balanceMinusFee - ((address(this).balance * 5) / 1000), ((address(this).balance * 5) / 1000));
+        if (success) {
+            emit userWithdrawnCollateral(
+                balanceMinusFee - ((address(this).balance * 5) / 1000), ((address(this).balance * 5) / 1000)
+            );
+        }
         s_contractState = ContractState.CLOSED;
         if (s_contractState == ContractState.CLOSED) {
             withdrawBalanceToLimitMarketContract();
@@ -91,10 +93,7 @@ contract CreateBorrowRequest_v1 {
     function withdrawBalanceToLimitMarketContract() internal onlyOwner {
         if (!(s_contractState == ContractState.CLOSED)) revert StillOpen();
 
-        (bool success, ) = payable(owners[1]).call{
-            value: address(this).balance,
-            gas: 50000
-        }("");
+        (bool success,) = payable(owners[1]).call{value: address(this).balance, gas: 50000}("");
 
         if (!success) revert finalTransferFailed(owners[1], address(this).balance);
         emit finalBalanceWithdrawn(address(this).balance, owners[1]);
@@ -108,9 +107,8 @@ contract CreateBorrowRequest_v1 {
         return address(this).balance;
     }
 
-    function getCalculation()external view returns(uint256){
-         return (address(this).balance * 5) / 1000;
-
+    function getCalculation() external view returns (uint256) {
+        return (address(this).balance * 5) / 1000;
     }
 
     // // Function to check the amount of memeCoin sent
