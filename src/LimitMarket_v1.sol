@@ -23,54 +23,54 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/**
+ * @title LimitMarket_v1
+ * @author Abraham akoja
+ * @notice
+ */
+
+// debug
+import {Script, console} from "forge-std/Script.sol";
+
 ////////////////
 /// Imports ///
 //////////////
 
-import {SafeERC20,IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import  {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {CreateLendingRequest_v1} from "./CreateLendingRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {CreateBorrowRequest_v1} from "./CreateBorrowRequest_v1.sol";
+import {SupportedTokens} from "./SupportedTokens.sol";
+import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
 // Contract Definition
 contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
-    using SafeERC20 for IERC20;
+    using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     ////////////////
     /// Errors ///
     //////////////
 
-    error LimitMarket__drainFailed(uint256 contractBalance);
+    error LimitMarket__borrowFailed(address token);
     error NoCollateralSent(uint256 collateral);
     error TransferFailed(address borrowRequest, uint256 sentAmount);
     error InsufficientBalance(uint256 balance, uint256 collateral);
     error InvalidAmount(uint256 balance, uint256 amountSent);
     error NoAmountSent(uint256 balance, uint256 amountSent);
-    error InvalidInterestRate(uint256 interestRate);
-    error ERC20InsufficientAllowance(
-        address spender,
-        uint256 allowance,
-        uint256 required
-    );
-    error InvalidWithdrawalAmount(
-        uint256 requestedAmount,
-        uint256 availableBalance
-    );
+    // error InvalidInterestRate(uint256 interestRate);
+    // error ERC20InsufficientAllowance(
+    //     address spender,
+    //     uint256 allowance,
+    //     uint256 required
+    // );
+    // error InvalidWithdrawalAmount(
+    //     uint256 requestedAmount,
+    //     uint256 availableBalance
+    // );
 
     /////////////////////////
     /// Type Declarations ///
     ///////////////////////
-
-    struct BorrowRequestDetails {
-        uint256 collateral;
-        uint256 position;
-    }
-
-    struct LendRequestDetails {
-        uint256 supply;
-        uint256 position;
-    }
 
     /////////////////////////
     /// State variables ///
@@ -79,14 +79,14 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     uint256 public totalBorrowersCount;
     uint256 private totalFeesEarned;
     uint256 public totalLendersCount;
-    SafeERC20 memeCoin;
+    SupportedTokens supportedTokens;
     CreateLendingRequest_v1[] public totalActiveLendRequestArray;
     CreateBorrowRequest_v1[] public totalActiveBorrowRequestArray;
     address private enforcerContract;
     // address[] private totalActiveBorrowRequestArray;
     address[] private protocolUsers; //not used yet
-    mapping(address => BorrowRequestDetails) private userToBorrowRequestDetails;
-    mapping(address => LendRequestDetails) private userToLendRequestDetails;
+    // mapping(address => BorrowRequestDetails) private userToBorrowRequestDetails;
+    // mapping(address => LendRequestDetails) private userToLendRequestDetails;
     mapping(address => address[]) public userToBorrowRequestAddress;
     mapping(address => address[]) public userLendRequestAddress;
     mapping(address => uint256) private totalFeesEarnedOnLendRequests;
@@ -119,23 +119,17 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         address indexed tokenAddress,
         uint256 amount
     );
+    event debug(bool);
 
     //////////////////
     /// Modifiers ////
     ////////////////
 
-    // modifier onlyDeployedContracts() {
-    //     require(authorizedContracts[msg.sender], "Not an authorized contract");
-    //     _;
-    // }
-
     ////////////////
     /// Functions ///
     //////////////
 
-    constructor() {
-        
-    }
+    constructor() {}
 
     receive() external payable /*onlyDeployedContracts*/ {
         totalReceivedFromContracts[msg.sender] += msg.value;
@@ -145,116 +139,37 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     ///External Functions ///
     ////////////////////////
 
-    // Function to retrieve all borrow request contracts for a user
-    function getUserToBorrowRequestAddresses(
-        address user
-    ) public view returns (address[] memory) {
-        return userToBorrowRequestAddress[user];
-    }
-
-
-    // function approveContract() external {
-    //     buttertoken.approve(msg.sender, 1000);
-    // }
-
-    // Token Withdrawal Function for ERC-20
-    function withdrawTokens(
-        address tokenAddress,
-        uint256 amount
-    ) external nonReentrant onlyOwner {
-        IERC20 token = IERC20(tokenAddress);
-        uint256 contractBalance = token.balanceOf(address(this));
-        if (amount == 0 || amount > contractBalance)
-            revert InvalidWithdrawalAmount(contractBalance, amount);
-        token.safeTransfer(msg.sender, amount); // Transfer tokens to the owner
-        emit TokensWithdrawn(msg.sender, tokenAddress, amount);
-    }
-
-    function CreateBorrowRequest(uint256 collateralAmount) external nonReentrant {
+    function borrow(
+        uint256 collateralAmount,
+        address token
+    ) external nonReentrant {
         if (collateralAmount == 0) revert NoCollateralSent(collateralAmount);
+        // console.log(supportedTokens.checkTokenIsApproved(address(token)));
+        // if (!supportedTokens.checkTokenIsApproved(address(token))) revert LimitMarket__borrowFailed(token);
 
-        _memeCoinAddress = ;//address
-        memeCoin(address(_memeCoinAddress));
-
-        // Create BorrowRequest
         address[3] memory owners = [
             msg.sender,
-            address(this),//remove
+            address(this), 
             address(enforcerContract)
         ];
         CreateBorrowRequest_v1 borrowRequest = new CreateBorrowRequest_v1(
             owners,
             collateralAmount,
-            address(buttertoken)
+            address(token)
         );
-
-        // Transfer the collateral to the multisig contract
-        // _transferToMultiSig(address(borrowRequest), collateralAmount);
-        // Transfer tokens from the user to the contract
-        // Ensure the user has approved enough tokens for the contract to spend
-        //   buttertoken.approve(address(borrowRequest), collateralAmount);
-        //  uint256 allowance = buttertoken.allowance(msg.sender, address(borrowRequest));
-        // uint256 allowance = buttertoken.allowance(msg.sender, address(borrowRequest));
-        // if (allowance > collateralAmount) {
-        //     revert ERC20InsufficientAllowance(msg.sender, allowance, collateralAmount);
-        // }
-        emit MultiSigCreated(
-            msg.sender,
-            address(borrowRequest),
-            collateralAmount
-        );
-        emit TokensDeposited(
-            msg.sender,
-            address(buttertoken),
-            collateralAmount
-        ); // Emit token deposit event
+        // emit debug(supportedTokens.checkTokenIsApproved(address(token)));
+        emit MultiSigCreated(msg.sender, address(token), collateralAmount);
+        emit TokensDeposited(msg.sender, address(token), collateralAmount); // Emit token deposit event
         userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
         totalActiveBorrowRequestArray.push(borrowRequest);
         totalBorrowersCount++;
-        // buttertoken.approve(address(this), 10000);
-        memeCoin.safeTransferFrom(
+        erc20TokenLibrary.transferFromTokens(
+            address(token),
             msg.sender,
             address(borrowRequest),
             collateralAmount
         );
     }
-
-    // Function to create a multisig contract for borrowing
-    //    function borrow() external payable nonReentrant {
-    //     if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
-    //     if (msg.value > msg.sender.balance) revert InvalidAmount(msg.sender.balance, msg.value);
-    //     if (msg.value == 0) revert NoCollateralSent(msg.value);
-
-    //      // check addresses
-    //         if (address(msg.sender) == address(0)) revert();
-    //         if (address(msg.sender) != address(msg.sender)) revert();
-    //         if (address(this) == address(0)) revert();
-    //         if (address(this) !=address(this)) revert();
-    //         if (address(enforcerContract) == address(0) ) revert();
-    //         if (address(enforcerContract) != address(enforcerContract)) revert();
-    //         if (address(msg.sender) == address(0)) revert();
-
-    //     address[3] memory owners = [msg.sender, address(this), address(enforcerContract)];
-    //     uint256 amountSent = msg.value;
-
-    //     // Create the BorrowLoan contract
-    //     CreateBorrowRequest_v1 borrowRequest = new CreateBorrowRequest_v1(owners, amountSent);
-    //     // add keccak stuff
-
-    //     // Transfer Ether to the multisig contract
-    //     emit MultiSigCreated(msg.sender, address(borrowRequest), amountSent);
-    //     // emit MultiSigDetailsUpdated(address(borrowRequest), amountSent, amountSent);
-    //     _transferToMultiSig(address(borrowRequest), amountSent);
-
-    //     // totalBorrowersCount++;
-    //     // userToBorrowRequestDetails[address(borrowRequest)] = BorrowRequestDetails({
-    //     //     collateral: amountSent,
-    //     //     position: totalBorrowersCount
-    //     // });
-
-    //     // totalActiveBorrowRequestArray.push(address(borrowRequest));
-    //     // userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-    // }
 
     // Function to create a multisig contract for lending
     function Lend() external payable nonReentrant {
@@ -274,7 +189,6 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         if (address(enforcerContract) != address(enforcerContract)) revert();
         if (address(msg.sender) == address(0)) revert();
 
-        //  begin lend request contract creation
         address[3] memory owners = [
             msg.sender,
             address(this),
@@ -295,56 +209,19 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         totalActiveLendRequestArray.push(lendingRequest);
         userLendRequestAddress[msg.sender].push(address(lendingRequest));
         _transferToMultiSig(address(lendingRequest), amountSent);
-
-        // userToLendRequestDetails[address(lendingRequest)] = LendRequestDetails({
-        //     supply: amountSent,
-        //     position: totalLendersCount
-        // });
-
-        // totalFeesEarnedOnLendRequests[address(lendingRequest)] = amountSent;
-    }
-
-    // Function to get the total fees from all lending contracts
-    // function getTotalFeesFromAllLendingContracts() external view returns (uint256) {
-    //     uint256 totalFees;
-    //     for (uint256 i = 0; i < totalActiveLendRequestArray.length; i++) {
-    //         CreateLendingRequest_v1 lendingContract = totalActiveLendRequestArray[i];
-    //         totalFees += lendingContract.getFeesEarned();
-    //     }
-    //     return totalFees;
-    // }
-
-    // Function to withdraw all fees collected by the protocol
-    function withdrawFeesCollected() external {
-        uint256 balance = address(this).balance;
-        (bool success, ) = payable(msg.sender).call{value: balance}("");
-        if (!success) revert LimitMarket__drainFailed(balance);
-        emit FeeWithdrawn(balance, msg.sender);
     }
 
     // update enforcer contract
     function updateContracts(
-        address enforcerAddress,
-        address TokenContract
+        address enforcerAddress
     ) external onlyOwner notUpdating {
         _setUpdating(UpdateState.UPDATING);
         enforcerContract = enforcerAddress;
-        buttertoken = IERC20(TokenContract);
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
-    // function updateTokenContract(address TokenContract)  external onlyOwner notUpdating{
-    //     _setUpdating(UpdateState.UPDATING);
-    //     buttertoken = IERC20(TokenContract);
-    //     _setUpdating(UpdateState.NOTUPDATING);
-    // }
-
     function getEnforcerContractAddress() public view returns (address) {
         return enforcerContract;
-    }
-
-    function getTokenContractAddress() public view returns (address) {
-        return address(buttertoken);
     }
 
     // Add this function to your LimitMarket_v1 contract
@@ -372,12 +249,11 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         return userLendRequestAddress[user];
     }
 
-    // Function to get the token balance of the LimitMarket contract
-    function getTokenBalance(
-        address tokenAddress
-    ) public view returns (uint256) {
-        IERC20 token = IERC20(tokenAddress);
-        return token.balanceOf(address(this));
+    // Function to retrieve all borrow request contracts for a user
+    function getUserToBorrowRequestAddresses(
+        address user
+    ) public view returns (address[] memory) {
+        return userToBorrowRequestAddress[user];
     }
 
     // Function to get total fees of a specific lending request contract
@@ -405,12 +281,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /// Internal Functions ///
     ////////////////////////
 
-    // Shared logic to handle Ether transfers to multisig contracts
+   
     function _transferToMultiSig(
         address contractAddress,
         uint256 amount
-    ) internal returns (bool success) {
-        (success, ) = payable(contractAddress).call{value: amount, gas: 2300}(
+    ) internal  {
+        (bool success, ) = payable(contractAddress).call{value: amount, gas: 2300}(
             ""
         );
         if (!success) revert TransferFailed(contractAddress, amount);

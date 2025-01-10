@@ -238,9 +238,9 @@ error executeLoanRequestFailed();
         else if (request.state == RequestState.CANCELLING) request.state = RequestState.CANCELLED;
         else if (request.state == RequestState.CLOSED) revert UnauthorizedAccess(contractAddress, contractAddress);
 
+        emit FundsWithdrawn(amount, request.balanceMinusFee);
         (bool success,) = recipient.call{value: amount, gas: 50000}("");
         if (!success) revert InsufficientFunds(contractAddress.balance, amount);
-        emit FundsWithdrawn(amount, request.balanceMinusFee);
     }
 
     function getLendOwners(LendRequest storage request) internal view returns (address[3] memory) {

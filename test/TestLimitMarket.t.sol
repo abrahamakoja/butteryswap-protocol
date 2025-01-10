@@ -2,12 +2,12 @@
 pragma solidity ^0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {DeployLimitMarket} from "../script/DeployLimitMarket.s.sol";
-import {LimitMarket_v1} from "../src/LimitMarket_v1.sol";
-import {Enforcer_v1} from "../src/Enforcer_v1.sol";
-import {DeployEnforcer_v1} from "../script/DeployEnforcer_v1.s.sol";
-import {DeployButterToken} from "../script/DeployButterToken.s.sol";
-import {ButterToken} from "../src/ButterToken.sol";
+import {DeployLimitMarket} from "../../script/DeployLimitMarket.s.sol";
+import {LimitMarket_v1} from "../../src/LimitMarket_v1.sol";
+import {Enforcer_v1} from "../../src/Enforcer_v1.sol";
+import {DeployEnforcer_v1} from "../../script/DeployEnforcer_v1.s.sol";
+import {DeployButterToken} from "../../script/DeployButterToken.s.sol";
+import {ButterToken} from "../../src/ButterToken.sol";
 
 contract TestLimitMarket is Test {
     address USER = makeAddr("user");
@@ -27,7 +27,7 @@ contract TestLimitMarket is Test {
     // Deploy the Enforcer and LimitMarket contracts
     enforcer_v1 = deployEnforcer_v1.run();
     butterToken = deployButterToken.run(address(this),USER);
-    limitMarket_v1 = deployLimitMarket.run(address(enforcer_v1), address(butterToken));
+    limitMarket_v1 = deployLimitMarket.run();
     // vm.deal(USER, 60000 * 10 ** butterToken.decimals());
     // console.log("USER balance after deal:", butterToken.balanceOf(address(USER)));
 

@@ -10,11 +10,8 @@ contract DeployLimitMarket is Script {
         vm.startBroadcast();
         LimitMarket_v1 limitMarket = new LimitMarket_v1();
         // limitMarket.updateContracts(enforcer,token);
-        //  console.log("msg dot sender",address(msg.sender));
-        //  console.log("token",limitMarket.getTokenContractAddress());
-        //  console.log("token direct",token);
-        //  console.log("enforcer direct",enforcer);
         vm.stopBroadcast();
         return limitMarket; 
     }
 }
+ 

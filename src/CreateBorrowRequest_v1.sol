@@ -32,7 +32,7 @@ contract CreateBorrowRequest_v1 {
 
     receive() external payable {}
 
-    // Implement the getTokenBalance function from MemeBase
+    // Implement the getTokenBalance function 
     function getTokenBalance() external view returns (uint256) {
         return LoanRequest.getTokenBalance(s_borrowRequest, address(this));
     }
