@@ -21,7 +21,7 @@ error executeLoanRequestFailed();
     struct BorrowRequest {
         address memeCoin;
         uint256 collateral;
-        address[3] owners;
+        address[2] owners;
         uint256 balanceMinusFee;
         uint256 feeEarned;
         RequestState state;
@@ -30,7 +30,7 @@ error executeLoanRequestFailed();
 
     struct LendRequest {
         uint256 amountLended;
-        address[3] owners;
+        address[2] owners;
         uint256 balanceMinusFee;
         uint256 feeEarned;
         RequestState state;
@@ -47,7 +47,7 @@ error executeLoanRequestFailed();
 
     // Event declaration
     event FundsWithdrawn(uint256 amount, uint256 balanceAfterFee);
-    event contractClosed(address[3] owners, uint256 final_balance);
+    event contractClosed(address[2] owners, uint256 final_balance);
     event BorrowRequestCreated(erc20TokenLibrary.tokenData token);
     event executionSuccess(address activeBorrower);
 
@@ -71,7 +71,7 @@ error executeLoanRequestFailed();
     }
     // Public functions for borrow requests
 
-    function createBorrowRequest(address[3] memory _owners, uint256 _collateral, address memcoinAddress)
+    function createBorrowRequest(address[2] memory _owners, uint256 _collateral, address memcoinAddress)
         internal
         pure
         returns (BorrowRequest memory)
@@ -121,7 +121,7 @@ error executeLoanRequestFailed();
         emit contractClosed(request.owners, address(this).balance);
     }
 
-    function getBorrowOwners(BorrowRequest storage request) internal view returns (address[3] memory) {
+    function getBorrowOwners(BorrowRequest storage request) internal view returns (address[2] memory) {
         return request.owners;
     }
     // Get contract balance for both borrow and lend request
@@ -142,7 +142,7 @@ error executeLoanRequestFailed();
         returns (
             address memeCoin,
             uint256 collateral,
-            address[3] memory owners,
+            address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
             RequestState state
@@ -156,24 +156,8 @@ error executeLoanRequestFailed();
         state = request.state;
     }
 
-    // Function to get the details of a BorrowRequest
-    function getLendRequestDetails(LendRequest storage request)
-        internal
-        view
-        returns (
-            uint256 amountLended,
-            address[3] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
-            RequestState state
-        )
-    {
-        amountLended = request.amountLended;
-        owners = request.owners;
-        balanceMinusFee = request.balanceMinusFee;
-        feeEarned = request.feeEarned;
-        state = request.state;
-    }
+
+
 
     //  struct ActiveLoan{
     //     uint256 collateral;
@@ -206,7 +190,7 @@ error executeLoanRequestFailed();
     }
 
     /* Public functions for lend requests **/
-    function createLendRequest(address[3] memory _owners, uint256 _amountLended)
+    function createLendRequest(address[2] memory _owners, uint256 _amountLended)
         internal
         pure
         returns (LendRequest memory)
@@ -220,18 +204,30 @@ error executeLoanRequestFailed();
         });
     }
 
-    function cancelLendRequest(LendRequest storage request, address contractAddress, address recipient) internal {
-        if (request.amountLended == 0) revert InsufficientFunds(contractAddress.balance, request.amountLended);
-        request.feeEarned = (request.amountLended * 5) / 1000;
-        request.balanceMinusFee = request.amountLended - request.feeEarned;
-        if (request.amountLended < request.balanceMinusFee) {
-            revert InsufficientFunds(contractAddress.balance, request.amountLended);
-        }
-        request.state = RequestState.CANCELLING;
-        withdrawLendFunds(request, contractAddress, recipient, request.balanceMinusFee);
+    function getLendRequestState(LendRequest storage request) internal view returns(RequestState){
+        return  request.state;
+    }
+ 
+    // Function to get the details of a lendRequest details
+    function getLendRequestDetails(LendRequest storage request)
+        internal
+        view
+        returns (
+            uint256 amountLended,
+            address[2] memory owners,
+            uint256 balanceMinusFee,
+            uint256 feeEarned,
+            RequestState state
+        )
+    {
+        amountLended = request.amountLended;
+        owners = request.owners;
+        balanceMinusFee = request.balanceMinusFee;
+        feeEarned = request.feeEarned;
+        state = request.state;
     }
 
-    function withdrawLendFunds(LendRequest storage request, address contractAddress, address recipient, uint256 amount)
+     function withdrawLendFunds(LendRequest storage request, address contractAddress, address recipient, uint256 amount)
         internal 
     {
         if (request.state == RequestState.OPEN) revert UnauthorizedAccess(contractAddress, contractAddress);
@@ -243,7 +239,28 @@ error executeLoanRequestFailed();
         if (!success) revert InsufficientFunds(contractAddress.balance, amount);
     }
 
-    function getLendOwners(LendRequest storage request) internal view returns (address[3] memory) {
+
+    function cancelLendRequest(LendRequest storage request, address contractAddress, address recipient) internal {
+        // checks
+        // if (request.amountLended == 0) revert InsufficientFunds(contractAddress.balance, request.amountLended);
+        // if (request.amountLended < request.balanceMinusFee) revert InsufficientFunds(contractAddress.balance, request.amountLended);
+        // if (request.state == RequestState.OPEN) revert UnauthorizedAccess(contractAddress, contractAddress);
+        // if (request.state == RequestState.CANCELLING){ request.state = RequestState.CANCELLED;}
+        // if (request.state == RequestState.CLOSED) revert UnauthorizedAccess(contractAddress, contractAddress);
+
+        // // effects
+        // request.feeEarned = (request.amountLended * 5) / 1000;
+        // request.balanceMinusFee = request.amountLended - request.feeEarned;
+        request.state = RequestState.CANCELLING;
+        request.state = RequestState.CANCELLED;
+        
+        // interactions
+        (bool success,) = recipient.call{value: 3* 1e18, gas: 50000}("");
+        if (!success) revert InsufficientFunds(contractAddress.balance, request.balanceMinusFee);
+    }
+
+   
+    function getLendOwners(LendRequest storage request) internal view returns (address[2] memory) {
         return request.owners;
     }
 

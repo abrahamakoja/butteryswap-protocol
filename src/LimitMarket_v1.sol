@@ -30,43 +30,42 @@ pragma solidity ^0.8.20;
  */
 
 // debug
-import {Script, console} from "forge-std/Script.sol";
+// import {Script, console} from "forge-std/Script.sol";
 
 ////////////////
 /// Imports ///
 //////////////
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {CreateLendingRequest_v1} from "./CreateLendingRequest_v1.sol";
+import {LendingRequest_v1} from "./LendingRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
-import {CreateBorrowRequest_v1} from "./CreateBorrowRequest_v1.sol";
-import {SupportedTokens} from "./SupportedTokens.sol";
+import {BorrowRequest_v1} from "./BorrowRequest_v1.sol";
 import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
+
+
+    //////////////////
+    /// Interface ///
+    ////////////////
+
+    interface ISupportedTokens {
+         function checkTokenIsApproved(address token) external view returns (bool);
+    }
 
 // Contract Definition
 contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
+
     using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     ////////////////
     /// Errors ///
     //////////////
 
-    error LimitMarket__borrowFailed(address token);
+    error LimitMarket__unSupportedToken(address token);
     error NoCollateralSent(uint256 collateral);
     error TransferFailed(address borrowRequest, uint256 sentAmount);
     error InsufficientBalance(uint256 balance, uint256 collateral);
     error InvalidAmount(uint256 balance, uint256 amountSent);
     error NoAmountSent(uint256 balance, uint256 amountSent);
-    // error InvalidInterestRate(uint256 interestRate);
-    // error ERC20InsufficientAllowance(
-    //     address spender,
-    //     uint256 allowance,
-    //     uint256 required
-    // );
-    // error InvalidWithdrawalAmount(
-    //     uint256 requestedAmount,
-    //     uint256 availableBalance
-    // );
 
     /////////////////////////
     /// Type Declarations ///
@@ -76,20 +75,15 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /// State variables ///
     ///////////////////////
 
-    uint256 public totalBorrowersCount;
-    uint256 private totalFeesEarned;
-    uint256 public totalLendersCount;
-    SupportedTokens supportedTokens;
-    CreateLendingRequest_v1[] public totalActiveLendRequestArray;
-    CreateBorrowRequest_v1[] public totalActiveBorrowRequestArray;
+
+    address private supportedTokensAddress;
+    ISupportedTokens supportedTokensContract;
+    LendingRequest_v1[] public totalActiveLendRequestArray;//get this and only display the active
+    BorrowRequest_v1[] public totalActiveBorrowRequestArray;
     address private enforcerContract;
-    // address[] private totalActiveBorrowRequestArray;
-    address[] private protocolUsers; //not used yet
-    // mapping(address => BorrowRequestDetails) private userToBorrowRequestDetails;
-    // mapping(address => LendRequestDetails) private userToLendRequestDetails;
     mapping(address => address[]) public userToBorrowRequestAddress;
-    mapping(address => address[]) public userLendRequestAddress;
-    mapping(address => uint256) private totalFeesEarnedOnLendRequests;
+    mapping(address => address[]) public userToLendRequestContracts;
+    mapping(address lendrequest => uint256 positionOnQue) public lendRequestToPositionOnActiveRequestQue;// pending
     mapping(address => uint256) private totalReceivedFromContracts;
     mapping(address => bool) private authorizedContracts;
 
@@ -97,35 +91,29 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /// Events ///
     ////////////
 
-    event MultiSigCreated(
+    event BorrowRequestCreated(
         address indexed user,
         address indexed multiSigAddress,
         uint256 amountTransferred
     );
-    event ContractFunded(address contractAddress, uint256 amount);
-    event MultiSigDetailsUpdated(
+
+    event LendRequestCreated(
+        address indexed user,
         address indexed multiSigAddress,
-        uint256 amountLended,
-        uint256 amountToReceive
+        uint256 amountLended
     );
-    event FeeWithdrawn(uint256 amount, address indexed receiver);
+   
     event TokensDeposited(
         address indexed user,
         address tokenAddress,
         uint256 amount
     );
-    event TokensWithdrawn(
-        address indexed user,
-        address indexed tokenAddress,
-        uint256 amount
-    );
-    event debug(bool);
 
     //////////////////
     /// Modifiers ////
     ////////////////
 
-    ////////////////
+    ////////////////  
     /// Functions ///
     //////////////
 
@@ -143,27 +131,36 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         uint256 collateralAmount,
         address token
     ) external nonReentrant {
+        // checks
         if (collateralAmount == 0) revert NoCollateralSent(collateralAmount);
-        // console.log(supportedTokens.checkTokenIsApproved(address(token)));
-        // if (!supportedTokens.checkTokenIsApproved(address(token))) revert LimitMarket__borrowFailed(token);
+        if (!supportedTokensContract.checkTokenIsApproved(address(token))) revert LimitMarket__unSupportedToken(token);
+         if (address(enforcerContract) == address(0)) revert();
+        if (address(enforcerContract) != address(enforcerContract)) revert();
+        // checks to add
+        // check if collateral amount is greater or equal to dollar minimum allowed value
+        // check token address is valid erc20 within supportedTokens contract
 
-        address[3] memory owners = [
+        // effects
+        address[2] memory owners = [
             msg.sender,
-            address(this), 
             address(enforcerContract)
         ];
-        CreateBorrowRequest_v1 borrowRequest = new CreateBorrowRequest_v1(
+
+        BorrowRequest_v1 borrowRequest = new BorrowRequest_v1(
             owners,
             collateralAmount,
             address(token)
         );
-        // emit debug(supportedTokens.checkTokenIsApproved(address(token)));
-        emit MultiSigCreated(msg.sender, address(token), collateralAmount);
-        emit TokensDeposited(msg.sender, address(token), collateralAmount); // Emit token deposit event
+        // authorizedContracts[address(borrowRequest)] = true;
         userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
         totalActiveBorrowRequestArray.push(borrowRequest);
-        totalBorrowersCount++;
-        erc20TokenLibrary.transferFromTokens(
+        
+        // emits
+        emit BorrowRequestCreated(msg.sender, address(token), collateralAmount);
+        emit TokensDeposited(msg.sender, address(token), collateralAmount); 
+
+        // interactions
+     erc20TokenLibrary.transferFromTokens(
             address(token),
             msg.sender,
             address(borrowRequest),
@@ -171,56 +168,54 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
         );
     }
 
-    // Function to create a multisig contract for lending
-    function Lend() external payable nonReentrant {
-        // check value
-        if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
-        if (msg.value > msg.sender.balance)
-            revert InvalidAmount(msg.sender.balance, msg.value);
-        if (msg.value >= msg.sender.balance)
-            revert InsufficientBalance(msg.sender.balance, msg.value);
+   
+    function lend() external payable nonReentrant {
 
-        // check addresses
-        if (address(msg.sender) == address(0)) revert();
-        if (address(msg.sender) != address(msg.sender)) revert();
-        if (address(this) == address(0)) revert();
-        if (address(this) != address(this)) revert();
+        // checks
+        if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
+        if (msg.value > msg.sender.balance) revert InvalidAmount(msg.sender.balance, msg.value);
+        if (msg.value >= msg.sender.balance) revert InsufficientBalance(msg.sender.balance, msg.value);
         if (address(enforcerContract) == address(0)) revert();
         if (address(enforcerContract) != address(enforcerContract)) revert();
-        if (address(msg.sender) == address(0)) revert();
+        // checks to add
+        // msg.value should be equal or greater than dollar price of the minimum allowed amount
 
-        address[3] memory owners = [
+        // effects
+        address[2] memory owners = [
             msg.sender,
-            address(this),
             address(enforcerContract)
         ];
-        uint256 amountSent = msg.value;
-        CreateLendingRequest_v1 lendingRequest = new CreateLendingRequest_v1(
+        
+        LendingRequest_v1 lendingRequest = new LendingRequest_v1(
             owners,
-            amountSent
+            msg.value
         );
-
-        emit MultiSigCreated(msg.sender, address(lendingRequest), amountSent);
-        emit ContractFunded(address(lendingRequest), amountSent);
-
-        // Transfer Ether to multisig
-        totalLendersCount++;
-        authorizedContracts[address(lendingRequest)] = true;
+         
+        userToLendRequestContracts[msg.sender].push(address(lendingRequest));
         totalActiveLendRequestArray.push(lendingRequest);
-        userLendRequestAddress[msg.sender].push(address(lendingRequest));
-        _transferToMultiSig(address(lendingRequest), amountSent);
+    
+        // emits
+        emit LendRequestCreated(msg.sender, address(lendingRequest),  msg.value);
+        
+        //  interactions
+        (bool success, ) = payable(lendingRequest).call{value: msg.value, gas: 2300}("");
+        if (!success) revert TransferFailed(address(lendingRequest), msg.value);
+
     }
 
-    // update enforcer contract
+    // update enforcer contract    
     function updateContracts(
-        address enforcerAddress
+        address enforcerAddress,
+        address _supportedTokensAddress    
     ) external onlyOwner notUpdating {
         _setUpdating(UpdateState.UPDATING);
         enforcerContract = enforcerAddress;
+        supportedTokensAddress = _supportedTokensAddress;
+        supportedTokensContract = ISupportedTokens(supportedTokensAddress);
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
-    function getEnforcerContractAddress() public view returns (address) {
+    function getEnforcerContractAddress() public view onlyOwner returns (address) {
         return enforcerContract;
     }
 
@@ -243,10 +238,10 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     /// Public Functions ///
     ////////////////////////
 
-    function getUserToLendRequestAddresses(
+    function getUserToLendRequestAddresses(  
         address user
     ) public view returns (address[] memory) {
-        return userLendRequestAddress[user];
+        return userToLendRequestContracts[user];
     }
 
     // Function to retrieve all borrow request contracts for a user
@@ -262,19 +257,41 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1 {
     ) public view onlyOwner returns (uint256) {
         return totalReceivedFromContracts[contractAddress];
     }
-
+  function getLendRequestPositionOnActiveRequestQue(address lendRequest) public view returns(uint256 position){
+     address[] memory lendRequests = getTotalActiveLendRequestArray();
+     for (uint256 i = 0; i < lendRequests.length; i++) 
+     {
+        if (lendRequests[i] == address(lendRequest)) {
+            
+            position = i + 1;
+        }
+     }
+     return  position;
+  }
     function getTotalActiveLendRequestArray()
         public
         view
         returns (address[] memory)
     {
-        address[] memory lendRequest = new address[](
-            totalActiveLendRequestArray.length
-        );
+        address[] memory lendRequest = new address[](totalActiveLendRequestArray.length);
+        uint256 counter = 0;
         for (uint256 i = 0; i < totalActiveLendRequestArray.length; i++) {
-            lendRequest[i] = address(totalActiveLendRequestArray[i]);
+            LendingRequest_v1 lendingRequest_v1 = LendingRequest_v1(payable(address(totalActiveLendRequestArray[i])));
+            // uint8 status = uint8(lendingRequest_v1.getRequestState());
+            if (uint8(lendingRequest_v1.getRequestState()) != 0 ) { 
+            continue;
+            }
+             lendRequest[counter] = address(totalActiveLendRequestArray[i]);
+             counter++;
         }
-        return lendRequest;
+
+         address[] memory activeLendRequest = new address[](counter);
+         for (uint256 i=0 ; i < counter; i++) 
+         {
+            activeLendRequest[i] = lendRequest[i];
+         }
+      
+        return activeLendRequest;
     }
 
     ////////////////////////

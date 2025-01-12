@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {LoanRequest} from "./LoanRequest.sol";
 
-contract CreateBorrowRequest_v1 {
+contract BorrowRequest_v1 {
     error UnauthorizedTransaction();
 
     event LoanAccepted(address activeLoan);
@@ -21,7 +21,7 @@ contract CreateBorrowRequest_v1 {
         _;
     }
 
-    constructor(address[3] memory _owners, uint256 collateral, address memcoinAddress) {
+    constructor(address[2] memory _owners, uint256 collateral, address memcoinAddress) {
         s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateral, memcoinAddress);
 
         for (uint256 i = 0; i < _owners.length; i++) {
@@ -37,7 +37,7 @@ contract CreateBorrowRequest_v1 {
         return LoanRequest.getTokenBalance(s_borrowRequest, address(this));
     }
 
-    function getOwners() external view returns (address[3] memory) {
+    function getOwners() external view returns (address[2] memory) {
         return LoanRequest.getBorrowOwners(s_borrowRequest);
     }
 
@@ -61,7 +61,7 @@ contract CreateBorrowRequest_v1 {
         returns (
             address memeCoin,
             uint256 collateral,
-            address[3] memory owners,
+            address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
             LoanRequest.RequestState state
