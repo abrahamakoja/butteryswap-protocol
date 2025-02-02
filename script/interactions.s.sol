@@ -43,13 +43,13 @@ contract LimitMarketInteractions is Script {
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
