@@ -403,7 +403,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
  /// @param user: address of the user. 
  /// @return adress[]: array of active loan addresses,
     function getUserActiveLoanContracts(
-        address user 
+        address user         
     ) external view returns (address[] memory) {
         return userToActiveLoanContract[user]; // Retrieve active borrow contracts for the specified user
     }
