@@ -38,38 +38,38 @@ contract LimitMarketInteractions is Script {
             payable(mostrecentlyDeployedLimitMarket),
             mostrecentlyDeployedEnforcer,
             mostrecentlyDeployedST
-        );
+        );        
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
           
+        priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);    
         lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);    
         lend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
     }
 
     function updateContracts(
@@ -101,7 +101,23 @@ contract LimitMarketInteractions is Script {
         );
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).borrow(
             6 * 10 ** 18,
-            token
+            token,false
+        );
+        vm.stopBroadcast();
+    }
+    function priorityBorrow(
+        address _mostrecentlyDeployedLimitMarket,
+        address token
+    ) public {
+        vm.startBroadcast();
+        erc20TokenLibrary.approveTokens(
+            address(token),
+            payable(_mostrecentlyDeployedLimitMarket),
+            6660 * 10 ** 18
+        );
+        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).borrow(
+            6 * 10 ** 18,
+            token,true
         );
         vm.stopBroadcast();
     }
@@ -110,7 +126,14 @@ contract LimitMarketInteractions is Script {
         vm.startBroadcast();
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).lend{
             value: 6 ether
-        }();
+        }(false);
+        vm.stopBroadcast();
+    }
+    function priorityLend(address _mostrecentlyDeployedLimitMarket) public {
+        vm.startBroadcast();
+        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).lend{
+            value: 6 ether
+        }(true);
         vm.stopBroadcast();
     }
 }

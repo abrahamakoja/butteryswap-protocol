@@ -83,6 +83,8 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     mapping(address => address[]) public userToLendRequestContracts;
     mapping(address lendrequest => uint256 positionOnQue)
         public lendRequestToPositionOnActiveRequestQue; // pending
+    mapping(address borrowRequest => uint256 positionOnQue)
+        private s_activeBorrowRequestOnQue; // pending
     mapping(address => uint256) private totalReceivedFromContracts;
     mapping(address => bool) private authorizedContracts;
 
@@ -169,7 +171,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         );
     }
 
-    function lend() external payable nonReentrant {
+    function lend(bool priority) external payable nonReentrant {
         // checks
         if (msg.value == 0) revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
         if (msg.value > msg.sender.balance)
@@ -189,6 +191,9 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
             msg.value
         );
 
+         if(priority == true){
+             s_loanIsPrioritized[address(lendingRequest)] = true;
+        }
         userToLendRequestContracts[msg.sender].push(address(lendingRequest));
         totalLendRequestArray.push(lendingRequest);  
 
@@ -219,24 +224,28 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Public Functions ///
     ////////////////////////
 
-    function getPrioritizedLoanContractAddressViaIndex() public view returns(address[2] memory loanRequest){
+    function getPrioritizedBorrowRequestAddress() public view returns(address loanRequest){
         address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
-        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
          for (uint256 i = 0; i < borrowRequests.length; i++) {
-            if (s_loanIsPrioritized[borrowRequests[i]]) {
-               loanRequest[0] = address(borrowRequests[i]);
-            }
-        }
-         for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (s_loanIsPrioritized[lendRequests[i]]) {
-               loanRequest[1] = address(lendRequests[i]);
+             if (s_loanIsPrioritized[borrowRequests[i]]) {
+               loanRequest = address(borrowRequests[i]);
             }
         }
         return loanRequest;
-    
+    }
+    function getPrioritizedLendRequestAddress() public view returns(address loanRequest){
+        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
+         for (uint256 i = 0; i < lendRequests.length; i++) {
+            if (s_loanIsPrioritized[lendRequests[i]]) {
+               loanRequest = address(lendRequests[i]);
+            }
+        }
+        return loanRequest;
     }
 
     // **** borrow requests functions ****//
+
+   
 
     // Function to retrieve all borrow request contracts for a user // legacy
     function getUserToBorrowRequestAddresses(

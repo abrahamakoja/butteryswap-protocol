@@ -55,6 +55,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // LimitMarket contract interface
 interface ILimitMarket_v1 {
+    function getPrioritizedBorrowRequestAddress() external view returns(address loanRequest);
      function getActiveLendRequestContractAddressViaIndex( uint256 index) external view returns (address);
       function getTotalActiveLendRequestContractCount() external view returns (uint256);
     function getActiveBorrowRequestContractAddressViaIndex(uint256 index) external view returns(address);
@@ -130,7 +131,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     /////////////////////////
     /// State variables ////
     ///////////////////////
-
+    IBorrowRequest_v1 BorrowRequest ;
     executionState private currentLoanState;
     uint256 private s_startingBorrowRequestIndex;
     uint256 private s_startingLendRequestIndex;
@@ -141,6 +142,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     address private s_activeBorrowRequestAddress; //keep track of the latest borrow request being processed.
     address private s_activeLendRequestAddress; //keep track of the latest lend request being processed.
     mapping(address => address[]) private userToActiveLoanContract;
+    mapping(address borrowRequest => uint256 index) private s_settledBorrowRequest; // 
     uint256 private constant BATCH_LIMIT = 10;
 
 
@@ -211,36 +213,55 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
         }
 
         /// *** effects *** ///
-        
+      
+         
         uint256 totalBorrowRequests = limitMarket.getTotalActiveBorrowRequestContractCount();
         uint256 totalLendRequests = limitMarket.getTotalActiveLendRequestContractCount();
+
+        // priority
+        address loanRequests = limitMarket.getPrioritizedBorrowRequestAddress();
 
         address[] memory borrowRequests = limitMarket.getActiveBorrowRequestViaLimit(s_startingBorrowRequestIndex,totalBorrowRequests);
         /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
          address[] memory lendRequests = limitMarket.getActiveLendRequestViaLimit(s_startingLendRequestIndex,totalLendRequests);
         
-        // @notice this variable checks for the lowest value between the borrow and lend requests array then assigns the lowest value between both to itself.
+        /// @notice this variable checks for the lowest value between the borrow and lend requests array then assigns the lowest value between both to itself.
         uint256 lowestRequestsCount = limitMarket.getTotalActiveBorrowRequestContractCount() <  limitMarket.getTotalActiveLendRequestContractCount() ? limitMarket.getTotalActiveBorrowRequestContractCount(): limitMarket.getTotalActiveLendRequestContractCount();
         uint256 batchLimit = lowestRequestsCount < BATCH_LIMIT ? lowestRequestsCount : BATCH_LIMIT ; //ensure the batch limit of 10 is not exceeded for the endIndexLend variable
-        uint256 startIndex = s_startingBorrowRequestIndex <  s_startingLendRequestIndex ? s_startingBorrowRequestIndex: s_startingLendRequestIndex;
+        // uint256 startIndex = s_startingBorrowRequestIndex <  s_startingLendRequestIndex ? s_startingBorrowRequestIndex: s_startingLendRequestIndex;
+        uint256 endIndexBorrow;
+        // uint256 endIndexLend;
        
+   console.log("totalBorrowRequests ",totalBorrowRequests);
+   console.log("totalLendRequests ",totalLendRequests);
+    console.log("before endIndexBorrow",endIndexBorrow);
+    // console.log("before startIndex",startIndex);
+     console.log("*************************************************");
+
         for (uint256 i = 0; i < batchLimit; i++) {
             /// @dev this Loops through the loan requests and execute the offerLoan & acceptLoan functions, this would be done in batches of 10 at a time.
             
             /// *** borrow request effects *** ///
-            address _activeBorrowRequestAddress =  (borrowRequests[startIndex] = limitMarket.getActiveBorrowRequestContractAddressViaIndex(startIndex));
-            IBorrowRequest_v1 BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
-            address activeBorrower = BorrowRequest.Owners(0);//change this
+
+            address _activeBorrowRequestAddress =  borrowRequests[i];
+           
+            //   endIndexBorrow = _endIndexBorrow;
+            BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
+              address activeBorrower = BorrowRequest.Owners(0);//change this
             (address memeCoin, uint256 collateral, , , ,) = BorrowRequest.getBorrowRequestDetails();
-            BorrowRequest.updateState();//remove later
+            
           
             /// *** lend request effects *** ///
-            address _activeLendRequestAddress = (lendRequests[startIndex] = limitMarket.getActiveLendRequestContractAddressViaIndex(startIndex));
+            address _activeLendRequestAddress = lendRequests[i];
             ILendRequest_v1 LendRequest = ILendRequest_v1(_activeLendRequestAddress);
             address activeLender = LendRequest.i_lender();
             (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
-            LendRequest.updateState();//remove later
+           
 
+              console.log("ran ",i+1,"times");
+              console.log("_activeBorrowRequestAddress ",_activeBorrowRequestAddress);
+              console.log("_activeLendRequestAddress ",_activeLendRequestAddress);
+              
             // create active loan vault owners address array
             address[3] memory owners = [
                 activeBorrower,
@@ -256,8 +277,9 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
                 amountLended
             );
 
+             
             /// *** effects *** ///
-
+            s_settledBorrowRequest[address(_activeBorrowRequestAddress)] = i;
             // update mapping of borrower address to active active loan
             userToActiveLoanContract[address(activeBorrower)].push( address(_activeLoan));
             // update mapping of lender address to active active loan
@@ -266,19 +288,75 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
             // update s_activeLendRequestAddress
             s_activeLendRequestAddress = _activeLendRequestAddress;
-            // update the last indexes for both borrow and lend requests
-            s_startingBorrowRequestIndex = limitMarket.getBorrowRequestPositionOnActiveRequestQue(address(_activeBorrowRequestAddress));
-            s_startingLendRequestIndex = limitMarket.getLendRequestPositionOnActiveRequestQue(address(_activeLendRequestAddress));
 
             /// *** emits *** ///
             emit loanOfferExecuted(address(_activeLoan));
               
              /// *** interactions *** ///  
+            BorrowRequest.updateState();//remove later
+            LendRequest.updateState();//remove later
             BorrowRequest.acceptLoan(address(_activeLoan)); //transfers collateral from borrow request to active loan vault address.
             LendRequest.offerLoan(address(activeBorrower)); //transfers requested native token amount to borrowers address.
         }
+            console.log("*************************************************");
+           
+            console.log("after settled index",s_settledBorrowRequest[address(s_activeBorrowRequestAddress)]);
+            console.log("last borrow",s_activeBorrowRequestAddress); 
+            console.log("last lend",s_activeLendRequestAddress);
+           
+        
+        // handle priority loans
+        if (loanRequests != address(0)) {
+            console.log("priority",loanRequests);
+            uint256 lastBorrowRequestProcessed = s_settledBorrowRequest[address(s_activeBorrowRequestAddress)];
+            uint256 startIndex = lastBorrowRequestProcessed + 1;
+
+             address _activeBorrowRequestAddress = address(loanRequests);
+             BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
+             address activeBorrower = BorrowRequest.Owners(0);//change this
+            (address memeCoin, uint256 collateral, , , ,) = BorrowRequest.getBorrowRequestDetails();
+
+            address _activeLendRequestAddress = lendRequests[startIndex];
+            ILendRequest_v1 LendRequest = ILendRequest_v1(_activeLendRequestAddress);
+            address activeLender = LendRequest.i_lender();
+            (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
+          
+            
+            address[3] memory owners = [
+                activeBorrower,
+                activeLender,
+                address(this)//change this later
+            ];
+
+            // deploys new active loan vault
+            activeLoan _activeLoan = new activeLoan(
+                owners,
+                collateral,
+                memeCoin,
+                amountLended
+            );
+
+            s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
+            // update s_activeLendRequestAddress
+            s_activeLendRequestAddress = _activeLendRequestAddress;
+
+            BorrowRequest.updateState();//remove later
+            LendRequest.updateState();//remove later
+            BorrowRequest.acceptLoan(address(_activeLoan)); //transfers collateral from borrow request to active loan vault address.
+            LendRequest.offerLoan(address(activeBorrower)); //transfers requested native token amount to borrowers address.
+            console.log("value lastBorrowRequestProcessed",lastBorrowRequestProcessed);
+            console.log("priority handled",_activeBorrowRequestAddress);
+            console.log("priority active loan",address(_activeLoan));
+        }
+
+            console.log("*************************************************");
+           
+            console.log("after priority settled index",s_settledBorrowRequest[address(s_activeBorrowRequestAddress)]);
+            console.log("last priority borrow",s_activeBorrowRequestAddress); 
+            console.log("last priority lend",s_activeLendRequestAddress);
 
               s_batchCount++;
+                 console.log("called  ",s_batchCount,"times");
               _executionState(executionState.IDLE);
     }
     
@@ -291,13 +369,13 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
 /// @dev This function allows users to pay a priority fee that allows their loan to be processed quicker,
 /// it works by injecting the prioritized loan address right after a concluded batch is processed,
 /// fee is in protocol token $BUTTER, and all collected fee is distributed to every user on the next batch after the prioritized loan is settled.
-/// there would only be one prioritized loan per batch to ensure it doesn't creates a bottle neck for other batches to go through.
-/// @param loanRequest: a parameter just like in doxygen (must be followed by parameter name)
-    function prioritizeLoan(address loanRequest) internal {
-        // get the active priority loan address
-        // executes loan 
-        // distribute fees evenly to next batch users
-    }
+/// there would only be two prioritized loan per batch to ensure it doesn't creates a bottle neck for other batches to go through.
+    // function _prioritizeLoan() internal {
+    //     // get the active priority loan address
+    //     // executes loan 
+    //     // distribute fees evenly to next batch users
+    //   address loanRequests = limitMarket.getPrioritizedBorrowRequestAddress();
+    // }
 
     function _executionState(executionState state) internal {
         currentLoanState = state;
