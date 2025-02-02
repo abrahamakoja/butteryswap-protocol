@@ -40,7 +40,36 @@ contract LimitMarketInteractions is Script {
             mostrecentlyDeployedST
         );
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+          
         lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);    
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);    
+        lend(mostrecentlyDeployedLimitMarket);
+        lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
     }
 
     function updateContracts(
@@ -71,7 +100,7 @@ contract LimitMarketInteractions is Script {
             6660 * 10 ** 18
         );
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).borrow(
-            666 * 10 ** 18,
+            6 * 10 ** 18,
             token
         );
         vm.stopBroadcast();

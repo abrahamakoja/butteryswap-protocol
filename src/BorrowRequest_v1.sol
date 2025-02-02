@@ -77,8 +77,12 @@ contract BorrowRequest_v1 {
     // accept loan function
     function acceptLoan(address multisigAddress) external {
         // transfer eth to an address and transfer tokens to an address
-        LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
         emit LoanAccepted(multisigAddress);
+        LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
         //  revert UnauthorizedTransaction();
+    }
+
+    function updateState() external{
+        LoanRequest.updateState(s_borrowRequest);
     }
 }

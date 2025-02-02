@@ -57,12 +57,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Errors ///
     //////////////
 
-    error LimitMarket__unSupportedToken(address token);
-    error NoCollateralSent(uint256 collateral);
-    error TransferFailed(address borrowRequest, uint256 sentAmount);
-    error InsufficientBalance(uint256 balance, uint256 collateral);
-    error InvalidAmount(uint256 balance, uint256 amountSent);
-    error NoAmountSent(uint256 balance, uint256 amountSent);
+    error LimitMarket_v1_unSupportedToken(address token);
+    error LimitMarket_v1_NoCollateralSent(uint256 collateral);
+    error LimitMarket_v1_TransferFailed(address borrowRequest, uint256 sentAmount);
+    error LimitMarket_v1_InsufficientBalance(uint256 balance, uint256 collateral);
+    error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
+    error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
 
     /////////////////////////
     /// Type Declarations ///
@@ -78,6 +78,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     LendingRequest_v1[] public totalLendRequestArray; //get this and only display the active
     BorrowRequest_v1[] public totalBorrowRequestArray;
     address private enforcerContract;
+    mapping(address loanRequest => bool prioritized ) private s_loanIsPrioritized;
     mapping(address => address[]) public userToBorrowRequestAddress;
     mapping(address => address[]) public userToLendRequestContracts;
     mapping(address lendrequest => uint256 positionOnQue)
@@ -127,14 +128,15 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     function borrow(
         uint256 collateralAmount,
-        address token
+        address token,bool priority
     ) external nonReentrant {
         // checks
-        if (collateralAmount == 0) revert NoCollateralSent(collateralAmount);
+        if (collateralAmount == 0) revert LimitMarket_v1_NoCollateralSent(collateralAmount);
         if (!supportedTokensContract.checkTokenIsApproved(address(token)))
-            revert LimitMarket__unSupportedToken(token);
+            revert LimitMarket_v1_unSupportedToken(token);
         if (address(enforcerContract) == address(0)) revert();
         if (address(enforcerContract) != address(enforcerContract)) revert();
+       
         // checks to add
         // check if collateral amount is greater or equal to dollar minimum allowed value
         // check token address is valid erc20 within supportedTokens contract
@@ -147,7 +149,10 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
             collateralAmount,
             address(token)
         );
-        // authorizedContracts[address(borrowRequest)] = true;
+
+         if(priority == true){
+             s_loanIsPrioritized[address(borrowRequest)] = true;
+        }
         userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
         totalBorrowRequestArray.push(borrowRequest);
 
@@ -166,11 +171,11 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     function lend() external payable nonReentrant {
         // checks
-        if (msg.value == 0) revert NoAmountSent(msg.sender.balance, msg.value);
+        if (msg.value == 0) revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
         if (msg.value > msg.sender.balance)
-            revert InvalidAmount(msg.sender.balance, msg.value);
+            revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
         if (msg.value >= msg.sender.balance)
-            revert InsufficientBalance(msg.sender.balance, msg.value);
+            revert LimitMarket_v1_InsufficientBalance(msg.sender.balance, msg.value);
         if (address(enforcerContract) == address(0)) revert();
         if (address(enforcerContract) != address(enforcerContract)) revert();
         // checks to add
@@ -185,7 +190,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         );
 
         userToLendRequestContracts[msg.sender].push(address(lendingRequest));
-        totalLendRequestArray.push(lendingRequest);
+        totalLendRequestArray.push(lendingRequest);  
 
         // emits
         emit LendRequestCreated(msg.sender, address(lendingRequest), msg.value);
@@ -195,11 +200,11 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
             value: msg.value,
             gas: 2300
         }("");
-        if (!success) revert TransferFailed(address(lendingRequest), msg.value);
+        if (!success) revert LimitMarket_v1_TransferFailed(address(lendingRequest), msg.value);
     }
 
     // update enforcer contract
-    function updateContracts(
+    function updateContracts( 
         address enforcerAddress,
         address _supportedTokensAddress
     ) external onlyOwner notUpdating {
@@ -213,6 +218,23 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ////////////////////////
     /// Public Functions ///
     ////////////////////////
+
+    function getPrioritizedLoanContractAddressViaIndex() public view returns(address[2] memory loanRequest){
+        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
+         for (uint256 i = 0; i < borrowRequests.length; i++) {
+            if (s_loanIsPrioritized[borrowRequests[i]]) {
+               loanRequest[0] = address(borrowRequests[i]);
+            }
+        }
+         for (uint256 i = 0; i < lendRequests.length; i++) {
+            if (s_loanIsPrioritized[lendRequests[i]]) {
+               loanRequest[1] = address(lendRequests[i]);
+            }
+        }
+        return loanRequest;
+    
+    }
 
     // **** borrow requests functions ****//
 
@@ -296,11 +318,9 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     }
 
 
-    // returns specific number of requests using a start and end limit
+    // returns specific number of requests using a start index and a number of requested contracts
     function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 requestedNumber) public view returns(address[] memory borrowRequests) {
-        address[] memory borrowRequest = new address[](
-            getTotalActiveBorrowRequestContractAddresses().length
-        );
+        address[] memory borrowRequest = getTotalActiveBorrowRequestContractAddresses();
          uint256 counter = 0;
         for (uint256 i = 0; i < borrowRequest.length; i++) {
             if ( i < startIndex) {
@@ -315,7 +335,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         }
         address[] memory requestedBorrowRequest = new address[](counter);
         for (uint256 i = 0; i < counter; i++) {
-            requestedBorrowRequest[i] = borrowRequest[i];
+            requestedBorrowRequest[i] = address(borrowRequest[i]);
         }
         return requestedBorrowRequest;
     }
@@ -395,6 +415,28 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         address[]
             memory lendRequests = getTotalActiveLendRequestContractAddresses();
         return lendRequests.length;
+    }
+   
+     // returns specific number of requests using a start index and a number of requested contracts
+    function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) public view returns(address[] memory lendRequests) {
+        address[] memory lendRequest = getTotalActiveLendRequestContractAddresses();
+         uint256 counter = 0;
+        for (uint256 i = 0; i < lendRequest.length; i++) {
+            if ( i < startIndex) {
+                continue;
+            } else if(i >= startIndex){
+            lendRequest[counter] = address(lendRequest[i]);
+            if ( counter >= requestedNumber) {
+                break;
+            }
+            counter++;
+            }
+        }
+        address[] memory requestedLendRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            requestedLendRequest[i] = address(lendRequest[i]);
+        }
+        return requestedLendRequest;
     }
 
     function getEnforcerContractAddress()

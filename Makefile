@@ -12,7 +12,7 @@ deploySupportedTokens:; forge script script/DeploySupportedTokens.s.sol:DeploySu
 # interactions
 SupportedTokenInteractions:; forge script script/interactions.s.sol:SupportedTokenInteractions  --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvvv
 LimitMarketInteractions:; forge script script/interactions.s.sol:LimitMarketInteractions  --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
-EnforcerInteractions:; forge script script/interactions.s.sol:EnforcerInteractions  --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvv
+EnforcerInteractions:; forge script script/interactions.s.sol:EnforcerInteractions executeLoanRequests --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvvv
 
 
 

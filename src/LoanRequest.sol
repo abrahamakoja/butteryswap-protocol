@@ -51,6 +51,13 @@ error executeLoanRequestFailed();
     event BorrowRequestCreated(erc20TokenLibrary.tokenData token);
     event executionSuccess(address activeBorrower);
 
+    function updateState(BorrowRequest storage request) internal {
+      request.state = RequestState.CLOSED;
+    }
+    function updateLendState(LendRequest storage request) internal {
+      request.state = RequestState.CLOSED;
+    }
+
     // Public functions for active loan
     function createActiveLoan(
         address[3] memory _owners,
@@ -268,7 +275,8 @@ error executeLoanRequestFailed();
     // function called by enforcer on each borrow request
     // transfer memecoin to new multisig
     function acceptLoan(BorrowRequest storage request, address multisigAddress) internal {
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), request.collateral);
+         request.state = RequestState.CLOSED;
+        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
     }
     // function called by enforcer on each lend request
     // transfer native currency to borrower

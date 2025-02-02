@@ -13,7 +13,7 @@ abstract contract ButteryRun_v1 {
     address private deployer;// use ownable
     UpdateState private currentState;
 
-    modifier notUpdating() {
+    modifier notUpdating() {//change naming
         if (currentState == UpdateState.UPDATING) revert protocolUpdateInprogress();
         _;
     }

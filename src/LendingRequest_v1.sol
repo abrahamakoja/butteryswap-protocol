@@ -62,4 +62,9 @@ contract LendingRequest_v1 {
     {
         return s_lendRequest.getLendRequestDetails();
     }
+
+
+     function updateState() external{
+        LoanRequest.updateLendState(s_lendRequest);
+    }
 }

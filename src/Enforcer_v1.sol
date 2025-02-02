@@ -60,12 +60,15 @@ interface ILimitMarket_v1 {
     function getActiveBorrowRequestContractAddressViaIndex(uint256 index) external view returns(address);
     function getTotalActiveBorrowRequestContractCount() external view returns(uint256);
     function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 endIndex) external view returns(address[] memory);
+    function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) external view returns(address[] memory);
+    function getBorrowRequestPositionOnActiveRequestQue(address borrowRequest) external view returns (uint256);
+    function getLendRequestPositionOnActiveRequestQue(address lendRequest) external view returns (uint256);
 }
 
 // Borrow request interface
 interface IBorrowRequest_v1 {
     function Owners(uint256 index) external view returns (address);
-
+      function updateState() external;//remove later
     function acceptLoan(address) external;
 
     function getBorrowRequestDetails()
@@ -74,7 +77,7 @@ interface IBorrowRequest_v1 {
         returns (
             address memeCoin,
             uint256 collateral,
-            address[3] memory owners,
+            address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
             LoanRequest.RequestState state
@@ -84,7 +87,7 @@ interface IBorrowRequest_v1 {
 // Lend request contract interface
 interface ILendRequest_v1 {
     function i_lender() external view returns (address);
-
+      function updateState() external;//remove later
     function offerLoan(address) external;
 
     function getLendRequestDetails()
@@ -92,7 +95,7 @@ interface ILendRequest_v1 {
         view
         returns (
             uint256 amountLended,
-            address[3] memory owners,
+            address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
             LoanRequest.RequestState state
@@ -106,42 +109,55 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     /// Errors ///
     //////////////    
     
-    error notEnoughLiquidity(/*uint256 availableLiquidity*/);/// @dev add total available liquidity later
+    error Enforcer_v1_insufficientLiquidity(/*uint256 availableLiquidity*/);/// @dev add total available liquidity later
+  error Enforcer_v1_loanProcessingInProgress();
+     
 
     //////////////////////////
     /// Type Declarations ///
     ////////////////////////
 
-    using LoanRequest for LoanRequest.BorrowRequest;
-    using LoanRequest for LoanRequest.LendRequest;
+    ///////////////
+    /**  Enums **/
+    /////////////
+
+    /// @notice used in tracking state of the executeLoanRequests() function, when active state is set to PROCESSING and IDLE when it is not being called.
+    enum executionState{
+        PROCESSING,
+        IDLE
+    }
 
     /////////////////////////
     /// State variables ////
     ///////////////////////
-    
+
+    executionState private currentLoanState;
     uint256 private s_startingBorrowRequestIndex;
     uint256 private s_startingLendRequestIndex;
-    address private limitMarketAddress;
+    address private s_limitMarketAddress;
     ILimitMarket_v1 limitMarket;
-    address public activeBorrowRequestAddress; //keep track of the latest borrow request being processed.
-    address public activeLendRequestAddress; //keep track of the latest lend request being processed.
+    /// @dev keeps count on the number of times a batch was processed by the executeLoanRequests() function.
+    uint256 private s_batchCount;
+    address private s_activeBorrowRequestAddress; //keep track of the latest borrow request being processed.
+    address private s_activeLendRequestAddress; //keep track of the latest lend request being processed.
     mapping(address => address[]) private userToActiveLoanContract;
     uint256 private constant BATCH_LIMIT = 10;
+
 
     ///////////////
     /// Events ///
     /////////////
-    event loanOfferExecuted(
-        address[3] owners,
-        uint256 collateral,
-        address memeCoin,
-        uint256 amountLended
-    );
-    event MultiSigCreated(address indexed multiSigAddress);
+
+    event loanOfferExecuted(address indexed activeLoan);
 
     ///////////////////
     /// Modifiers ////
     /////////////////
+
+    modifier onlyWhenIdle{
+       if (currentLoanState == executionState.PROCESSING) revert Enforcer_v1_loanProcessingInProgress();
+        _;
+    }
 
     //////////////////
     /// Functions ///
@@ -151,6 +167,8 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     constructor() Ownable(msg.sender) {
         s_startingBorrowRequestIndex = 0; // initialize s_startingBorrowRequestIndex as 0
         s_startingLendRequestIndex = 0; // initialize s_startingLendRequestIndex as 0
+        s_batchCount = 0; // initialize batch count to 0
+        currentLoanState = executionState.IDLE;
     }
 
     receive() external payable {}
@@ -158,7 +176,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     //////////////////////////
     ///External Functions ///
     ////////////////////////
-
+     
     /// @notice this function updates the LimitMarket contract address
     /// @dev This function can only be called by an Admin, notUpdating modifier ensures the proper state flow/management when this function is called.
     /// @param _limitMarketAddress this hold the contract address value passed when calling the function
@@ -166,9 +184,12 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
         address _limitMarketAddress
     ) external onlyOwner notUpdating {
         // add checks
+        if (_limitMarketAddress == address(0)) {
+            revert();
+        }
         _setUpdating(UpdateState.UPDATING);
-        limitMarketAddress = _limitMarketAddress;
-        limitMarket = ILimitMarket_v1(_limitMarketAddress);
+        s_limitMarketAddress = _limitMarketAddress;
+        limitMarket = ILimitMarket_v1(s_limitMarketAddress);
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
@@ -180,107 +201,85 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
      * transfer requested ETH from lend request to the borrower address
      * transfer meme coin to the newly created multi sig address
      */
-    function executeLoanRequests() external nonReentrant onlyOwner {
-
-        // implement CEI
-        /// @todo add enum states
-
+    function executeLoanRequests() external nonReentrant onlyOwner onlyWhenIdle {
+          _executionState(executionState.PROCESSING);
         /// *** checks *** ///
-
-        /// @dev check if there are loan requests available, if loan requests are less than 1 on both sides (borrow/lend), revert with the error notEnoughLiquidity
-        if (limitMarket.getTotalActiveBorrowRequestContractCount() < 1 && limitMarket.getTotalActiveLendRequestContractCount() < 1 ) {
-            revert notEnoughLiquidity();
+        
+        /// @dev check if liquidity is sufficient to settle loans, if loan requests are less than 1 on either sides ie;(borrow/lend), revert with the error Enforcer_v1_insufficientLiquidity
+        if (limitMarket.getTotalActiveBorrowRequestContractCount() < 1 || limitMarket.getTotalActiveLendRequestContractCount() < 1 ) {
+            revert Enforcer_v1_insufficientLiquidity();
         }
 
         /// *** effects *** ///
-        uint256 _startingBorrowRequestIndex = s_startingBorrowRequestIndex;
-        uint256 _startingLendRequestIndex = s_startingLendRequestIndex;
-        // uint256 activeborrowRequestsIndex; 
-        // uint256 activeLendRequestsIndex; 
+        
         uint256 totalBorrowRequests = limitMarket.getTotalActiveBorrowRequestContractCount();
         uint256 totalLendRequests = limitMarket.getTotalActiveLendRequestContractCount();
-       
-        uint256 endIndexBorrow = _startingBorrowRequestIndex + BATCH_LIMIT > totalBorrowRequests
-            ? totalBorrowRequests
-            : _startingBorrowRequestIndex + BATCH_LIMIT; //ensure the batch limit of 10 is not exceeded for the endIndexBorrow variable
 
-        uint256 endIndexLend = _startingLendRequestIndex + BATCH_LIMIT > totalLendRequests
-            ? totalLendRequests
-            : _startingLendRequestIndex + BATCH_LIMIT; //ensure the batch limit of 10 is not exceeded for the endIndexLend variable
-
-        // gets and store the borrow requsts in a fixed number less than or equal to the batch limit
-        // address[] memory borrowRequests = new address[](
-        //     endIndexBorrow - _startingBorrowRequestIndex
-        // );     
-        address[] memory borrowRequests = limitMarket.getActiveBorrowRequestViaLimit(_startingBorrowRequestIndex,3);
-
-        // gets and store the lend requsts in a fixed number less than or equal to the batch limit
-        address[] memory lendRequests = new address[](
-            endIndexLend - _startingLendRequestIndex
-        );
+        address[] memory borrowRequests = limitMarket.getActiveBorrowRequestViaLimit(s_startingBorrowRequestIndex,totalBorrowRequests);
+        /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
+         address[] memory lendRequests = limitMarket.getActiveLendRequestViaLimit(s_startingLendRequestIndex,totalLendRequests);
         
         // @notice this variable checks for the lowest value between the borrow and lend requests array then assigns the lowest value between both to itself.
-        // uint256 lowestRequestsCount = limitMarket.getTotalActiveBorrowRequestContractCount() <  limitMarket.getTotalActiveLendRequestContractCount() ? limitMarket.getTotalActiveBorrowRequestContractCount(): limitMarket.getTotalActiveLendRequestContractCount();
-        uint256 startIndex = _startingBorrowRequestIndex <  _startingLendRequestIndex ? _startingBorrowRequestIndex: _startingLendRequestIndex;
-         
-        console.log("_startingBorrowRequestIndex",_startingBorrowRequestIndex); 
-        console.log("borrowRequests",borrowRequests.length); 
-        console.log("endIndexBorrow",endIndexBorrow); 
-        console.log("lendRequests",lendRequests.length);
-        console.log("startIndex",startIndex);
+        uint256 lowestRequestsCount = limitMarket.getTotalActiveBorrowRequestContractCount() <  limitMarket.getTotalActiveLendRequestContractCount() ? limitMarket.getTotalActiveBorrowRequestContractCount(): limitMarket.getTotalActiveLendRequestContractCount();
+        uint256 batchLimit = lowestRequestsCount < BATCH_LIMIT ? lowestRequestsCount : BATCH_LIMIT ; //ensure the batch limit of 10 is not exceeded for the endIndexLend variable
+        uint256 startIndex = s_startingBorrowRequestIndex <  s_startingLendRequestIndex ? s_startingBorrowRequestIndex: s_startingLendRequestIndex;
        
-        // for (uint256 i = startIndex; i < BATCH_LIMIT; i++) {
-
-        // // Loops through the loan requests and execute the offerLoan & acceptLoan functions, this would be done in batches of 10 at a time.
-        // // starts from 0 and increments to 10
-
-        //     /// *** borrow request effects *** ///
-        //     activeborrowRequestsIndex = i - _startingBorrowRequestIndex;
-        //     borrowRequests[activeborrowRequestsIndex] = limitMarket.getActiveBorrowRequestContractAddressViaIndex(i);//gets borrow request at index i
-        //     address _activeBorrowRequestAddress = borrowRequests[activeborrowRequestsIndex];
-        //     IBorrowRequest_v1 BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
-        //     address activeBorrower = BorrowRequest.Owners(0);//change this
-        //     // get borrow request details
-        //     (address memeCoin, uint256 collateral, , , , ) = BorrowRequest.getBorrowRequestDetails();
-
-        //     /// *** lend request effects *** ///
-        //     activeLendRequestsIndex = i - _startingLendRequestIndex;
-        //     lendRequests[activeLendRequestsIndex] = limitMarket.getActiveLendRequestContractAddressViaIndex(i);//compile error here
-        //     address _activeLendRequestAddress =  lendRequests[activeLendRequestsIndex];
-        //     ILendRequest_v1 LendRequest = ILendRequest_v1(_activeLendRequestAddress);
-        //     address activeLender = LendRequest.i_lender();
-        //     (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
-
-        //     // create active loan vault owners address array
-        //     address[3] memory owners = [
-        //         activeBorrower,
-        //         activeLender,
-        //         address(this)//change this later
-        //     ];
-
-        //     // deploys new active loan vault
-        //     activeLoan _activeLoan = new activeLoan(
-        //         owners,
-        //         collateral,
-        //         memeCoin,
-        //         amountLended
-        //     );
+        for (uint256 i = 0; i < batchLimit; i++) {
+            /// @dev this Loops through the loan requests and execute the offerLoan & acceptLoan functions, this would be done in batches of 10 at a time.
             
-        //     // update mapping of borrower address to active active loan
-        //     userToActiveLoanContract[address(activeBorrower)].push( address(_activeLoan));
-        //     // update mapping of lender address to active active loan
-        //     userToActiveLoanContract[address(activeLender)].push(address(_activeLoan));
-        //     // update activeBorrowRequestAddress
-        //     activeBorrowRequestAddress = _activeBorrowRequestAddress;
-        //     // s_startingBorrowRequestIndex = last executed borrow index
-        //     emit loanOfferExecuted(owners, collateral, memeCoin, amountLended);
-        //     emit MultiSigCreated(address(_activeLoan));
+            /// *** borrow request effects *** ///
+            address _activeBorrowRequestAddress =  (borrowRequests[startIndex] = limitMarket.getActiveBorrowRequestContractAddressViaIndex(startIndex));
+            IBorrowRequest_v1 BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
+            address activeBorrower = BorrowRequest.Owners(0);//change this
+            (address memeCoin, uint256 collateral, , , ,) = BorrowRequest.getBorrowRequestDetails();
+            BorrowRequest.updateState();//remove later
+          
+            /// *** lend request effects *** ///
+            address _activeLendRequestAddress = (lendRequests[startIndex] = limitMarket.getActiveLendRequestContractAddressViaIndex(startIndex));
+            ILendRequest_v1 LendRequest = ILendRequest_v1(_activeLendRequestAddress);
+            address activeLender = LendRequest.i_lender();
+            (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
+            LendRequest.updateState();//remove later
+
+            // create active loan vault owners address array
+            address[3] memory owners = [
+                activeBorrower,
+                activeLender,
+                address(this)//change this later
+            ];
+
+            // deploys new active loan vault
+            activeLoan _activeLoan = new activeLoan(
+                owners,
+                collateral,
+                memeCoin,
+                amountLended
+            );
+
+            /// *** effects *** ///
+
+            // update mapping of borrower address to active active loan
+            userToActiveLoanContract[address(activeBorrower)].push( address(_activeLoan));
+            // update mapping of lender address to active active loan
+            userToActiveLoanContract[address(activeLender)].push(address(_activeLoan));
+            // update s_activeBorrowRequestAddress
+            s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
+            // update s_activeLendRequestAddress
+            s_activeLendRequestAddress = _activeLendRequestAddress;
+            // update the last indexes for both borrow and lend requests
+            s_startingBorrowRequestIndex = limitMarket.getBorrowRequestPositionOnActiveRequestQue(address(_activeBorrowRequestAddress));
+            s_startingLendRequestIndex = limitMarket.getLendRequestPositionOnActiveRequestQue(address(_activeLendRequestAddress));
+
+            /// *** emits *** ///
+            emit loanOfferExecuted(address(_activeLoan));
               
-        //      /// *** interactions *** ///  
-        //     BorrowRequest.acceptLoan(address(_activeLoan)); //transfers collateral from borrow request to active loan vault address.
-        //     LendRequest.offerLoan(address(activeBorrower)); //transfers requested native token amount to borrowers address.
-        //     // collect fee
-        // }
+             /// *** interactions *** ///  
+            BorrowRequest.acceptLoan(address(_activeLoan)); //transfers collateral from borrow request to active loan vault address.
+            LendRequest.offerLoan(address(activeBorrower)); //transfers requested native token amount to borrowers address.
+        }
+
+              s_batchCount++;
+              _executionState(executionState.IDLE);
     }
     
 
@@ -288,7 +287,21 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     ///  internal & private view & pure functions ///
     ////////////////////////////////////////////////
 
-    
+
+/// @dev This function allows users to pay a priority fee that allows their loan to be processed quicker,
+/// it works by injecting the prioritized loan address right after a concluded batch is processed,
+/// fee is in protocol token $BUTTER, and all collected fee is distributed to every user on the next batch after the prioritized loan is settled.
+/// there would only be one prioritized loan per batch to ensure it doesn't creates a bottle neck for other batches to go through.
+/// @param loanRequest: a parameter just like in doxygen (must be followed by parameter name)
+    function prioritizeLoan(address loanRequest) internal {
+        // get the active priority loan address
+        // executes loan 
+        // distribute fees evenly to next batch users
+    }
+
+    function _executionState(executionState state) internal {
+        currentLoanState = state;
+    }
 
     ////////////////////////////////////////////////
     /// External & Public View & Pure Functions ///
@@ -298,9 +311,20 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
  /// @param user: address of the user. 
  /// @return adress[]: array of active loan addresses,
     function getUserActiveLoanContracts(
-        address user
+        address user 
     ) external view returns (address[] memory) {
         return userToActiveLoanContract[user]; // Retrieve active borrow contracts for the specified user
+    }
+
+    /// @notice This function returns the latest processed borrow request contract address.
+    /// @return activeBorrowRequestAddress
+    function getActiveBorrowRequestAddress() public view returns(address activeBorrowRequestAddress) {
+        return s_activeBorrowRequestAddress; 
+    }
+
+    /// @notice This function returns the latest processed lend request contract address.
+    function getActiveLendRequestAddress() public view returns(address activeLendRequestAddress) {
+        return s_activeLendRequestAddress; 
     }
 
 
@@ -311,6 +335,6 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
         view onlyOwner
         returns (address limitMarketContract)
     {
-        return limitMarketAddress;
+        return s_limitMarketAddress;
     }
 }
