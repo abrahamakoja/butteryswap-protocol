@@ -24,8 +24,9 @@
 pragma solidity ^0.8.20;
 
 import {LoanRequest} from "./LoanRequest.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract BorrowRequest_v1 {
+contract BorrowRequest_v1 is ReentrancyGuard {
 
     error UnauthorizedTransaction();
 
@@ -68,7 +69,7 @@ contract BorrowRequest_v1 {
         return LoanRequest.getBorrowOwners(s_borrowRequest);
     }
 
-    function cancelRequest() external onlyOwner {
+    function cancelRequest() external onlyOwner nonReentrant {
         LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
     }
 

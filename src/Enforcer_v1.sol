@@ -29,8 +29,8 @@ pragma solidity ^0.8.20;
  * @notice This contract handles the execution of loan requests.
  * it gets the arrays of both borrow and lend requests and processes them in batches of 10 request at a time.
  * the batch processing ensures loans are executed in chronological order based of their block.timestamp when created.
- * this contract also implements a "bribe" mechanism that allows users to skip the que and have their loans executed next by paying an extra fee.
- * this fee is shared amongst the protocol and the users the briber cuts in front of.
+ * this contract also implements a "priorioty boost" mechanism that allows users to skip the que and have their loans executed next by paying an extra fee.
+ * this fee is shared amongst the protocol and the users within the loan requests that eventually seeds the priority loan.
  * this feature is experimental and may or may not be removed.
  */
 
@@ -392,8 +392,6 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     function _executionState(executionState state) internal {
         currentLoanState = state;
     }
-
-
 
     ////////////////////////////////////////////////
     /// External & Public View & Pure Functions ///
