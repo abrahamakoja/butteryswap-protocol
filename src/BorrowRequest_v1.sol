@@ -28,6 +28,8 @@ pragma solidity ^0.8.20;
  * @title BorrowRequest_v1
  * @author Akoja
  * @notice This contract handles the management of a borrow requests before it is processed by the Enforcer_v1 contract or cancelled by the user.
+ * users can top up their loans by adding liquidity to the borrow request but cannot remove the added liquity unless they decide to cancel the request entirely, 
+ * by cancelling the request, the user's liquidity is returned to their wallet after a cancellation fee is removed.
  */
 
 // debug
@@ -47,7 +49,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// Errors ///
     /////////////
 
-    error UnauthorizedTransaction();
+    error UnauthorizedAccess();
 
     //////////////////////////
     /// Type Declarations ///
@@ -60,9 +62,11 @@ contract BorrowRequest_v1 is ReentrancyGuard {
      /////////////////////////
     /// State variables ////
     ///////////////////////
-
+    
+    address private immutable i_borrower;
+    address private immutable i_admin;
     mapping(address => bool) isOwner;
-    address[3] public Owners;// replace this with just the borrower refer to lend contract
+    // address[2] public Owners;// replace this with just the borrower refer to lend contract
     using LoanRequest for LoanRequest.BorrowRequest;
     LoanRequest.BorrowRequest private s_borrowRequest;
 
@@ -76,8 +80,12 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// Modifiers ////
     /////////////////
 
-    modifier onlyOwner() {
-        if (!isOwner[msg.sender]) revert UnauthorizedTransaction();
+    modifier onlyBorrower() {
+        if (!isOwner[msg.sender] && msg.sender != address(i_borrower)) revert UnauthorizedAccess();
+        _;
+    }
+    modifier onlyAdmin() {
+        if (!isOwner[address(i_admin)] && msg.sender != address(i_admin) ) revert UnauthorizedAccess();
         _;
     }
 
@@ -88,11 +96,10 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// @dev contract constructor.
     constructor(address[2] memory _owners, uint256 collateral, address memeCoinAddress) {
         s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateral, memeCoinAddress);
-
-        for (uint256 i = 0; i < _owners.length; i++) {
-            Owners[i] = _owners[i];
-            isOwner[_owners[i]] = true;
-        }
+         i_borrower = _owners[0];
+         i_admin = _owners[1];
+        isOwner[i_borrower] = true;
+        isOwner[i_admin] = true;
     }     
 
     receive() external payable {}
@@ -101,10 +108,18 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     ///External Functions ///
     ////////////////////////
 
-     function cancelRequest() external onlyOwner nonReentrant {
+    function addLiquidity(address token, uint256 collateralAmount, uint256 requestedAmount) external onlyBorrower nonReentrant{
+        
+    }
+
+     function cancelRequest() external onlyBorrower nonReentrant {
         LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
     }
 
+    function acceptLoan(address multisigAddress) external onlyAdmin nonReentrant{
+        emit LoanAccepted(multisigAddress);
+        LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
+    }
     /////////////////////////////////////////////////
     ///  internal & private view & pure functions ///
     ////////////////////////////////////////////////
@@ -113,24 +128,8 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// External & Public View & Pure Functions ///
     //////////////////////////////////////////////
 
- function getRequestState() public view  returns (LoanRequest.RequestState ) {
+ function getRequestState() external view  returns (LoanRequest.RequestState ) {
         return LoanRequest.getBorrowRequestState(s_borrowRequest);
-    }
-
-    // Implement the getTokenBalance function 
-    function getTokenBalance() public view returns (uint256) {
-        return LoanRequest.getTokenBalance(s_borrowRequest, address(this));
-    }
-
-    function getOwner() public view returns (address[2] memory) {
-        return LoanRequest.getBorrowOwners(s_borrowRequest);
-    }
-   
-
-   
-
-    function withdrawTokenBalance(uint256 amount) external {
-        LoanRequest.withdrawBorrowRequestTokenBalance(s_borrowRequest, amount);
     }
 
     function getEthBalance() external view returns (uint256) {
@@ -153,15 +152,4 @@ contract BorrowRequest_v1 is ReentrancyGuard {
         return s_borrowRequest.getBorrowRequestDetails();
     }
 
-    // accept loan function
-    function acceptLoan(address multisigAddress) external {
-        // transfer eth to an address and transfer tokens to an address
-        emit LoanAccepted(multisigAddress);
-        LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
-        //  revert UnauthorizedTransaction();
-    }
-
-    function updateState() external{
-        LoanRequest.updateState(s_borrowRequest);
-    }
 }

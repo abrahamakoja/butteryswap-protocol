@@ -43,8 +43,8 @@ contract LimitMarketInteractions is Script {
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
@@ -178,20 +178,13 @@ contract EnforcerInteractions is Script {
 
 contract SupportedTokenInteractions is Script {
     address mostrecentlyDeployed;
-    address mostrecentlyDeployedButterToken;
-    address mostrecentlyDeployedJatToken;
 
     function run() external {
         mostrecentlyDeployed = DevOpsTools.get_most_recent_deployment(
             "SupportedTokens",
             block.chainid
         );
-        mostrecentlyDeployedButterToken = DevOpsTools
-            .get_most_recent_deployment("ButterToken", block.chainid);
-        mostrecentlyDeployedJatToken = DevOpsTools.get_most_recent_deployment(
-            "JATToken",
-            block.chainid
-        );
+       
 
         approveTokenRequest(payable(mostrecentlyDeployed));
         approveTokenRequest(payable(mostrecentlyDeployed));
@@ -211,5 +204,25 @@ contract SupportedTokenInteractions is Script {
             address(mostrecentlyDeployedJatToken)
         );
         vm.stopBroadcast();
+    }
+}
+
+contract BorrowRequestInteractions is Script{
+      address _mostrecentlyDeployedEnforcer,
+    address mostrecentlyDeployedButterToken;
+    function run() external {
+          mostrecentlyDeployedEnforcer = DevOpsTools.get_most_recent_deployment(
+            "Enforcer_v1",
+            block.chainid
+        );
+       mostrecentlyDeployedButterToken = DevOpsTools
+            .get_most_recent_deployment("ButterToken", block.chainid);
+
+    }
+
+    function deployBorrowContract(address enforcer, address token) public {
+        vm.startBroadcast();
+        BorrowRequest_v1 borrowRequest_v1 = new BorrowRequest_v1([address(enforcer),address(this)],2360 * 10 ** 18,address(token) );
+        vm.stopBroadcast(); 
     }
 }
