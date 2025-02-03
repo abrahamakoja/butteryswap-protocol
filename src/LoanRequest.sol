@@ -9,6 +9,7 @@ error InsufficientFunds(uint256 balance, uint256 requestedAmount);
 error UnauthorizedAccess(address caller, address owner);
 error debugging(address);
 error executeLoanRequestFailed();
+
     using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     enum RequestState {
@@ -19,14 +20,14 @@ error executeLoanRequestFailed();
     }
 
     struct BorrowRequest {
-        address memeCoin;
-        uint256 collateral;
+        address[] tokens;
+        uint256 collateralAmount;
         address[2] owners;
-        uint256 balanceMinusFee;
-        uint256 feeEarned;
+        uint256 collateralAmountMinusFee;
+        uint256 feeAmount;
         RequestState state;
     }
-    // address memecoinAddress;
+    
 
     struct LendRequest {
         uint256 amountLended;
@@ -78,48 +79,66 @@ error executeLoanRequestFailed();
     }
     // Public functions for borrow requests
 
-    function createBorrowRequest(address[2] memory _owners, uint256 _collateral, address memcoinAddress)
+    function createBorrowRequest(address[2] memory _owners, uint256 _collateral, address[] memory _tokens)
         internal
         pure
         returns (BorrowRequest memory)
     {
         return BorrowRequest({
-            memeCoin: memcoinAddress,
-            collateral: _collateral,
+            tokens: _tokens,
+            collateralAmount: _collateral,
             owners: _owners,
-            balanceMinusFee: 0,
-            feeEarned: 0,
+            collateralAmountMinusFee: 0,
+            feeAmount: 0,
             state: RequestState.OPEN
         });
     }
 
-    //  withdrawTokenBalance function
-    function withdrawBorrowRequestTokenBalance(BorrowRequest storage request, uint256 amount) internal {
-        if (request.state == RequestState.OPEN) revert UnauthorizedAccess(address(this), msg.sender);
-        if (amount == 0 || amount > request.collateral) revert InsufficientFunds(request.collateral, amount);
-
-        // Use the token's transfer function from the erc20TokenLibrary
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[0]), amount);
-        emit FundsWithdrawn(amount, request.collateral - amount);
+    function addBorrowLiquidity(BorrowRequest storage request,address _token,uint256 _collateralAmount,address contractAddress,uint256 _requestedAmount) internal{
+    request.collateralAmount += _requestedAmount;
+    request.tokens.push(_token);
+       // interactions
+        erc20TokenLibrary.transferFromTokens(
+            address(_token),
+            msg.sender,
+            address(contractAddress),
+            _collateralAmount
+        );
     }
+
+    // //  withdrawTokenBalance function
+    // function withdrawBorrowRequestTokenBalance(BorrowRequest storage request, uint256 amount) internal {
+    //     if (request.state == RequestState.OPEN) revert UnauthorizedAccess(address(this), msg.sender);
+    //     if (amount == 0 || amount > request.collateralAmount) revert InsufficientFunds(request.collateralAmount, amount);
+
+    //     // Use the token's transfer function from the erc20TokenLibrary
+    //     erc20TokenLibrary.transferTokens(address(request.tokens), address(request.owners[0]), amount);
+    //     emit FundsWithdrawn(amount, request.collateral - amount);
+    // }
 
     function cancelBorrowRequest(BorrowRequest storage request, address contractAddress) internal {
         request.state = RequestState.CANCELLING;
-        if (request.collateral == 0) revert InsufficientFunds(contractAddress.balance, request.collateral);
+        if (request.collateralAmount == 0) revert InsufficientFunds(contractAddress.balance, request.collateralAmount);
         if (request.state == RequestState.OPEN) revert();//do proper reverts
         if (request.state == RequestState.CLOSED) revert(); //do proper reverts;
         // effects
-        request.feeEarned = (request.collateral * 5) / 100;
-        request.balanceMinusFee = request.collateral - request.feeEarned;
+        request.feeAmount =( (request.collateralAmount * 5) / 100 )* 10 ** 18;
+        request.collateralAmountMinusFee = (request.collateralAmount - request.feeAmount)* 10 ** 18;
 
         // Use the token's transfer function from the erc20TokenLibrary
         //  request.state = RequestState.CANCELLED;
         request.state = RequestState.CLOSED;
-        emit FundsWithdrawn(request.balanceMinusFee, contractAddress.balance);
+        emit FundsWithdrawn(request.collateralAmountMinusFee, contractAddress.balance);
         emit contractClosed(request.owners, address(this).balance);
 
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[0]), request.balanceMinusFee);
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(request.owners[1]), request.feeEarned);
+        for (uint256 index = 0; index < request.tokens.length; index++) {
+          erc20TokenLibrary.transferTokens(address(request.tokens[index]), address(request.owners[0]), request.collateralAmountMinusFee);
+        }
+        for (uint256 index = 0; index < request.tokens.length; index++) {
+             erc20TokenLibrary.transferTokens(address(request.tokens[index]), address(request.owners[1]), request.feeAmount);
+        }
+
+       
     }
 
   
@@ -137,28 +156,28 @@ error executeLoanRequestFailed();
     }
     // get contract balance for borrow request
 
-    function getTokenBalance(BorrowRequest storage request, address contractAddress) internal view returns (uint256) {
-        return erc20TokenLibrary.getBalance(address(contractAddress), request.memeCoin);
-    }
+    // function getTokenBalance(BorrowRequest storage request, address contractAddress) internal view returns (uint256) {
+    //     return erc20TokenLibrary.getBalance(address(contractAddress), request.memeCoin);
+    // }
     // Function to get the details of a BorrowRequest
 
     function getBorrowRequestDetails(BorrowRequest storage request)
         internal
         view
         returns (
-            address memeCoin,
-            uint256 collateral,
+            address[] memory _tokens,
+            uint256 collateralAmount,
             address[2] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
+            uint256 collateralAmountMinusFee,
+            uint256 feeAmount,
             RequestState state
         )
     {
-        memeCoin = request.memeCoin;
-        collateral = request.collateral;
+        _tokens = request.tokens;
+        collateralAmount = request.collateralAmount;
         owners = request.owners;
-        balanceMinusFee = request.balanceMinusFee;
-        feeEarned = request.feeEarned;
+        collateralAmountMinusFee = request.collateralAmountMinusFee;
+        feeAmount = request.feeAmount;
         state = request.state;
     }
 
@@ -276,7 +295,10 @@ error executeLoanRequestFailed();
     // transfer memecoin to new multisig
     function acceptLoan(BorrowRequest storage request, address multisigAddress) internal {
          request.state = RequestState.CLOSED;
-        erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
+         for (uint256 index = 0; index < request.tokens.length; index++) {
+          erc20TokenLibrary.transferTokens(address(request.tokens[index]), address(multisigAddress), request.collateralAmountMinusFee);
+        }
+        // erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
     }
     // function called by enforcer on each lend request
     // transfer native currency to borrower

@@ -67,6 +67,7 @@ interface ILimitMarket_v1 {
 
 // Borrow request interface
 interface IBorrowRequest_v1 {
+    function i_borrower() external view returns (address);
     function Owners(uint256 index) external view returns (address);
     
     function acceptLoan(address) external;
@@ -333,7 +334,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
 
                /// *** borrow request effects *** ///
              BorrowRequest = IBorrowRequest_v1(_activeBorrowRequestAddress);
-              address activeBorrower = BorrowRequest.Owners(0);//change this
+              address activeBorrower = BorrowRequest.i_borrower();
             (address memeCoin, uint256 collateral, , , ,) = BorrowRequest.getBorrowRequestDetails();
             
           

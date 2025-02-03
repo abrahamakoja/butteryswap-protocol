@@ -63,9 +63,9 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// State variables ////
     ///////////////////////
     
-    address private immutable i_borrower;
+    address public immutable i_borrower;
     address private immutable i_admin;
-    mapping(address => bool) isOwner;
+    mapping(address user => bool isAnOwner) public isOwner;
     // address[2] public Owners;// replace this with just the borrower refer to lend contract
     using LoanRequest for LoanRequest.BorrowRequest;
     LoanRequest.BorrowRequest private s_borrowRequest;
@@ -81,11 +81,11 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /////////////////
 
     modifier onlyBorrower() {
-        if (!isOwner[msg.sender] && msg.sender != address(i_borrower)) revert UnauthorizedAccess();
+        if (!isOwner[msg.sender] ) revert UnauthorizedAccess();
         _;
     }
     modifier onlyAdmin() {
-        if (!isOwner[address(i_admin)] && msg.sender != address(i_admin) ) revert UnauthorizedAccess();
+        if (!isOwner[msg.sender] && msg.sender != address(i_admin) ) revert UnauthorizedAccess();
         _;
     }
 
@@ -94,8 +94,8 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     ////////////////
 
     /// @dev contract constructor.
-    constructor(address[2] memory _owners, uint256 collateral, address memeCoinAddress) {
-        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateral, memeCoinAddress);
+    constructor(address[2] memory _owners, uint256 collateralAmount, address[] memory token) {
+        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateralAmount, token);
          i_borrower = _owners[0];
          i_admin = _owners[1];
         isOwner[i_borrower] = true;
@@ -109,14 +109,23 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     ////////////////////////
 
     function addLiquidity(address token, uint256 collateralAmount, uint256 requestedAmount) external onlyBorrower nonReentrant{
-        
+        if (msg.sender != address(i_borrower)) {
+            revert UnauthorizedAccess();
+        } 
+        LoanRequest.addBorrowLiquidity(s_borrowRequest,token,collateralAmount,address(this),requestedAmount);
     }
 
      function cancelRequest() external onlyBorrower nonReentrant {
+        if (msg.sender != i_borrower) {
+            revert UnauthorizedAccess();
+        } 
         LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
     }
 
     function acceptLoan(address multisigAddress) external onlyAdmin nonReentrant{
+         if (msg.sender != address(i_admin)) {
+            revert UnauthorizedAccess();
+        } 
         emit LoanAccepted(multisigAddress);
         LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
     }
@@ -128,12 +137,17 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// External & Public View & Pure Functions ///
     //////////////////////////////////////////////
 
- function getRequestState() external view  returns (LoanRequest.RequestState ) {
-        return LoanRequest.getBorrowRequestState(s_borrowRequest);
+    function getOwnersAdresses() external view returns(address[2] memory owners){
+        owners[0]=i_borrower;
+        owners[1]=i_admin;
+
+        console.log("borrower: ",i_borrower);
+        console.log("admin: ",i_admin);
+        return owners;
     }
 
-    function getEthBalance() external view returns (uint256) {
-        return LoanRequest.getBalance(address(this));
+ function getRequestState() external view  returns (LoanRequest.RequestState ) {
+        return LoanRequest.getBorrowRequestState(s_borrowRequest);
     }
 
     // Function to get the borrow request details
@@ -141,11 +155,11 @@ contract BorrowRequest_v1 is ReentrancyGuard {
         external
         view
         returns (
-            address memeCoin,
-            uint256 collateral,
+            address[] memory tokens,
+            uint256 collateralAmount,
             address[2] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
+            uint256 collateralAmountMinusFee,
+            uint256 feeAmount,
             LoanRequest.RequestState state
         )
     {

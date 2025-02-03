@@ -188,7 +188,7 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
     function approveTokenRequest(uint256 index) external onlyOwner {
         /// checks
         
-        if (!(index < s_pendingTokenRequets.length)) {
+        if (index > s_pendingTokenRequets.length) {
             revert approveFailed(s_pendingTokenRequets.length);
         }
 

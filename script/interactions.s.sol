@@ -7,6 +7,7 @@ import {LimitMarket_v1} from "../src/LimitMarket_v1.sol";
 import {Enforcer_v1} from "../src/Enforcer_v1.sol";
 import {erc20TokenLibrary} from "../src/erc20TokenLibrary.sol";
 import {SupportedTokens} from "../src/SupportedTokens.sol";
+import {BorrowRequest_v1} from "../src/BorrowRequest_v1.sol";
 
 contract LimitMarketInteractions is Script {
     using erc20TokenLibrary for erc20TokenLibrary.tokenData;
@@ -38,38 +39,44 @@ contract LimitMarketInteractions is Script {
             payable(mostrecentlyDeployedLimitMarket),
             mostrecentlyDeployedEnforcer,
             mostrecentlyDeployedST
-        );        
+        );
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedButterToken);
         borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedButterToken);
+        priorityBorrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyDeployedJATToken
+        );
+        // priorityBorrow(
+        //     mostrecentlyDeployedLimitMarket,
+        //     mostrecentlyDeployedJATToken
+        // );
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
+        // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // priorityBorrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
         // borrow(mostrecentlyDeployedLimitMarket, mostrecentlyDeployedJATToken);
-          
-        priorityLend(mostrecentlyDeployedLimitMarket);
+
+        // priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);    
-        lend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);    
+        // lend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
         priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // priorityLend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
     }
 
     function updateContracts(
@@ -93,7 +100,12 @@ contract LimitMarketInteractions is Script {
         address _mostrecentlyDeployedLimitMarket,
         address token
     ) public {
+        address[] memory tokenAddresses;
+        for (uint256 index = 0; index < tokenAddresses.length; index++) {
+        tokenAddresses[index] = address(token);
+        }
         vm.startBroadcast();
+
         erc20TokenLibrary.approveTokens(
             address(token),
             payable(_mostrecentlyDeployedLimitMarket),
@@ -101,28 +113,38 @@ contract LimitMarketInteractions is Script {
         );
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).borrow(
             6 * 10 ** 18,
-            token,false
+           tokenAddresses,
+            false
         );
+
         vm.stopBroadcast();
     }
     function priorityBorrow(
         address _mostrecentlyDeployedLimitMarket,
         address token
     ) public {
+        address[] memory tokenAddresses;
+        for (uint256 index = 0; index < tokenAddresses.length; index++) {
+        tokenAddresses[index] = address(token);
+        }
         vm.startBroadcast();
+
         erc20TokenLibrary.approveTokens(
             address(token),
             payable(_mostrecentlyDeployedLimitMarket),
             6660 * 10 ** 18
         );
+
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).borrow(
             6 * 10 ** 18,
-            token,true
+           tokenAddresses,
+            true
         );
+
         vm.stopBroadcast();
     }
 
-    function lend(address _mostrecentlyDeployedLimitMarket) public {
+    function lend( address _mostrecentlyDeployedLimitMarket) public {
         vm.startBroadcast();
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).lend{
             value: 6 ether
@@ -184,7 +206,6 @@ contract SupportedTokenInteractions is Script {
             "SupportedTokens",
             block.chainid
         );
-       
 
         approveTokenRequest(payable(mostrecentlyDeployed));
         approveTokenRequest(payable(mostrecentlyDeployed));
@@ -198,31 +219,46 @@ contract SupportedTokenInteractions is Script {
         vm.stopBroadcast();
     }
 
-    function delistToken(address _mostrecentlyDeployed) public {
-        vm.startBroadcast();
-        SupportedTokens(payable(_mostrecentlyDeployed)).delistToken(
-            address(mostrecentlyDeployedJatToken)
-        );
-        vm.stopBroadcast();
-    }
+    // function delistToken(address _mostrecentlyDeployed) public {
+    //     vm.startBroadcast();
+    //     SupportedTokens(payable(_mostrecentlyDeployed)).delistToken(
+    //         address(mostrecentlyDeployedJatToken)
+    //     );
+    //     vm.stopBroadcast();
+    // }
 }
 
-contract BorrowRequestInteractions is Script{
-      address _mostrecentlyDeployedEnforcer,
+contract BorrowRequestInteractions is Script {
+    address _mostrecentlyDeployedEnforcer;
     address mostrecentlyDeployedButterToken;
     function run() external {
-          mostrecentlyDeployedEnforcer = DevOpsTools.get_most_recent_deployment(
+        _mostrecentlyDeployedEnforcer = DevOpsTools.get_most_recent_deployment(
             "Enforcer_v1",
             block.chainid
         );
-       mostrecentlyDeployedButterToken = DevOpsTools
+        mostrecentlyDeployedButterToken = DevOpsTools
             .get_most_recent_deployment("ButterToken", block.chainid);
 
+        deployBorrowContract(
+            _mostrecentlyDeployedEnforcer,
+            mostrecentlyDeployedButterToken
+        );
     }
 
-    function deployBorrowContract(address enforcer, address token) public {
+    function deployBorrowContract(
+        address mostrecentlyDeployedEnforcer,
+        address token
+    ) public {
+        address[] memory tokenAddresses;
+        tokenAddresses[0] = address(token);
         vm.startBroadcast();
-        BorrowRequest_v1 borrowRequest_v1 = new BorrowRequest_v1([address(enforcer),address(this)],2360 * 10 ** 18,address(token) );
-        vm.stopBroadcast(); 
+        BorrowRequest_v1 borrowRequest_v1 = new BorrowRequest_v1(
+            [address(msg.sender), address(mostrecentlyDeployedEnforcer)],
+            2360 * 10 ** 18,
+            tokenAddresses
+        );
+        borrowRequest_v1.getOwnersAdresses();
+        console.log("enforcer : ", mostrecentlyDeployedEnforcer);
+        vm.stopBroadcast();
     }
 }
