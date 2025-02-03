@@ -224,35 +224,39 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Public Functions ///
     ////////////////////////
 
-    function getPrioritizedBorrowRequestAddress() public view returns(address loanRequest){
-        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
-         for (uint256 i = 0; i < borrowRequests.length; i++) {
-             if (s_loanIsPrioritized[borrowRequests[i]]) {
-               loanRequest = address(borrowRequests[i]);
-            }
-        }
-        return loanRequest;
-    }
-    function getPrioritizedLendRequestAddress() public view returns(address loanRequest){
-        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
-         for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (s_loanIsPrioritized[lendRequests[i]]) {
-               loanRequest = address(lendRequests[i]);
-            }
-        }
-        return loanRequest;
-    }
-
-    // **** borrow requests functions ****//
+  
 
    
 
-    // Function to retrieve all borrow request contracts for a user // legacy
-    function getUserToBorrowRequestAddresses(
-        address user
-    ) public view returns (address[] memory) {
-        return userToBorrowRequestAddress[user];
+
+   
+
+   
+
+    function getEnforcerContractAddress()
+        external
+        view
+        onlyOwner
+        returns (address)
+    {
+        return enforcerContract;
     }
+    ////////////////////////
+    /// Internal Functions ///
+    ////////////////////////
+
+    ////////////////////////
+    /// Private Functions ///
+    ////////////////////////
+
+
+     ////////////////////////////////////////////////
+    /// External & Public View & Pure Functions ///
+    //////////////////////////////////////////////
+
+     // **** borrow requests functions ****//
+
+     
 
     // @dev returns the total active borrow requests addresses.
     function getTotalActiveBorrowRequestContractAddresses()
@@ -314,21 +318,8 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         return targetBorrowRequestContract;
     }
 
-    
-
-    // @dev returns the total active borrow requests count.
-    function getTotalActiveBorrowRequestContractCount()
-        public
-        view
-        returns (uint256 count)
-    {
-        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
-        return borrowRequests.length;
-    }
-
-
-    // returns specific number of requests using a start index and a number of requested contracts
-    function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 requestedNumber) public view returns(address[] memory borrowRequests) {
+     // returns specific number of requests using a start index and a number of requested contracts
+    function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 requestedNumber) external view returns(address[] memory borrowRequests) {
         address[] memory borrowRequest = getTotalActiveBorrowRequestContractAddresses();
          uint256 counter = 0;
         for (uint256 i = 0; i < borrowRequest.length; i++) {
@@ -349,12 +340,45 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         return requestedBorrowRequest;
     }
 
-    // **** lend requests functions ****//
+ // @dev returns the total active borrow requests count.
+    function getTotalActiveBorrowRequestContractCount()
+        external
+        view
+        returns (uint256 count)
+    {
+        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+        return borrowRequests.length;
+    }
 
-    function getUserToLendRequestAddresses(
+      function getPrioritizedBorrowRequestAddress() external view returns(address loanRequest){
+        address[] memory borrowRequests = getTotalActiveBorrowRequestContractAddresses();
+         for (uint256 i = 0; i < borrowRequests.length; i++) {
+             if (s_loanIsPrioritized[borrowRequests[i]]) {
+               loanRequest = address(borrowRequests[i]);
+            }
+        }
+        return loanRequest;
+    }
+    
+
+    
+    // Function to retrieve all borrow request contracts for a user // legacy
+    function getUserToBorrowRequestAddresses(
         address user
-    ) public view returns (address[] memory) {
-        return userToLendRequestContracts[user];
+    ) external view returns (address[] memory) {
+        return userToBorrowRequestAddress[user];
+    }
+
+     // **** lend requests functions ****//
+
+     function getPrioritizedLendRequestAddress() external view returns(address loanRequest){
+        address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
+         for (uint256 i = 0; i < lendRequests.length; i++) {
+            if (s_loanIsPrioritized[lendRequests[i]]) {
+               loanRequest = address(lendRequests[i]);
+            }
+        }
+        return loanRequest;
     }
 
     function getTotalActiveLendRequestContractAddresses()
@@ -388,7 +412,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     function getLendRequestPositionOnActiveRequestQue(
         address lendRequest
-    ) public view returns (uint256 position) {
+    ) external view returns (uint256 position) {
         address[] memory lendRequests = getTotalActiveLendRequestContractAddresses();
         for (uint256 i = 0; i < lendRequests.length; i++) {
             if (lendRequests[i] == address(lendRequest)) {
@@ -401,7 +425,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     // @dev returns the specific index of an active borrow requests within the array of active borrow request.
     function getActiveLendRequestContractAddressViaIndex(
         uint256 index
-    ) public view returns (address borrowRequest) {
+    ) external view returns (address borrowRequest) {
         address[]
             memory lendRequests = getTotalActiveLendRequestContractAddresses();
         address targetLendRequestContract;
@@ -417,7 +441,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     // @dev returns the total active borrow requests count.
     function getTotalActiveLendRequestContractCount()
-        public
+        external
         view
         returns (uint256 count)
     {
@@ -427,7 +451,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     }
    
      // returns specific number of requests using a start index and a number of requested contracts
-    function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) public view returns(address[] memory lendRequests) {
+    function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) external view returns(address[] memory lendRequests) {
         address[] memory lendRequest = getTotalActiveLendRequestContractAddresses();
          uint256 counter = 0;
         for (uint256 i = 0; i < lendRequest.length; i++) {
@@ -448,19 +472,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         return requestedLendRequest;
     }
 
-    function getEnforcerContractAddress()
-        public
-        view
-        onlyOwner
-        returns (address)
-    {
-        return enforcerContract;
+     function getUserToLendRequestAddresses(
+        address user
+    ) external view returns (address[] memory) {
+        return userToLendRequestContracts[user];
     }
-    ////////////////////////
-    /// Internal Functions ///
-    ////////////////////////
 
-    ////////////////////////
-    /// Private Functions ///
-    ////////////////////////
+    
+
 }

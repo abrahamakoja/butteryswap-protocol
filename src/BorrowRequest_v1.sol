@@ -23,30 +23,71 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+
+/**
+ * @title BorrowRequest_v1
+ * @author Akoja
+ * @notice This contract handles the management of a borrow requests before it is processed by the Enforcer_v1 contract or cancelled by the user.
+ */
+
+// debug
+import {Script, console} from "forge-std/Script.sol";
+
+////////////////
+/// Imports ///
+//////////////
+
 import {LoanRequest} from "./LoanRequest.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+// BorrowRequest_v1 Contract Definition
 contract BorrowRequest_v1 is ReentrancyGuard {
+
+     //////////////
+    /// Errors ///
+    /////////////
 
     error UnauthorizedTransaction();
 
-    event LoanAccepted(address activeLoan);
-    // move token library integration off this contract,only loan request library should remain
+    //////////////////////////
+    /// Type Declarations ///
+    ////////////////////////
+
+    ///////////////
+    /**  Enums **/
+    /////////////
+
+     /////////////////////////
+    /// State variables ////
+    ///////////////////////
 
     mapping(address => bool) isOwner;
     address[3] public Owners;// replace this with just the borrower refer to lend contract
-
     using LoanRequest for LoanRequest.BorrowRequest;
-
     LoanRequest.BorrowRequest private s_borrowRequest;
+
+     ///////////////
+    /// Events ///
+    /////////////
+
+   event LoanAccepted(address activeLoan);
+   
+    ///////////////////
+    /// Modifiers ////
+    /////////////////
 
     modifier onlyOwner() {
         if (!isOwner[msg.sender]) revert UnauthorizedTransaction();
         _;
     }
 
-    constructor(address[2] memory _owners, uint256 collateral, address memcoinAddress) {
-        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateral, memcoinAddress);
+    //////////////////
+    /// Functions ///
+    ////////////////
+
+    /// @dev contract constructor.
+    constructor(address[2] memory _owners, uint256 collateral, address memeCoinAddress) {
+        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateral, memeCoinAddress);
 
         for (uint256 i = 0; i < _owners.length; i++) {
             Owners[i] = _owners[i];
@@ -56,22 +97,37 @@ contract BorrowRequest_v1 is ReentrancyGuard {
 
     receive() external payable {}
 
-    function getRequestState() public view  returns (LoanRequest.RequestState ) {
+    //////////////////////////
+    ///External Functions ///
+    ////////////////////////
+
+     function cancelRequest() external onlyOwner nonReentrant {
+        LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
+    }
+
+    /////////////////////////////////////////////////
+    ///  internal & private view & pure functions ///
+    ////////////////////////////////////////////////
+
+    ////////////////////////////////////////////////
+    /// External & Public View & Pure Functions ///
+    //////////////////////////////////////////////
+
+ function getRequestState() public view  returns (LoanRequest.RequestState ) {
         return LoanRequest.getBorrowRequestState(s_borrowRequest);
     }
 
     // Implement the getTokenBalance function 
-    function getTokenBalance() external view returns (uint256) {
+    function getTokenBalance() public view returns (uint256) {
         return LoanRequest.getTokenBalance(s_borrowRequest, address(this));
     }
 
-    function getOwners() external view returns (address[2] memory) {
+    function getOwner() public view returns (address[2] memory) {
         return LoanRequest.getBorrowOwners(s_borrowRequest);
     }
+   
 
-    function cancelRequest() external onlyOwner nonReentrant {
-        LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
-    }
+   
 
     function withdrawTokenBalance(uint256 amount) external {
         LoanRequest.withdrawBorrowRequestTokenBalance(s_borrowRequest, amount);

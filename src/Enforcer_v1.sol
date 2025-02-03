@@ -57,14 +57,12 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 interface ILimitMarket_v1 {
     function getPrioritizedBorrowRequestAddress() external view returns(address loanRequest);
      function getPrioritizedLendRequestAddress() external view returns(address loanRequest);
-     function getActiveLendRequestContractAddressViaIndex( uint256 index) external view returns (address);
       function getTotalActiveLendRequestContractCount() external view returns (uint256);
-    function getActiveBorrowRequestContractAddressViaIndex(uint256 index) external view returns(address);
     function getTotalActiveBorrowRequestContractCount() external view returns(uint256);
     function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 endIndex) external view returns(address[] memory);
     function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) external view returns(address[] memory);
-    function getBorrowRequestPositionOnActiveRequestQue(address borrowRequest) external view returns (uint256);
-    function getLendRequestPositionOnActiveRequestQue(address lendRequest) external view returns (uint256);
+   
+    
 }
 
 // Borrow request interface

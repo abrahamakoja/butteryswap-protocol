@@ -4,6 +4,7 @@
 build:; forge build
 
 # deploy
+
 deployLimitMarket:; forge script script/DeployLimitMarket.s.sol:DeployLimitMarket --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvvv
 deployEnforcer:; forge script script/DeployEnforcer_v1.s.sol:DeployEnforcer_v1 --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvv
 deploySupportedTokens:; forge script script/DeploySupportedTokens.s.sol:DeploySupportedTokens --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvv
