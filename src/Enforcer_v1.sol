@@ -68,7 +68,7 @@ interface ILimitMarket_v1 {
 // Borrow request interface
 interface IBorrowRequest_v1 {
     function Owners(uint256 index) external view returns (address);
-      function updateState() external;//remove later
+    
     function acceptLoan(address) external;
 
     function getBorrowRequestDetails()
@@ -87,7 +87,6 @@ interface IBorrowRequest_v1 {
 // Lend request contract interface
 interface ILendRequest_v1 {
     function i_lender() external view returns (address);
-      function updateState() external;//remove later
     function offerLoan(address) external;
 
     function getLendRequestDetails()
@@ -380,8 +379,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             emit loanOfferExecuted(address(_activeLoan));
               
              /// *** interactions *** ///  
-            BorrowRequest.updateState();//remove later
-            LendRequest.updateState();//remove later
+          
             BorrowRequest.acceptLoan(address(_activeLoan)); //transfers collateral from borrow request to active loan vault address.
             LendRequest.offerLoan(address(activeBorrower)); //transfers requested native token amount to borrowers address.
     }
