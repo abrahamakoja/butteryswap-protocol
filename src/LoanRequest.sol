@@ -26,6 +26,7 @@ error executeLoanRequestFailed();
         uint256 collateralAmountMinusFee;
         uint256 feeAmount;
         RequestState state;
+        uint256 timeCreated;
     }
     
 
@@ -79,7 +80,7 @@ error executeLoanRequestFailed();
     }
     // Public functions for borrow requests
 
-    function createBorrowRequest(address[2] memory _owners, uint256 _collateral, address[] memory _tokens)
+    function createBorrowRequest(address[2] memory _owners, uint256 _collateral, address[] memory _tokens, uint256 _timeCreated)
         internal
         pure
         returns (BorrowRequest memory)
@@ -90,7 +91,8 @@ error executeLoanRequestFailed();
             owners: _owners,
             collateralAmountMinusFee: 0,
             feeAmount: 0,
-            state: RequestState.OPEN
+            state: RequestState.OPEN,
+            timeCreated: _timeCreated
         });
     }
 
@@ -170,7 +172,8 @@ error executeLoanRequestFailed();
             address[2] memory owners,
             uint256 collateralAmountMinusFee,
             uint256 feeAmount,
-            RequestState state
+            RequestState state,
+            uint256 _timeCreated
         )
     {
         _tokens = request.tokens;
@@ -179,6 +182,7 @@ error executeLoanRequestFailed();
         collateralAmountMinusFee = request.collateralAmountMinusFee;
         feeAmount = request.feeAmount;
         state = request.state;
+        _timeCreated = request.timeCreated;
     }
 
 

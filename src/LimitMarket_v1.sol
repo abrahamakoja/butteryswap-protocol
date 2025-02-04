@@ -30,7 +30,7 @@ pragma solidity ^0.8.20;
  */
 
 // debug
-// import {Script, console} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 ////////////////
 /// Imports ///
@@ -58,7 +58,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     //////////////
 
     error LimitMarket_v1_unSupportedToken(address token);
-    error LimitMarket_v1_NoCollateralSent(uint256 collateral);
+    // error LimitMarket_v1_NoCollateralSent(uint256 collateral);
     error LimitMarket_v1_TransferFailed(
         address borrowRequest,
         uint256 sentAmount
@@ -69,16 +69,28 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     );
     error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
     error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
+    error UnauthorizedAccess(address caller);
+    // new
+    error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
+    error LimitMarket_v1_NoCollateralSent(uint256 collateralAmount);
+    error LimitMarket_v1_EnforcerNotInitialized();
+    error LimitMarket_v1_InsufficientAllowance(
+        address token,
+        uint256 allowance,
+        uint256 requiredAmount
+    );
 
     /////////////////////////
     /// Type Declarations ///
     ///////////////////////
+
     using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     /////////////////////////
     /// State variables ///
     ///////////////////////
 
+    address private immutable i_admin;
     address private supportedTokensAddress;
     ISupportedTokens supportedTokensContract;
     LendingRequest_v1[] public totalLendRequestArray; //get this and only display the active
@@ -121,82 +133,90 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Modifiers ////
     ////////////////
 
+    modifier enforcerContractIsSet() {
+        if (address(enforcerContract) == address(0)) revert(); //prevent function from running if enforcer isnt set, move this to a modifier
+        if (address(enforcerContract) != address(enforcerContract)) revert();
+        _;
+    }
+
+    modifier onlyAdmin() {
+        if (msg.sender != address(i_admin))
+            revert UnauthorizedAccess(msg.sender);
+        _;
+    }
+
     //////////////////
     /// Functions ///
     ////////////////
 
-    constructor() Ownable(msg.sender) {}
-
-    receive() external payable /*onlyDeployedContracts*/ {
-        totalReceivedFromContracts[msg.sender] += msg.value;
+    constructor() Ownable(msg.sender) {
+        i_admin = msg.sender;
     }
+
+    receive() external payable {}
 
     ////////////////////////
     ///External Functions ///
     ////////////////////////
 
-    function borrow(
-        uint256 collateralAmount,
-        address[] memory tokens,
-        bool priority
-    ) external nonReentrant {
-        // checks
-        if (tokens.length > 3) revert(); //improve
+//    new borrow
+function borrow() external nonReentrant{
+   
+}
 
-        for (uint256 index = 0; index < tokens.length; index++) {
-            if (
-                !supportedTokensContract.checkTokenIsApproved(
-                    address(tokens[0])
-                )
-            ) revert LimitMarket_v1_unSupportedToken(tokens[index]);
-        }
-        if (collateralAmount == 0)
-            revert LimitMarket_v1_NoCollateralSent(collateralAmount); //improve
-        if (address(enforcerContract) == address(0)) revert();
-        if (address(enforcerContract) != address(enforcerContract)) revert();
+    // function borrow(
+    //     uint256 collateralAmount,
+    //     address[] calldata tokens,
+    //     bool priority
+    // ) external nonReentrant {
+    //     // checks
+    //     if (tokens.length == 0 || tokens.length > 3)
+    //         revert LimitMarket_v1_InvalidTokenCount(tokens.length);
+    //     if (collateralAmount == 0)
+    //         revert LimitMarket_v1_NoCollateralSent(collateralAmount);
+    //     if (address(enforcerContract) == address(0))
+    //         revert LimitMarket_v1_EnforcerNotInitialized();
 
-        // checks to add
-        // check if collateral amount is greater or equal to dollar minimum allowed value
-        // check token address is valid erc20 within supportedTokens contract
+    //     for (uint256 index = 0; index < tokens.length; index++) {
+            
+    //         // ensure allowance is decrease when cancelled 
+    //            erc20TokenLibrary.increaseAllowance( tokens[index],address(this),collateralAmount);
+          
+    //     }
 
-        // effects
-        address[] memory tokenAddresses;
-        for (uint256 index = 0; index < tokens.length; index++) {
-            tokenAddresses[index] = tokens[index];
-        }
-        address[2] memory owners = [msg.sender, address(enforcerContract)];
+    //     // effects
+    //     address[2] memory owners = [msg.sender, address(enforcerContract)];
+    //     BorrowRequest_v1 borrowRequest = new BorrowRequest_v1(
+    //         owners,
+    //         collateralAmount,
+    //         tokens,
+    //         block.timestamp
+    //     );
 
-        BorrowRequest_v1 borrowRequest = new BorrowRequest_v1(
-            owners,
-            collateralAmount,
-            tokenAddresses
-        );
+    //     if (priority) {
+    //         s_loanIsPrioritized[address(borrowRequest)] = true;
+    //     }
+    //     userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
+    //     totalBorrowRequestArray.push(borrowRequest);
 
-        if (priority == true) {
-            s_loanIsPrioritized[address(borrowRequest)] = true;
-        }
-        userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-        totalBorrowRequestArray.push(borrowRequest);
+    //     // emits
+    //     emit BorrowRequestCreated(
+    //         msg.sender,
+    //         address(borrowRequest),
+    //         collateralAmount
+    //     );
+    //     emit TokensDeposited(msg.sender, tokens, collateralAmount);
 
-        // emits
-        emit BorrowRequestCreated(
-            msg.sender,
-            address(borrowRequest),
-            collateralAmount
-        );
-        emit TokensDeposited(msg.sender, tokenAddresses, collateralAmount);
-
-        // interactions
-
-        for (uint256 index = 0; index < tokens.length; index++) {
-            erc20TokenLibrary.transferFromTokens(
-                address(tokens[index]),
-                msg.sender,
-                address(borrowRequest),
-                collateralAmount
-            );
-        }
-    }
+    //     // interactions
+    //     for (uint256 index = 0; index < tokens.length; index++) {
+    //         erc20TokenLibrary.transferFromTokens(
+    //             tokens[index],
+    //             msg.sender,
+    //             address(borrowRequest),
+    //             collateralAmount
+    //         );
+    //     }
+    // }
 
     function lend(bool priority) external payable nonReentrant {
         // checks
@@ -247,7 +267,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     function updateContracts(
         address enforcerAddress,
         address _supportedTokensAddress
-    ) external onlyOwner notUpdating {
+    ) external onlyAdmin notUpdating {
         _setUpdating(UpdateState.UPDATING);
         enforcerContract = enforcerAddress;
         supportedTokensAddress = _supportedTokensAddress;
@@ -262,7 +282,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     function getEnforcerContractAddress()
         external
         view
-        onlyOwner
+        onlyAdmin
         returns (address)
     {
         return enforcerContract;

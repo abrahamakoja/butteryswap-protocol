@@ -30,4 +30,8 @@ abstract contract ButteryRun_v1 {
     function _setUpdating(UpdateState state) internal {
         currentState = state;
     }
+
+    function getProtocolState() external view returns(UpdateState){
+        return currentState;
+    }
 }

@@ -11,27 +11,54 @@ library erc20TokenLibrary {
         IERC20 token;
     }
 
-    function transferTokens(address token, address to, uint256 amount) internal {
+    function increaseAllowance(
+        address token,
+        address spender,
+        uint256 value
+    ) internal {
+        IERC20 _token = IERC20(token);
+        _token.safeIncreaseAllowance( spender, value);
+    }
+
+    function transferTokens(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
         IERC20 _token = IERC20(token);
         _token.safeTransfer(to, amount);
     }
 
-    function approveTokens(address token, address spender, uint256 amount) internal {
+    function approveTokens(
+        address token,
+        address spender,
+        uint256 amount
+    ) internal {
         IERC20 _token = IERC20(token);
         _token.forceApprove(spender, amount);
     }
 
-    function transferFromTokens(address token, address from, address to, uint256 amount) internal {
+    function transferFromTokens(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
         IERC20 _token = IERC20(token);
         _token.safeTransferFrom(address(from), to, amount);
     }
 
-    function getBalance(address contractAddress, address token) internal view returns (uint256) {
+    function getBalance(
+        address contractAddress,
+        address token
+    ) internal view returns (uint256) {
         IERC20 _token = IERC20(token);
         return _token.balanceOf(address(contractAddress));
     }
 
-    function initializeTokenData(address token) internal pure returns (tokenData memory) {
+    function initializeTokenData(
+        address token
+    ) internal pure returns (tokenData memory) {
         IERC20 _token = IERC20(token);
         return tokenData({token: _token});
     }

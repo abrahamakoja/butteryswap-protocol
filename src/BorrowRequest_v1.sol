@@ -49,7 +49,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// Errors ///
     /////////////
 
-    error UnauthorizedAccess();
+    error UnauthorizedAccess(address caller);
 
     //////////////////////////
     /// Type Declarations ///
@@ -65,8 +65,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     
     address public immutable i_borrower;
     address private immutable i_admin;
-    mapping(address user => bool isAnOwner) public isOwner;
-    // address[2] public Owners;// replace this with just the borrower refer to lend contract
+    mapping(address user => bool isAnOwner) private isOwner;
     using LoanRequest for LoanRequest.BorrowRequest;
     LoanRequest.BorrowRequest private s_borrowRequest;
 
@@ -81,11 +80,13 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /////////////////
 
     modifier onlyBorrower() {
-        if (!isOwner[msg.sender] ) revert UnauthorizedAccess();
+         if (!isOwner[msg.sender] ) revert UnauthorizedAccess(msg.sender);
+        if ( msg.sender != address(i_borrower)) revert UnauthorizedAccess(msg.sender);
         _;
     }
     modifier onlyAdmin() {
-        if (!isOwner[msg.sender] && msg.sender != address(i_admin) ) revert UnauthorizedAccess();
+         if (!isOwner[msg.sender] ) revert UnauthorizedAccess(msg.sender);
+        if ( msg.sender != address(i_admin) ) revert UnauthorizedAccess(msg.sender);
         _;
     }
 
@@ -94,8 +95,8 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     ////////////////
 
     /// @dev contract constructor.
-    constructor(address[2] memory _owners, uint256 collateralAmount, address[] memory token) {
-        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateralAmount, token);
+    constructor(address[2] memory _owners, uint256 collateralAmount, address[] memory token, uint256 _timeCreated) {
+        s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateralAmount, token, _timeCreated);
          i_borrower = _owners[0];
          i_admin = _owners[1];
         isOwner[i_borrower] = true;
@@ -109,22 +110,22 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     ////////////////////////
 
     function addLiquidity(address token, uint256 collateralAmount, uint256 requestedAmount) external onlyBorrower nonReentrant{
-        if (msg.sender != address(i_borrower)) {
-            revert UnauthorizedAccess();
-        } 
+        // if (msg.sender != address(i_borrower)) {
+        //     revert UnauthorizedAccess();
+        // } 
         LoanRequest.addBorrowLiquidity(s_borrowRequest,token,collateralAmount,address(this),requestedAmount);
     }
 
      function cancelRequest() external onlyBorrower nonReentrant {
-        if (msg.sender != i_borrower) {
-            revert UnauthorizedAccess();
-        } 
+        // if (msg.sender != i_borrower) {
+        //     revert UnauthorizedAccess();
+        // } 
         LoanRequest.cancelBorrowRequest(s_borrowRequest, address(this));
     }
 
     function acceptLoan(address multisigAddress) external onlyAdmin nonReentrant{
          if (msg.sender != address(i_admin)) {
-            revert UnauthorizedAccess();
+            revert UnauthorizedAccess(msg.sender);
         } 
         emit LoanAccepted(multisigAddress);
         LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
@@ -160,10 +161,12 @@ contract BorrowRequest_v1 is ReentrancyGuard {
             address[2] memory owners,
             uint256 collateralAmountMinusFee,
             uint256 feeAmount,
-            LoanRequest.RequestState state
+            LoanRequest.RequestState state,
+            uint256 timeCreated
         )
     {
         return s_borrowRequest.getBorrowRequestDetails();
     }
+
 
 }

@@ -139,7 +139,8 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     ILimitMarket_v1 limitMarket;
     /// @dev keeps count on the number of times a batch was processed by the executeLoanRequests() function.
     uint256 private s_batchCount;
-    uint256 private s_priorityCount;
+    uint256 private s_priorityBorrowCount;
+    uint256 private s_priorityLendCount;
     address private s_activeBorrowRequestAddress; //keep track of the latest borrow request being processed.
     address private s_activeLendRequestAddress; //keep track of the latest lend request being processed.
     mapping(address => address[]) private userToActiveLoanContract;
@@ -267,7 +268,8 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
 
               s_batchCount++;
                  console.log("called function ",s_batchCount,"times");
-                 console.log("called  priority",s_priorityCount,"times");
+                 console.log("called borrow priority",s_priorityBorrowCount,"times");
+                 console.log("called lend priority",s_priorityLendCount,"times");
               _executionState(executionState.IDLE);
     }
     
@@ -294,12 +296,13 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             address _activeLendRequestAddress = lendRequests[targetRequestIndex];
 
              _processLoan(_activeBorrowRequestAddress,_activeLendRequestAddress,targetRequestIndex);
-             s_priorityCount++;
+             s_priorityBorrowCount++;
+             
 
             console.log("target index nextBorrowRequest",targetRequestIndex);
             console.log("target address _activeBorrowRequestAddress",_activeBorrowRequestAddress);
             console.log("target address _activeLendRequestAddress",_activeLendRequestAddress);
-            console.log("priority handled",_activeBorrowRequestAddress);
+            console.log("borrow priority handled",_activeBorrowRequestAddress);
             console.log("**************end borrow priority**********");
         }
     }
@@ -320,12 +323,12 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
              address _activeBorrowRequestAddress = borrowRequests[targetRequestIndex];
 
              _processLoan(_activeBorrowRequestAddress,_activeLendRequestAddress,targetRequestIndex);
-             s_priorityCount++;
+             s_priorityLendCount++;
 
             console.log("target index nextBorrowRequest",targetRequestIndex);
             console.log("target address _activeBorrowRequestAddress",_activeBorrowRequestAddress);
             console.log("target address _activeLendRequestAddress",_activeLendRequestAddress);
-            console.log("priority handled",_activeLendRequestAddress);
+            console.log("Lend priority handled",_activeLendRequestAddress);
             console.log("**************end lend priority**********");
             }
         }

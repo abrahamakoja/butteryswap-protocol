@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 // debug
-// import {Script, console} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 ////////////////
 /// Imports ///
@@ -16,7 +16,7 @@ contract LendingRequest_v1 is ReentrancyGuard {
      //////////////
     /// Errors ///
     /////////////
-
+ 
      error UnauthorizedAccess();
 
     //////////////////////////
@@ -30,7 +30,6 @@ contract LendingRequest_v1 is ReentrancyGuard {
      /////////////////////////
     /// State variables ////
     ///////////////////////
-
 
     address private immutable i_admin;
     mapping(address user => bool isAnOwner) public isOwner;
@@ -50,12 +49,14 @@ contract LendingRequest_v1 is ReentrancyGuard {
     /// Modifiers ////
     /////////////////
 
-    modifier onlyBorrower() {
+    modifier onlyLender() {
         if (!isOwner[msg.sender] ) revert UnauthorizedAccess();
+        if ( msg.sender != address(i_lender) ) revert UnauthorizedAccess();
         _;
     }
     modifier onlyAdmin() {
-        if (!isOwner[msg.sender] && msg.sender != address(i_admin) ) revert UnauthorizedAccess();
+        if (!isOwner[msg.sender] ) revert UnauthorizedAccess();
+        if ( msg.sender != address(i_admin) ) revert UnauthorizedAccess();
         _;
     }
 
@@ -78,19 +79,21 @@ contract LendingRequest_v1 is ReentrancyGuard {
     ///External Functions ///
     ////////////////////////
 
-    function getRequestState() external view  returns (LoanRequest.RequestState ) {
-        return LoanRequest.getLendRequestState(s_lendRequest);
-    }
-
-    function getOwners() external view returns (address[2] memory) {
-        return LoanRequest.getLendOwners(s_lendRequest);
-    }
-
-    function cancelRequest() external {
+     function cancelRequest() external onlyLender nonReentrant {
         LoanRequest.cancelLendRequest(s_lendRequest, address(this), s_lendRequest.owners[0]);
-        // delete s_lendRequest; 
-
     }
+
+     function offerLoan(address borrower) external onlyAdmin nonReentrant {
+        // transfer eth to an address and transfer tokens to an address
+        LoanRequest.offerLoan(s_lendRequest, address(borrower), address(this).balance);
+        emit LoanOffered(address(borrower), address(this).balance);
+    }  
+   
+   function addLiquidity() external onlyLender nonReentrant{
+        if (msg.sender != address(i_lender)) {
+            revert UnauthorizedAccess();
+        } 
+   }
 
      /////////////////////////////////////////////////
     ///  internal & private view & pure functions ///
@@ -100,17 +103,12 @@ contract LendingRequest_v1 is ReentrancyGuard {
     /// External & Public View & Pure Functions ///
     //////////////////////////////////////////////
 
-    function getBalance() external view returns (uint256) {
-        return LoanRequest.getBalance(address(this));
+    
+    function getRequestState() external view  returns (LoanRequest.RequestState ) {
+        return LoanRequest.getLendRequestState(s_lendRequest);
     }
 
-    function offerLoan(address borrower) external {
-        // transfer eth to an address and transfer tokens to an address
-        LoanRequest.offerLoan(s_lendRequest, address(borrower), address(this).balance);
-        emit LoanOffered(address(borrower), address(this).balance);
-    }  
-
-    // Function to get the borrow request details
+   
     function getLendRequestDetails()
         external
         view
@@ -125,8 +123,4 @@ contract LendingRequest_v1 is ReentrancyGuard {
         return s_lendRequest.getLendRequestDetails();
     }
 
-
-     function updateState() external{
-        LoanRequest.updateLendState(s_lendRequest);
-    }
 }
