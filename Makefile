@@ -8,6 +8,7 @@ build:; forge build
 deployLimitMarket:; forge script script/DeployLimitMarket.s.sol:DeployLimitMarket --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 deployEnforcer:; forge script script/DeployEnforcer_v1.s.sol:DeployEnforcer_v1 --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 deploySupportedTokens:; forge script script/DeploySupportedTokens.s.sol:DeploySupportedTokens --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
+deployBorrowRequestFactory:; forge script script/DeployBorrowRequestFactory.s.sol:DeployBorrowRequestFactory --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 
 
 # interactions
@@ -15,6 +16,7 @@ SupportedTokenInteractions:; forge script script/interactions.s.sol:SupportedTok
 LimitMarketInteractions:; forge script script/interactions.s.sol:LimitMarketInteractions  --rpc-url $(LOCAL_RPC_URL) --account localKey1 --broadcast -vvvv
 EnforcerInteractions:; forge script script/interactions.s.sol:EnforcerInteractions executeLoanRequests --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 BorrowRequestInteractions:; forge script script/interactions.s.sol:BorrowRequestInteractions --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
+BorrowRequestFactoryInteractions:; forge script script/interactions.s.sol:BorrowRequestInteractions --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 
 
 

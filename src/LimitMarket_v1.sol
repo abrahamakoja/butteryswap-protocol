@@ -40,21 +40,24 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {LendingRequest_v1} from "./LendingRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
 ///////////////////
 /// Interfaces ///
 /////////////////
 
-interface ICreateBorrowRequest {
+interface IBorrowRequestFactory {
     function getTotalActiveBorrowRequestContractAddresses()
         external
         view
         returns (address[] memory);
+
     function createBorrowRequest(
-        uint256 collateralAmount,
-        address[] calldata tokens,
-        address enforcerContract
-    ) external returns (address borrowRequestAddress); // Return the address of the new BorrowRequest
+        uint256 _collateralAmount,
+        address[] calldata _tokens,
+        address[2] calldata _owners,
+        bool _priority
+    ) external;
 }
 
 // LimitMarket_v1 Contract Definition
@@ -78,7 +81,6 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
     error LimitMarket_v1_NoCollateralSent(uint256 collateralAmount);
     error LimitMarket_v1_EnforcerNotInitialized();
-    
 
     /////////////////////////
     /// Type Declarations ///
@@ -91,7 +93,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ///////////////////////
 
     address private immutable i_Admin;
-    ICreateBorrowRequest i_BorrowRequestFactory;
+    IBorrowRequestFactory i_BorrowRequestFactory;
     // ISupportedTokens supportedTokensContract;
     LendingRequest_v1[] public totalLendRequestArray; //get this and only display the active
     // BorrowRequest_v1[] public totalBorrowRequestArray;
@@ -99,17 +101,16 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
     mapping(address => address[]) public userToLendRequestContracts;
-   
 
     //////////////
     /// Events ///
     ////////////
 
-    event BorrowRequestCreated(
-        address indexed user,
-        address indexed multiSigAddress,
-        uint256 amountTransferred
-    );
+    // event BorrowRequestCreated(
+    //     address indexed user,
+    //     address indexed multiSigAddress,
+    //     uint256 amountTransferred
+    // );
 
     event LendRequestCreated(
         address indexed user,
@@ -144,17 +145,29 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ////////////////
 
     constructor(address BorrowRequestFactory) Ownable(msg.sender) {
-        i_BorrowRequestFactory = ICreateBorrowRequest(BorrowRequestFactory);
+        i_BorrowRequestFactory = IBorrowRequestFactory(BorrowRequestFactory);
         i_Admin = msg.sender;
     }
 
     receive() external payable {}
 
+    function _approveToken(
+        address token,
+        address spender,
+        uint256 amount
+    ) internal {
+        // Reset the allowance to the exact collateralAmount
+
+        console.log("msg.sender", msg.sender);
+        console.log("address this", address(this));
+        erc20TokenLibrary.approveTokens(token, address(spender), amount);
+    }
+
     ////////////////////////
     ///External Functions ///
     ////////////////////////
 
-   /// @notice Internal function to create a new BorrowRequest instance
+    /// @notice Internal function to create a new BorrowRequest instance
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
     function Borrow(
@@ -170,122 +183,20 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
         if (address(enforcerContract) == address(0))
             revert LimitMarket_v1_EnforcerNotInitialized();
+        console.log("is ds caller", address(this));
 
-        // Create a new BorrowRequest and capture its address
-        address borrowRequestAddress = i_BorrowRequestFactory
-            .createBorrowRequest(
-                collateralAmount,
-                tokens,
-                address(enforcerContract)
-            );
+        address[2] memory owners = [msg.sender, address(enforcerContract)];
+        console.log("owner 0", owners[0]);
 
-        // check and update priority
-        if (priority) {
-            s_loanIsPrioritized[borrowRequestAddress] = true;
-
-            // emits
-            emit BorrowRequestCreated(
-                msg.sender,
-                borrowRequestAddress,
-                collateralAmount
-            );
-            emit TokensDeposited(msg.sender, tokens, collateralAmount);
-        }
+        // emits
+        emit TokensDeposited(msg.sender, tokens, collateralAmount);
+        i_BorrowRequestFactory.createBorrowRequest(
+            collateralAmount,
+            tokens,
+            owners,
+            priority
+        );
     }
-
-    // ******************
-    // function Borrow(
-    //     uint256 collateralAmount,
-    //     address[] calldata tokens,
-    //      bool priority
-    // ) external nonReentrant enforcerContractIsSet {
-
-    //     // checks
-    //     if (tokens.length == 0 || tokens.length > 3)
-    //         revert LimitMarket_v1_InvalidTokenCount(tokens.length);
-    //     if (collateralAmount == 0)
-    //         revert LimitMarket_v1_NoCollateralSent(collateralAmount);
-    //     if (address(enforcerContract) == address(0))
-    //         revert LimitMarket_v1_EnforcerNotInitialized();
-
-    //     for (uint256 index = 0; index < tokens.length; index++) {
-    //         if (!supportedTokensContract.checkTokenIsApproved(tokens[index])) {
-    //             revert LimitMarket_v1_unSupportedToken(tokens[index]);
-    //         }
-
-    //         erc20TokenLibrary.increaseAllowance( tokens[index],address(this),collateralAmount);
-    //     }
-
-    //     i_BorrowRequestFactory.createBorrowRequest(); //need to get the return value of borrow request created
-
-    //     if (priority) {
-    //         s_loanIsPrioritized[address(borrowRequest)] = true;
-    //     }
-    //     userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-    //     totalBorrowRequestArray.push(borrowRequest);
-
-    //     // emits
-    //     emit BorrowRequestCreated(
-    //         msg.sender,
-    //         address(borrowRequest),
-    //         collateralAmount
-    //     );
-    //     emit TokensDeposited(msg.sender, tokens, collateralAmount);
-    // }
-
-    // function borrow(
-    //     uint256 collateralAmount,
-    //     address[] calldata tokens,
-    //     bool priority
-    // ) external nonReentrant {
-    //     // checks
-    //     if (tokens.length == 0 || tokens.length > 3)
-    //         revert LimitMarket_v1_InvalidTokenCount(tokens.length);
-    //     if (collateralAmount == 0)
-    //         revert LimitMarket_v1_NoCollateralSent(collateralAmount);
-    //     if (address(enforcerContract) == address(0))
-    //         revert LimitMarket_v1_EnforcerNotInitialized();
-
-    //     for (uint256 index = 0; index < tokens.length; index++) {
-
-    //         // ensure allowance is decrease when cancelled
-    //            erc20TokenLibrary.increaseAllowance( tokens[index],address(this),collateralAmount);
-
-    //     }
-
-    //     // effects
-    //     address[2] memory owners = [msg.sender, address(enforcerContract)];
-    //     BorrowRequest_v1 borrowRequest = new BorrowRequest_v1(
-    //         owners,
-    //         collateralAmount,
-    //         tokens,
-    //         block.timestamp
-    //     );
-
-    //     if (priority) {
-    //         s_loanIsPrioritized[address(borrowRequest)] = true;
-    //     }
-    //     userToBorrowRequestAddress[msg.sender].push(address(borrowRequest));
-    //     totalBorrowRequestArray.push(borrowRequest);
-
-    //     // emits
-    //     emit BorrowRequestCreated(
-    //         msg.sender,
-    //         address(borrowRequest),
-    //         collateralAmount
-    //     );
-    //     emit TokensDeposited(msg.sender, tokens, collateralAmount);
-
-    //     // interactions
-    //     for (uint256 index = 0; index < tokens.length; index++) {
-    //         erc20TokenLibrary.transferFromTokens(
-    //             tokens[index],
-    //             msg.sender,
-    //             address(borrowRequest),
-    //             collateralAmount
-    //         );
-    //     }
-    // }
 
     function lend(bool priority) external payable nonReentrant {
         // checks
@@ -334,10 +245,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     // update enforcer contract
     function updateContracts(
-        address enforcerAddress
+        address enforcerAddress,
+        address _BorrowRequestFactory
     ) external onlyAdmin notUpdating {
         _setUpdating(UpdateState.UPDATING);
         enforcerContract = enforcerAddress;
+        i_BorrowRequestFactory = IBorrowRequestFactory(_BorrowRequestFactory);
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
@@ -367,6 +280,43 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     }
 
     // **** borrow requests functions ****//
+
+    // returns specific number of requests using a start index and a number of requested contracts
+    function getActiveBorrowRequestViaLimit(
+        uint256 startIndex,
+        uint256 requestedNumber
+    ) external view returns (address[] memory borrowRequests) {
+        address[] memory borrowRequest = i_BorrowRequestFactory
+            .getTotalActiveBorrowRequestContractAddresses();
+        uint256 counter = 0;
+        for (uint256 i = 0; i < borrowRequest.length; i++) {
+            if (i < startIndex) {
+                continue;
+            } else if (i >= startIndex) {
+                borrowRequest[counter] = address(borrowRequest[i]);
+                if (counter >= requestedNumber) {
+                    break;
+                }
+                counter++;
+            }
+        }
+        address[] memory requestedBorrowRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            requestedBorrowRequest[i] = address(borrowRequest[i]);
+        }
+        return requestedBorrowRequest;
+    }
+
+    // @dev returns the total active borrow requests count.
+    function getTotalActiveBorrowRequestContractCount()
+        external
+        view
+        returns (uint256 count)
+    {
+        address[] memory borrowRequests = i_BorrowRequestFactory
+            .getTotalActiveBorrowRequestContractAddresses();
+        return borrowRequests.length;
+    }
 
     // @dev returns the total active borrow requests prioritized addresses.
     function getPrioritizedBorrowRequestAddress()
