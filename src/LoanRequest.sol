@@ -33,9 +33,10 @@ error executeLoanRequestFailed();
     struct LendRequest {
         uint256 amountLended;
         address[2] owners;
-        uint256 balanceMinusFee;
-        uint256 feeEarned;
+        uint256 amountLendedMinusFee;
+        uint256 feeAmount;
         RequestState state;
+         uint256 timeCreated;
     }
 
     struct ActiveLoan {
@@ -108,16 +109,6 @@ error executeLoanRequestFailed();
         );
     }
 
-    // //  withdrawTokenBalance function
-    // function withdrawBorrowRequestTokenBalance(BorrowRequest storage request, uint256 amount) internal {
-    //     if (request.state == RequestState.OPEN) revert UnauthorizedAccess(address(this), msg.sender);
-    //     if (amount == 0 || amount > request.collateralAmount) revert InsufficientFunds(request.collateralAmount, amount);
-
-    //     // Use the token's transfer function from the erc20TokenLibrary
-    //     erc20TokenLibrary.transferTokens(address(request.tokens), address(request.owners[0]), amount);
-    //     emit FundsWithdrawn(amount, request.collateral - amount);
-    // }
-
     function cancelBorrowRequest(BorrowRequest storage request, address contractAddress) internal {
         request.state = RequestState.CANCELLING;
         if (request.collateralAmount == 0) revert InsufficientFunds(contractAddress.balance, request.collateralAmount);
@@ -138,9 +129,7 @@ error executeLoanRequestFailed();
         }
         for (uint256 index = 0; index < request.tokens.length; index++) {
              erc20TokenLibrary.transferTokens(address(request.tokens[index]), address(request.owners[1]), request.feeAmount);
-        }
-
-       
+        } 
     }
 
   
@@ -158,11 +147,8 @@ error executeLoanRequestFailed();
     }
     // get contract balance for borrow request
 
-    // function getTokenBalance(BorrowRequest storage request, address contractAddress) internal view returns (uint256) {
-    //     return erc20TokenLibrary.getBalance(address(contractAddress), request.memeCoin);
-    // }
-    // Function to get the details of a BorrowRequest
 
+    // Function to get the details of a BorrowRequest
     function getBorrowRequestDetails(BorrowRequest storage request)
         internal
         view
@@ -184,18 +170,6 @@ error executeLoanRequestFailed();
         state = request.state;
         _timeCreated = request.timeCreated;
     }
-
-
-
-
-    //  struct ActiveLoan{
-    //     uint256 collateral;
-    //     uint256 amoutToPayBack;
-    //     address[3] owners;
-    //     address memeCoin;
-    //     address borrower;
-    //     address lender;
-    // }
 
     // get active loan details
     function getActiveLoanContractDetails(ActiveLoan storage request)
@@ -219,7 +193,7 @@ error executeLoanRequestFailed();
     }
 
     /* Public functions for lend requests **/
-    function createLendRequest(address[2] memory _owners, uint256 _amountLended)
+    function createLendRequest(address[2] memory _owners, uint256 _amountLended, uint256 _timeCreated)
         internal
         pure
         returns (LendRequest memory)
@@ -227,17 +201,17 @@ error executeLoanRequestFailed();
         return LendRequest({
             amountLended: _amountLended,
             owners: _owners,
-            balanceMinusFee: 0,
-            feeEarned: 0,
-            state: RequestState.OPEN
+            amountLendedMinusFee: 0,
+            feeAmount: 0,
+            state: RequestState.OPEN,
+            timeCreated: _timeCreated
+
         });
     }
 
     function getLendRequestState(LendRequest storage request) internal view returns(RequestState){
         return  request.state;
     }
-
-   
  
     // Function to get the details of a lendRequest details
     function getLendRequestDetails(LendRequest storage request)
@@ -253,8 +227,8 @@ error executeLoanRequestFailed();
     {
         amountLended = request.amountLended;
         owners = request.owners;
-        balanceMinusFee = request.balanceMinusFee;
-        feeEarned = request.feeEarned;
+        balanceMinusFee = request.amountLendedMinusFee;
+        feeEarned = request.feeAmount; 
         state = request.state;
     }
 
@@ -265,7 +239,7 @@ error executeLoanRequestFailed();
         else if (request.state == RequestState.CANCELLING) request.state = RequestState.CANCELLED;
         else if (request.state == RequestState.CLOSED) revert UnauthorizedAccess(contractAddress, contractAddress);
 
-        emit FundsWithdrawn(amount, request.balanceMinusFee);
+        emit FundsWithdrawn(amount, request.amountLendedMinusFee);
         (bool success,) = recipient.call{value: amount, gas: 50000}("");
         if (!success) revert InsufficientFunds(contractAddress.balance, amount);
     }
@@ -287,7 +261,7 @@ error executeLoanRequestFailed();
         
         // interactions
         (bool success,) = recipient.call{value: 3* 1e18, gas: 50000}("");
-        if (!success) revert InsufficientFunds(contractAddress.balance, request.balanceMinusFee);
+        if (!success) revert InsufficientFunds(contractAddress.balance, request.amountLendedMinusFee);
     }
 
    
@@ -309,46 +283,11 @@ error executeLoanRequestFailed();
 
     function offerLoan(LendRequest storage request, address borrowerAddress, uint256 amount) internal {
         (bool success,) = borrowerAddress.call{value: amount, gas: 50000}("");
-        if (!success) revert InsufficientFunds(address(this).balance, request.balanceMinusFee);
+        if (!success) revert InsufficientFunds(address(this).balance, request.amountLendedMinusFee);
     }
 
     function executeLoan(address activeBorrower) internal {
         emit executionSuccess(activeBorrower);
     }
 
-    //   function executeLoan(
-    //     BorrowRequest storage _borrowRequest,
-    //     address activeBorrowRequest,
-    //     address activeLoanAddress
-    // ) internal {
-    //     // Ensure that the borrow request is valid
-    //     require(activeBorrowRequest != address(0), "Invalid borrow request address");
-    //     require(activeLoanAddress != address(0), "Invalid loan address");
-
-    //     // Ensure that the collateral amount is greater than zero
-    //     require(_borrowRequest.collateral > 0, "Collateral must be greater than zero");
-
-    //     // Check allowance (optional, but recommended)
-    //     // uint256 allowance = erc20TokenLibrary.allowance(activeBorrowRequest, activeLoanAddress);
-    //     // require(allowance >= _borrowRequest.collateral, "Insufficient allowance for transfer");
-
-    //     // Accept loan: transfer collateral to the multisig address
-    //     try erc20TokenLibrary.transferFromTokens(
-    //         address(_borrowRequest.memeCoin),
-    //         address(activeBorrowRequest),
-    //         address(activeLoanAddress),
-    //         _borrowRequest.collateral
-    //     ) {
-    //         emit executionSuccess();
-    //     } catch {
-    //         revert executeLoanRequestFailed();
-    //     }
-
-    //     // Offer loan: transfer ETH value from specific lend request contract to the borrower's address
-    //     // Uncomment and ensure _lendRequest is defined and initialized properly
-    //     /*
-    //     (bool success, ) = _borrowRequest.owners[0].call{value:_lendRequest.balanceMinusFee, gas: gasleft()}("");
-    //     if (!success) revert executeLoanRequestFailed();
-    //     */
-    // }
 }

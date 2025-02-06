@@ -11,7 +11,7 @@ import {LoanRequest} from "./LoanRequest.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // BorrowRequest_v1 Contract Definition
-contract LendingRequest_v1 is ReentrancyGuard {
+contract LendRequest_v1 is ReentrancyGuard {
 
      //////////////
     /// Errors ///
@@ -36,7 +36,6 @@ contract LendingRequest_v1 is ReentrancyGuard {
     address public immutable i_lender;
     using LoanRequest for LoanRequest.LendRequest;
     LoanRequest.LendRequest private s_lendRequest;  
-
 
 
      ///////////////
@@ -65,8 +64,8 @@ contract LendingRequest_v1 is ReentrancyGuard {
     ////////////////
 
     /// @dev contract constructor.
-    constructor(address[2] memory _owners, uint256 amountLended) payable {
-        s_lendRequest = LoanRequest.createLendRequest(_owners, amountLended);
+    constructor(address[2] memory _owners, uint256 amountLended, uint256 _timeCreated) payable {
+        s_lendRequest = LoanRequest.createLendRequest(_owners, amountLended,_timeCreated);
         i_lender = _owners[0];
         i_admin = _owners[1];
          isOwner[i_lender] = true;

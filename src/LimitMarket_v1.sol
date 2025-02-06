@@ -25,7 +25,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title LimitMarket_v1
- * @author Abraham akoja
+ * @author ButterySwap Protocol
  * @notice
  */
 
@@ -37,10 +37,10 @@ import {Script, console} from "forge-std/Script.sol";
 //////////////
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {LendingRequest_v1} from "./LendingRequest_v1.sol";
+import {LendRequest_v1} from "./LendRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
+// import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
 ///////////////////
 /// Interfaces ///
@@ -66,16 +66,16 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Errors ///
     //////////////
 
-    error LimitMarket_v1_TransferFailed(
-        address borrowRequest,
-        uint256 sentAmount
-    );
-    error LimitMarket_v1_InsufficientBalance(
-        uint256 balance,
-        uint256 collateral
-    );
-    error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
-    error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
+    // error LimitMarket_v1_TransferFailed(
+    //     address borrowRequest,
+    //     uint256 sentAmount
+    // );
+    // error LimitMarket_v1_InsufficientBalance(
+    //     uint256 balance,
+    //     uint256 collateral
+    // );
+    // error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
+    // error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
     error UnauthorizedAccess(address caller);
     // new
     error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
@@ -95,28 +95,22 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     address private immutable i_Admin;
     IBorrowRequestFactory i_BorrowRequestFactory;
     // ISupportedTokens supportedTokensContract;
-    LendingRequest_v1[] public totalLendRequestArray; //get this and only display the active
+    // LendRequest_v1[] public totalLendRequestArray; //get this and only display the active
     // BorrowRequest_v1[] public totalBorrowRequestArray;
     address private enforcerContract;
-    mapping(address loanRequest => bool prioritized)
-        private s_loanIsPrioritized;
-    mapping(address => address[]) public userToLendRequestContracts;
+    // mapping(address loanRequest => bool prioritized)
+    //     private s_loanIsPrioritized;
+    // mapping(address => address[]) public userToLendRequestContracts;
 
     //////////////
     /// Events ///
     ////////////
 
-    // event BorrowRequestCreated(
+    // event LendRequestCreated(
     //     address indexed user,
     //     address indexed multiSigAddress,
-    //     uint256 amountTransferred
+    //     uint256 amountLended
     // );
-
-    event LendRequestCreated(
-        address indexed user,
-        address indexed multiSigAddress,
-        uint256 amountLended
-    );
 
     event TokensDeposited(
         address indexed user,
@@ -151,18 +145,6 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     receive() external payable {}
 
-    function _approveToken(
-        address token,
-        address spender,
-        uint256 amount
-    ) internal {
-        // Reset the allowance to the exact collateralAmount
-
-        console.log("msg.sender", msg.sender);
-        console.log("address this", address(this));
-        erc20TokenLibrary.approveTokens(token, address(spender), amount);
-    }
-
     ////////////////////////
     ///External Functions ///
     ////////////////////////
@@ -181,12 +163,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         if (collateralAmount == 0)
             revert LimitMarket_v1_NoCollateralSent(collateralAmount);
 
-        if (address(enforcerContract) == address(0))
-            revert LimitMarket_v1_EnforcerNotInitialized();
-        console.log("is ds caller", address(this));
-
         address[2] memory owners = [msg.sender, address(enforcerContract)];
-        console.log("owner 0", owners[0]);
 
         // emits
         emit TokensDeposited(msg.sender, tokens, collateralAmount);
@@ -198,50 +175,50 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         );
     }
 
-    function lend(bool priority) external payable nonReentrant {
-        // checks
-        if (msg.value == 0)
-            revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
-        if (msg.value > msg.sender.balance)
-            revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
-        if (msg.value >= msg.sender.balance)
-            revert LimitMarket_v1_InsufficientBalance(
-                msg.sender.balance,
-                msg.value
-            );
-        if (address(enforcerContract) == address(0)) revert();
-        if (address(enforcerContract) != address(enforcerContract)) revert();
-        // checks to add
-        // msg.value should be equal or greater than dollar price of the minimum allowed amount
+    // function lend(bool priority) external payable nonReentrant {
+    //     // checks
+    //     if (msg.value == 0)
+    //         revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
+    //     if (msg.value > msg.sender.balance)
+    //         revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
+    //     if (msg.value >= msg.sender.balance)
+    //         revert LimitMarket_v1_InsufficientBalance(
+    //             msg.sender.balance,
+    //             msg.value
+    //         );
+    //     if (address(enforcerContract) == address(0)) revert();
+    //     if (address(enforcerContract) != address(enforcerContract)) revert();
+    //     // checks to add
+    //     // msg.value should be equal or greater than dollar price of the minimum allowed amount
 
-        // effects
-        address[2] memory owners = [msg.sender, address(enforcerContract)];
+    //     // effects
+    //     address[2] memory owners = [msg.sender, address(enforcerContract)];
 
-        LendingRequest_v1 lendingRequest = new LendingRequest_v1(
-            owners,
-            msg.value
-        );
+    //     LendRequest_v1 lendRequest = new LendRequest_v1(
+    //         owners,
+    //         msg.value
+    //     );
 
-        if (priority == true) {
-            s_loanIsPrioritized[address(lendingRequest)] = true;
-        }
-        userToLendRequestContracts[msg.sender].push(address(lendingRequest));
-        totalLendRequestArray.push(lendingRequest);
+    //     if (priority == true) {
+    //         s_loanIsPrioritized[address(lendRequest)] = true;
+    //     }
+    //     userToLendRequestContracts[msg.sender].push(address(lendRequest));
+    //     totalLendRequestArray.push(lendRequest);
 
-        // emits
-        emit LendRequestCreated(msg.sender, address(lendingRequest), msg.value);
+    //     // emits
+    //     emit LendRequestCreated(msg.sender, address(lendRequest), msg.value);
 
-        //  interactions
-        (bool success, ) = payable(lendingRequest).call{
-            value: msg.value,
-            gas: 2300
-        }("");
-        if (!success)
-            revert LimitMarket_v1_TransferFailed(
-                address(lendingRequest),
-                msg.value
-            );
-    }
+    //     //  interactions
+    //     (bool success, ) = payable(lendRequest).call{
+    //         value: msg.value,
+    //         gas: 2300
+    //     }("");
+    //     if (!success)
+    //         revert LimitMarket_v1_TransferFailed(
+    //             address(lendRequest),
+    //             msg.value
+    //         );
+    // }
 
     // update enforcer contract
     function updateContracts(
@@ -362,10 +339,10 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         );
         uint256 counter = 0;
         for (uint256 i = 0; i < totalLendRequestArray.length; i++) {
-            LendingRequest_v1 lendingRequest_v1 = LendingRequest_v1(
+            LendRequest_v1 lendRequest_v1 = LendRequest_v1(
                 payable(address(totalLendRequestArray[i]))
             );
-            uint8 status = uint8(lendingRequest_v1.getRequestState());
+            uint8 status = uint8(lendRequest_v1.getRequestState());
             if (status != 0) {
                 continue;
             }
