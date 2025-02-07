@@ -84,8 +84,8 @@ contract LendRequest_v1 is ReentrancyGuard {
 
      function offerLoan(address borrower) external onlyAdmin nonReentrant {
         // transfer eth to an address and transfer tokens to an address
-        LoanRequest.offerLoan(s_lendRequest, address(borrower), address(this).balance);
         emit LoanOffered(address(borrower), address(this).balance);
+        LoanRequest.offerLoan(s_lendRequest, address(borrower), address(this).balance);
     }  
    
    function addLiquidity() external onlyLender nonReentrant{

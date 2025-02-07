@@ -191,6 +191,9 @@ contract SupportedTokens is ReentrancyGuard, Ownable {
         if (index > s_pendingTokenRequets.length) {
             revert approveFailed(s_pendingTokenRequets.length);
         }
+        if (s_pendingTokenRequets.length <= 0) {
+            revert approveFailed(s_pendingTokenRequets.length);
+        }
 
         /// Effects
         address token = s_pendingTokenRequets[index];

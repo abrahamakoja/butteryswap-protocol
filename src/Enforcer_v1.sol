@@ -55,14 +55,16 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // LimitMarket contract interface
 interface ILimitMarket_v1 {
-    function getPrioritizedBorrowRequestAddress() external view returns(address loanRequest);
-     function getPrioritizedLendRequestAddress() external view returns(address loanRequest);
-      function getTotalActiveLendRequestContractCount() external view returns (uint256);
+
+    function getPrioritizedBorrowRequestAddress(
+        uint256 batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory prioritizedLoans);
     function getTotalActiveBorrowRequestContractCount() external view returns(uint256);
     function getActiveBorrowRequestViaLimit(uint256 startIndex, uint256 endIndex) external view returns(address[] memory);
+    function getPrioritizedLendRequestAddress() external view returns(address loanRequest);
+    function getTotalActiveLendRequestContractCount() external view returns (uint256);
     function getActiveLendRequestViaLimit(uint256 startIndex, uint256 requestedNumber) external view returns(address[] memory);
-   
-    
 }
 
 // Borrow request interface
@@ -147,8 +149,17 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     mapping(address borrowRequest => uint256 index) private s_settledBorrowRequest; // 
     mapping(address borrowRequest => uint256 index) private s_settledLendRequest; // 
     uint256 private constant BATCH_LIMIT = 10;
+    uint256 private constant NUMBER_OF_RESPONSE = 1;
+    
+    //  address[]  borrowRequests;
+        /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
+    //  address[]  lendRequests;
+    // uint256 totalBorrowRequests;
+    // uint256 totalLendRequests;
+    // address[] prioritizedBorrowRequest;
+    // address[] prioritizedLendRequest ;
 
-
+   
     ///////////////
     /// Events ///
     /////////////
@@ -197,6 +208,18 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
         limitMarket = ILimitMarket_v1(s_limitMarketAddress);
         _setUpdating(UpdateState.NOTUPDATING);
     }
+
+    function _getLoanRequestDetails() internal view returns( uint256 _totalBorrowRequests,uint256 _totalLendRequests,address[] memory _prioritizedBorrowRequest,address  _prioritizedLendRequest,address[] memory  _borrowRequests,  address[] memory  _lendRequests){
+           _totalBorrowRequests = limitMarket.getTotalActiveBorrowRequestContractCount();
+           _totalLendRequests = limitMarket.getTotalActiveLendRequestContractCount();
+         _prioritizedBorrowRequest = limitMarket.getPrioritizedBorrowRequestAddress(BATCH_LIMIT,NUMBER_OF_RESPONSE);
+           _prioritizedLendRequest = limitMarket.getPrioritizedLendRequestAddress();
+          _borrowRequests = limitMarket.getActiveBorrowRequestViaLimit(s_startingBorrowRequestIndex,_totalBorrowRequests);
+        /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
+         _lendRequests = limitMarket.getActiveLendRequestViaLimit(s_startingLendRequestIndex,_totalLendRequests);
+
+          return (_totalBorrowRequests,_totalLendRequests,_prioritizedBorrowRequest,_prioritizedLendRequest,_borrowRequests,_lendRequests);
+    }
   
     /**
      * @notice this function processess the loan requests and executes them in a chronological order.
@@ -208,36 +231,37 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
      */
     function executeLoanRequests() external nonReentrant onlyOwner onlyWhenIdle {
           _executionState(executionState.PROCESSING);
-        /// *** checks *** ///
-        
+    uint256  totalBorrowRequests;
+    uint256  totalLendRequests;
+    address[] memory prioritizedBorrowRequest;
+    address prioritizedLendRequest;
+    address[] memory  borrowRequests;
+    address[] memory  lendRequests;
+
+
+          (totalBorrowRequests,totalLendRequests,prioritizedBorrowRequest,prioritizedLendRequest,borrowRequests,lendRequests) = _getLoanRequestDetails();
+
         /// @dev check if liquidity is sufficient to settle loans, if loan requests are less than 1 on either sides ie;(borrow/lend), revert with the error Enforcer_v1_insufficientLiquidity
-        if (limitMarket.getTotalActiveBorrowRequestContractCount() < 1 || limitMarket.getTotalActiveLendRequestContractCount() < 1 ) {
+        if ((totalBorrowRequests < 1 || totalLendRequests < 1) && prioritizedBorrowRequest.length < 1) {
+            console.log("totalBorrowRequests ",borrowRequests.length);
+            console.log("totalLendRequests ",totalLendRequests);
+            console.log("total prioritizedBorrowRequest ",prioritizedBorrowRequest.length);
             revert Enforcer_v1_insufficientLiquidity();
-        }
+            }
 
-        /// *** effects *** ///
-
-        uint256 totalBorrowRequests = limitMarket.getTotalActiveBorrowRequestContractCount();
-        uint256 totalLendRequests = limitMarket.getTotalActiveLendRequestContractCount();
-
-        // priority
-        address prioritizedBorrowRequest = limitMarket.getPrioritizedBorrowRequestAddress();
-        address prioritizedLendRequest = limitMarket.getPrioritizedLendRequestAddress();
-
-        address[] memory borrowRequests = limitMarket.getActiveBorrowRequestViaLimit(s_startingBorrowRequestIndex,totalBorrowRequests);
-        /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
-         address[] memory lendRequests = limitMarket.getActiveLendRequestViaLimit(s_startingLendRequestIndex,totalLendRequests);
-        
-        /// @notice this variable checks for the lowest value between the borrow and lend requests array then assigns the lowest value between both to itself.
-        uint256 lowestRequestsCount = limitMarket.getTotalActiveBorrowRequestContractCount() <  limitMarket.getTotalActiveLendRequestContractCount() ? limitMarket.getTotalActiveBorrowRequestContractCount(): limitMarket.getTotalActiveLendRequestContractCount();
-        uint256 batchLimit = lowestRequestsCount < BATCH_LIMIT ? lowestRequestsCount : BATCH_LIMIT ; //ensure the batch limit of 10 is not exceeded for the endIndexLend variable
+    uint256 lowestRequestsCount = totalBorrowRequests <  totalLendRequests ? totalBorrowRequests: totalLendRequests;
+    uint256 batchLimit = lowestRequestsCount < BATCH_LIMIT ? lowestRequestsCount : BATCH_LIMIT ; //ensure the batch limit of 10 is not exceeded for the endIndexLend variable
        
    console.log("totalBorrowRequests ",borrowRequests.length);
    console.log("totalLendRequests ",totalLendRequests);
+    console.log("total prioritizedBorrowRequest ",prioritizedBorrowRequest.length);
+   console.log("enforcer ",address(this));
+   console.log("sender or caller ",address(msg.sender));
     
     // console.log("before startIndex",startIndex);
      console.log("******************before********************");
-
+       
+       if((totalBorrowRequests > 1 || totalLendRequests > 1)){
         for (uint256 i = 0; i < batchLimit; i++) {
             /// @dev this Loops through the loan requests and execute the offerLoan & acceptLoan functions, this would be done in batches of 10 at a time.
               console.log("**************start loop**********");
@@ -247,21 +271,27 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             _processLoan(_activeBorrowRequestAddress,_activeLendRequestAddress,i);
             console.log("**************end loop**********");
         }
+       }
+
+
             console.log("*************************************************");
-            // console.log("after totalBorrowRequests ",borrowRequests.length);
-            // console.log("after totalLendRequests ",totalLendRequests);
+            console.log("after totalBorrowRequests ",borrowRequests.length);
+            console.log("after totalLendRequests ",totalLendRequests);
             console.log("after last settled borrow index",s_settledBorrowRequest[address(s_activeBorrowRequestAddress)]);
+            console.log("after last settled lend index",s_settledLendRequest[address(s_activeLendRequestAddress)]);
             console.log("last borrow",s_activeBorrowRequestAddress); 
             console.log("last lend",s_activeLendRequestAddress);
+            console.log("*************************************************");
            
         
+            console.log("*******************priority functions******************************");
         // handle priority loans  
-       _prioritizeBorrowLoan( prioritizedBorrowRequest,  lendRequests);
-       _prioritizeLendLoan(prioritizedLendRequest,borrowRequests);
+       _prioritizeBorrowLoan(prioritizedBorrowRequest);
+       _prioritizeLendLoan(prioritizedLendRequest);
 
             console.log("*****************concluded************************");
-            // console.log("last totalBorrowRequests ",borrowRequests.length);
-            // console.log("last totalLendRequests ",totalLendRequests);
+            console.log("last totalBorrowRequests ",borrowRequests.length);
+            console.log("last totalLendRequests ",totalLendRequests);
             console.log("after priority settled index",s_settledBorrowRequest[address(s_activeBorrowRequestAddress)]);
             console.log("last priority borrow",s_activeBorrowRequestAddress); 
             console.log("last priority lend",s_activeLendRequestAddress);
@@ -271,6 +301,8 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
                  console.log("called borrow priority",s_priorityBorrowCount,"times");
                  console.log("called lend priority",s_priorityLendCount,"times");
               _executionState(executionState.IDLE);
+        
+        
     }
     
 
@@ -284,19 +316,36 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
 /// fee is in protocol token $BUTTER, and all collected fee is distributed to every user on the next batch after the prioritized loan is settled.
 /// if available, a maximum of 2 prioritized loans would be processes after a batch, one for each different loan types.
 /// this will ensure processing priority loans doesn't creates a bottle neck for other batches to go through.
-    function _prioritizeBorrowLoan(address _prioritizedBorrowRequest, address[] memory lendRequests) internal {
+    function _prioritizeBorrowLoan(address[] memory _prioritizedBorrowRequest) internal {
        // handle priority for borrow request loans
-        if (_prioritizedBorrowRequest != address(0) && lendRequests.length != 0) {  
+        uint256  totalLendRequests; 
+        address[] memory lendRequests;
+
+         (,totalLendRequests,,,,lendRequests) =_getLoanRequestDetails();
+       if(totalLendRequests == 0) {
+        return;
+        }
+        if (_prioritizedBorrowRequest.length == 0) {
+            return;
+        }
+
             console.log("**************inside borrow priority**********");
-            console.log(" prioritizedBorrowRequest",_prioritizedBorrowRequest);
+
+            console.log(" prioritizedBorrowRequest",_prioritizedBorrowRequest[0]);
 
             uint256 lastLendRequestProcessed = s_settledLendRequest[address(s_activeLendRequestAddress)];
+            console.log(" debug lastLendRequestProcessed",lastLendRequestProcessed);
             uint256 targetRequestIndex = lastLendRequestProcessed + 1;
-            address _activeBorrowRequestAddress = address(_prioritizedBorrowRequest);
+            console.log(" debug targetRequestIndex",targetRequestIndex);
+            address _activeBorrowRequestAddress = address(_prioritizedBorrowRequest[0]);
+            console.log(" debug _activeBorrowRequestAddress",_activeBorrowRequestAddress);
+           
             address _activeLendRequestAddress = lendRequests[targetRequestIndex];
+            console.log(" debug _activeLendRequestAddress",_activeLendRequestAddress);
 
              _processLoan(_activeBorrowRequestAddress,_activeLendRequestAddress,targetRequestIndex);
              s_priorityBorrowCount++;
+            console.log(" debug s_priorityBorrowCount",s_priorityBorrowCount);
              
 
             console.log("target index nextBorrowRequest",targetRequestIndex);
@@ -304,13 +353,17 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             console.log("target address _activeLendRequestAddress",_activeLendRequestAddress);
             console.log("borrow priority handled",_activeBorrowRequestAddress);
             console.log("**************end borrow priority**********");
-        }
+        
     }
-    function _prioritizeLendLoan(address _prioritizedLendRequest, address[] memory borrowRequests) internal {
-            if (_prioritizedLendRequest != address(0) &&  limitMarket.getTotalActiveBorrowRequestContractCount() != 0) {
-            if ( limitMarket.getTotalActiveBorrowRequestContractCount() == 0) {
+    function _prioritizeLendLoan(address _prioritizedLendRequest) internal {
+         uint256  totalBorrowRequests; 
+        address[] memory borrowRequests;
+
+            (totalBorrowRequests,,,,borrowRequests,) =_getLoanRequestDetails();
+            if (_prioritizedLendRequest != address(0) && totalBorrowRequests != 0) {
+            if ( totalBorrowRequests == 0) {
                 return;//extra check cus i am paranoid
-            } else {
+            } else {  
                 
             
             console.log("**************inside lend priority**********");
@@ -346,7 +399,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
             address activeLender = LendRequest.i_lender();
             (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
            
-
+              
               console.log("ran ",index+1,"times");
               console.log("_activeBorrowRequestAddress ",_activeBorrowRequestAddress);
               console.log("_activeLendRequestAddress ",_activeLendRequestAddress);

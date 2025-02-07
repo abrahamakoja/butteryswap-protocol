@@ -1,25 +1,3 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
-
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -40,21 +18,46 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {LendRequest_v1} from "./LendRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-// import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
 ///////////////////
 /// Interfaces ///
 /////////////////
 
 interface IBorrowRequestFactory {
-    function getTotalActiveBorrowRequestContractAddresses()
+    function getTotalActiveBorrowRequestContractCount()
+        external
+        view
+        returns (uint256 numberOfContracts);
+    function getBorrowRequestPositionOnActiveRequestQue(
+        address borrowRequest
+    ) external view returns (uint256 position);
+
+    function getTotalActivePrioritizedBorrowRequests(uint256 _batchLimit,uint256 numOfResponse)
         external
         view
         returns (address[] memory);
 
+    function getBatchedActiveBorrowRequestContractAddresses(
+        uint256 _batchLimit
+    ) external view returns (address[] memory);
+
     function createBorrowRequest(
         uint256 _collateralAmount,
         address[] calldata _tokens,
+        address[2] calldata _owners,
+        bool _priority
+    ) external;
+}
+
+interface ILendRequestFactory {
+    function getTotalActiveLendRequestContractAddresses()
+        external
+        view
+        returns (address[] memory);
+    function getPrioritizedLendRequest(
+        address LendRequestContractAddress
+    ) external view returns (bool isPrioritized);
+    function createLendRequest(
         address[2] calldata _owners,
         bool _priority
     ) external;
@@ -66,27 +69,21 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Errors ///
     //////////////
 
-    // error LimitMarket_v1_TransferFailed(
-    //     address borrowRequest,
-    //     uint256 sentAmount
-    // );
-    // error LimitMarket_v1_InsufficientBalance(
-    //     uint256 balance,
-    //     uint256 collateral
-    // );
-    // error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
-    // error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
     error UnauthorizedAccess(address caller);
     // new
     error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
     error LimitMarket_v1_NoCollateralSent(uint256 collateralAmount);
     error LimitMarket_v1_EnforcerNotInitialized();
+    error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
+    error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
+    error LimitMarket_v1_InsufficientBalance(
+        uint256 balance,
+        uint256 collateral
+    );
 
     /////////////////////////
     /// Type Declarations ///
     ///////////////////////
-
-    // using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     /////////////////////////
     /// State variables ///
@@ -94,23 +91,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     address private immutable i_Admin;
     IBorrowRequestFactory i_BorrowRequestFactory;
-    // ISupportedTokens supportedTokensContract;
-    // LendRequest_v1[] public totalLendRequestArray; //get this and only display the active
-    // BorrowRequest_v1[] public totalBorrowRequestArray;
+    ILendRequestFactory i_LendRequestFactory;
     address private enforcerContract;
-    // mapping(address loanRequest => bool prioritized)
-    //     private s_loanIsPrioritized;
-    // mapping(address => address[]) public userToLendRequestContracts;
 
     //////////////
     /// Events ///
-    ////////////
-
-    // event LendRequestCreated(
-    //     address indexed user,
-    //     address indexed multiSigAddress,
-    //     uint256 amountLended
-    // );
+    /////////////
 
     event TokensDeposited(
         address indexed user,
@@ -138,8 +124,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// Functions ///
     ////////////////
 
-    constructor(address BorrowRequestFactory) Ownable(msg.sender) {
+    constructor(
+        address BorrowRequestFactory,
+        address LendRequestFactory
+    ) Ownable(msg.sender) {
         i_BorrowRequestFactory = IBorrowRequestFactory(BorrowRequestFactory);
+        i_LendRequestFactory = ILendRequestFactory(LendRequestFactory);
         i_Admin = msg.sender;
     }
 
@@ -175,59 +165,36 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         );
     }
 
-    // function lend(bool priority) external payable nonReentrant {
-    //     // checks
-    //     if (msg.value == 0)
-    //         revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
-    //     if (msg.value > msg.sender.balance)
-    //         revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
-    //     if (msg.value >= msg.sender.balance)
-    //         revert LimitMarket_v1_InsufficientBalance(
-    //             msg.sender.balance,
-    //             msg.value
-    //         );
-    //     if (address(enforcerContract) == address(0)) revert();
-    //     if (address(enforcerContract) != address(enforcerContract)) revert();
-    //     // checks to add
-    //     // msg.value should be equal or greater than dollar price of the minimum allowed amount
+    function Lend(
+        bool _priority
+    ) external payable nonReentrant enforcerContractIsSet {
+        // checks
+        if (msg.value == 0)
+            revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
+        if (msg.value > msg.sender.balance)
+            revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
+        if (msg.value >= msg.sender.balance)
+            revert LimitMarket_v1_InsufficientBalance(
+                msg.sender.balance,
+                msg.value
+            );
 
-    //     // effects
-    //     address[2] memory owners = [msg.sender, address(enforcerContract)];
-
-    //     LendRequest_v1 lendRequest = new LendRequest_v1(
-    //         owners,
-    //         msg.value
-    //     );
-
-    //     if (priority == true) {
-    //         s_loanIsPrioritized[address(lendRequest)] = true;
-    //     }
-    //     userToLendRequestContracts[msg.sender].push(address(lendRequest));
-    //     totalLendRequestArray.push(lendRequest);
-
-    //     // emits
-    //     emit LendRequestCreated(msg.sender, address(lendRequest), msg.value);
-
-    //     //  interactions
-    //     (bool success, ) = payable(lendRequest).call{
-    //         value: msg.value,
-    //         gas: 2300
-    //     }("");
-    //     if (!success)
-    //         revert LimitMarket_v1_TransferFailed(
-    //             address(lendRequest),
-    //             msg.value
-    //         );
-    // }
+        // checks to add
+        // msg.value should be equal or greater than dollar price of the minimum allowed amount
+        address[2] memory owners = [msg.sender, address(enforcerContract)];
+        i_LendRequestFactory.createLendRequest(owners, _priority);
+    }
 
     // update enforcer contract
     function updateContracts(
-        address enforcerAddress,
-        address _BorrowRequestFactory
+        address _enforcerAddress,
+        address _BorrowRequestFactory,
+        address _LendRequestFactory
     ) external onlyAdmin notUpdating {
         _setUpdating(UpdateState.UPDATING);
-        enforcerContract = enforcerAddress;
+        enforcerContract = _enforcerAddress;
         i_BorrowRequestFactory = IBorrowRequestFactory(_BorrowRequestFactory);
+        i_LendRequestFactory = ILendRequestFactory(_LendRequestFactory);
         _setUpdating(UpdateState.NOTUPDATING);
     }
 
@@ -258,20 +225,29 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     // **** borrow requests functions ****//
 
+    function getBorrowersPositionOnQue(
+        address borrowRequest
+    ) external view returns (uint256 position) {
+        return
+            i_BorrowRequestFactory.getBorrowRequestPositionOnActiveRequestQue(
+                borrowRequest
+            );
+    }
+
     // returns specific number of requests using a start index and a number of requested contracts
     function getActiveBorrowRequestViaLimit(
         uint256 startIndex,
-        uint256 requestedNumber
+        uint256 numberOfResponse
     ) external view returns (address[] memory borrowRequests) {
         address[] memory borrowRequest = i_BorrowRequestFactory
-            .getTotalActiveBorrowRequestContractAddresses();
+            .getBatchedActiveBorrowRequestContractAddresses(numberOfResponse);
         uint256 counter = 0;
         for (uint256 i = 0; i < borrowRequest.length; i++) {
             if (i < startIndex) {
                 continue;
             } else if (i >= startIndex) {
                 borrowRequest[counter] = address(borrowRequest[i]);
-                if (counter >= requestedNumber) {
+                if (counter >= numberOfResponse) {
                     break;
                 }
                 counter++;
@@ -288,102 +264,40 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     function getTotalActiveBorrowRequestContractCount()
         external
         view
-        returns (uint256 count)
+        returns (uint256 numberOfContracts)
     {
-        address[] memory borrowRequests = i_BorrowRequestFactory
-            .getTotalActiveBorrowRequestContractAddresses();
-        return borrowRequests.length;
+        return
+            i_BorrowRequestFactory.getTotalActiveBorrowRequestContractCount();
     }
 
     // @dev returns the total active borrow requests prioritized addresses.
-    function getPrioritizedBorrowRequestAddress()
-        external
-        view
-        returns (address loanRequest)
-    {
-        address[] memory borrowRequests = i_BorrowRequestFactory
-            .getTotalActiveBorrowRequestContractAddresses();
-        for (uint256 i = 0; i < borrowRequests.length; i++) {
-            if (s_loanIsPrioritized[borrowRequests[i]]) {
-                loanRequest = address(borrowRequests[i]);
-            }
-        }
-        return loanRequest;
+    function getPrioritizedBorrowRequestAddress(
+        uint256 batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory prioritizedLoans) {
+        return
+            i_BorrowRequestFactory.getTotalActivePrioritizedBorrowRequests(
+                batchLimit,
+                numOfResponse
+            );
     }
 
-    // ************************
     // **** lend requests functions ****//
-
     function getPrioritizedLendRequestAddress()
         external
         view
         returns (address loanRequest)
     {
-        address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
+        address[] memory lendRequests = i_LendRequestFactory
+            .getTotalActiveLendRequestContractAddresses();
         for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (s_loanIsPrioritized[lendRequests[i]]) {
+            if (
+                i_LendRequestFactory.getPrioritizedLendRequest(lendRequests[i])
+            ) {
                 loanRequest = address(lendRequests[i]);
             }
         }
         return loanRequest;
-    }
-
-    function getTotalActiveLendRequestContractAddresses()
-        public
-        view
-        returns (address[] memory)
-    {
-        address[] memory lendRequest = new address[](
-            totalLendRequestArray.length
-        );
-        uint256 counter = 0;
-        for (uint256 i = 0; i < totalLendRequestArray.length; i++) {
-            LendRequest_v1 lendRequest_v1 = LendRequest_v1(
-                payable(address(totalLendRequestArray[i]))
-            );
-            uint8 status = uint8(lendRequest_v1.getRequestState());
-            if (status != 0) {
-                continue;
-            }
-            lendRequest[counter] = address(totalLendRequestArray[i]);
-            counter++;
-        }
-
-        address[] memory activeLendRequest = new address[](counter);
-        for (uint256 i = 0; i < counter; i++) {
-            activeLendRequest[i] = lendRequest[i];
-        }
-
-        return activeLendRequest;
-    }
-
-    function getLendRequestPositionOnActiveRequestQue(
-        address lendRequest
-    ) external view returns (uint256 position) {
-        address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
-        for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (lendRequests[i] == address(lendRequest)) {
-                position = i + 1;
-            }
-        }
-        return position;
-    }
-
-    // @dev returns the specific index of an active borrow requests within the array of active borrow request.
-    function getActiveLendRequestContractAddressViaIndex(
-        uint256 index
-    ) external view returns (address borrowRequest) {
-        address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
-        address targetLendRequestContract;
-        for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (lendRequests[i] == lendRequests[index]) {
-                targetLendRequestContract = address(lendRequests[i]);
-            }
-        }
-        return targetLendRequestContract;
     }
 
     // @dev returns the total active borrow requests count.
@@ -392,8 +306,8 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         view
         returns (uint256 count)
     {
-        address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
+        address[] memory lendRequests = i_LendRequestFactory
+            .getTotalActiveLendRequestContractAddresses();
         return lendRequests.length;
     }
 
@@ -402,8 +316,8 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         uint256 startIndex,
         uint256 requestedNumber
     ) external view returns (address[] memory lendRequests) {
-        address[]
-            memory lendRequest = getTotalActiveLendRequestContractAddresses();
+        address[] memory lendRequest = i_LendRequestFactory
+            .getTotalActiveLendRequestContractAddresses();
         uint256 counter = 0;
         for (uint256 i = 0; i < lendRequest.length; i++) {
             if (i < startIndex) {
@@ -421,11 +335,5 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
             requestedLendRequest[i] = address(lendRequest[i]);
         }
         return requestedLendRequest;
-    }
-
-    function getUserToLendRequestAddresses(
-        address user
-    ) external view returns (address[] memory) {
-        return userToLendRequestContracts[user];
     }
 }

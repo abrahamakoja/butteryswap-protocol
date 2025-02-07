@@ -14,9 +14,13 @@ contract DeployLimitMarket is Script {
             "BorrowRequestFactory",
             block.chainid
         );
+      address   mostrecentlyLendRequestFactory = DevOpsTools.get_most_recent_deployment(
+            "LendRequestFactory",
+            block.chainid
+        );
         vm.startBroadcast();
 
-        LimitMarket_v1 limitMarket = new LimitMarket_v1(address(mostrecentlyBorrowRequestFactory));
+        LimitMarket_v1 limitMarket = new LimitMarket_v1(address(mostrecentlyBorrowRequestFactory),address(mostrecentlyLendRequestFactory));
         // limitMarket.updateContracts(enforcer,token);
         vm.stopBroadcast();
         return limitMarket; 

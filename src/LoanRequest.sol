@@ -282,6 +282,7 @@ error executeLoanRequestFailed();
     // transfer native currency to borrower
 
     function offerLoan(LendRequest storage request, address borrowerAddress, uint256 amount) internal {
+         request.state = RequestState.CLOSED;
         (bool success,) = borrowerAddress.call{value: amount, gas: 50000}("");
         if (!success) revert InsufficientFunds(address(this).balance, request.amountLendedMinusFee);
     }
@@ -291,3 +292,4 @@ error executeLoanRequestFailed();
     }
 
 }
+       

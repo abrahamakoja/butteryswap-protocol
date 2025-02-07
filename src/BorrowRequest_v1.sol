@@ -96,6 +96,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
 
     /// @dev contract constructor.
     constructor(address[2] memory _owners, uint256 collateralAmount, address[] memory token, uint256 _timeCreated) {
+        
         s_borrowRequest = LoanRequest.createBorrowRequest(_owners, collateralAmount, token, _timeCreated);
          i_borrower = _owners[0];
          i_admin = _owners[1];
@@ -130,6 +131,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
         emit LoanAccepted(multisigAddress);
         LoanRequest.acceptLoan(s_borrowRequest, address(multisigAddress));
     }
+
     /////////////////////////////////////////////////
     ///  internal & private view & pure functions ///
     ////////////////////////////////////////////////
