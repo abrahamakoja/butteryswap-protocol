@@ -54,41 +54,56 @@ contract LimitMarketInteractions is Script {
             mostrecentlyLendRequestFactory
         );
 
-        // borrow(
-        //     mostrecentlyDeployedLimitMarket,
-        //     mostrecentlyBorrowRequestFactory,
-        //     tokens
-        // );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
         priorityBorrow(
             mostrecentlyDeployedLimitMarket,
             mostrecentlyBorrowRequestFactory,
             tokens
         );
-        // borrow(
-        //     mostrecentlyDeployedLimitMarket,
-        //     mostrecentlyBorrowRequestFactory,
-        //     tokens
-        // );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
         priorityBorrow(
             mostrecentlyDeployedLimitMarket,
             mostrecentlyBorrowRequestFactory,
             tokens
         );
-        // borrow(
-        //     mostrecentlyDeployedLimitMarket,
-        //     mostrecentlyBorrowRequestFactory,
-        //     tokens
-        // );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
         priorityBorrow(
             mostrecentlyDeployedLimitMarket,
             mostrecentlyBorrowRequestFactory,
             tokens
         );
-        // borrow(
-        //     mostrecentlyDeployedLimitMarket,
-        //     mostrecentlyBorrowRequestFactory,
-        //     tokens
-        // );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
+        borrow(
+            mostrecentlyDeployedLimitMarket,
+            mostrecentlyBorrowRequestFactory,
+            tokens
+        );
         // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
         // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
         // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
@@ -112,14 +127,19 @@ contract LimitMarketInteractions is Script {
         // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
         // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
 
+        priorityLend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        // lend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
+        priorityLend(mostrecentlyDeployedLimitMarket);
         // priorityLend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
+        // priorityLend(mostrecentlyDeployedLimitMarket);
         // lend(mostrecentlyDeployedLimitMarket);
         // lend(mostrecentlyDeployedLimitMarket);
         // priorityLend(mostrecentlyDeployedLimitMarket);
@@ -197,7 +217,7 @@ contract LimitMarketInteractions is Script {
         address[] memory tokenAddresses = new address[](token.length);
         for (uint256 index = 0; index < token.length; index++) {
             tokenAddresses[index] = token[index]; // Corrected assignment
-            console.log("token", index, ": ", token[index]);
+            // console.log("token", index, ": ", token[index]);
         }
         vm.startBroadcast();
 
@@ -226,7 +246,7 @@ contract LimitMarketInteractions is Script {
         address[] memory tokenAddresses = new address[](token.length);
         for (uint256 index = 0; index < token.length; index++) {
             tokenAddresses[index] = token[index]; // Corrected assignment
-            console.log("token", index, ": ", token[index]);
+            // console.log("token", index, ": ", token[index]);
         }
         vm.startBroadcast();
 
@@ -366,9 +386,9 @@ contract BorrowRequestInteractions is Script {
         borrowRequest_v1.getOwnersAdresses();
         // borrowRequest_v1.cancelRequest();
 
-        console.log("enforcer : ", mostrecentlyDeployedEnforcer);
-        console.log("this contract : ", address(this));
-        console.log("this sender : ", address(msg.sender));
+        // console.log("enforcer : ", mostrecentlyDeployedEnforcer);
+        // console.log("this contract : ", address(this));
+        // console.log("this sender : ", address(msg.sender));
         vm.stopBroadcast();
     }
 
@@ -378,17 +398,18 @@ contract BorrowRequestInteractions is Script {
 }
 
 contract BorrowRequestFactoryInteractions is Script {
+
     function run() external view { 
-        
-        
-       
        address mostrecentlyBorrowRequestFactory = DevOpsTools
             .get_most_recent_deployment("BorrowRequestFactory", block.chainid);
-
             getLoans(mostrecentlyBorrowRequestFactory);
     }
 
     function getLoans(address _borrowRequestFactory) public view {
+        //  BorrowRequestFactory(_borrowRequestFactory).getTotalActiveBorrowRequestContractCount();
+        //  BorrowRequestFactory(_borrowRequestFactory).getBatchedActiveBorrowRequestContractAddresses(3,3,10);
          BorrowRequestFactory(_borrowRequestFactory).getTotalActivePrioritizedBorrowRequests(10,1);
     }
 }
+
+

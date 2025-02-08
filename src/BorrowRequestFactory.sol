@@ -94,17 +94,16 @@ contract BorrowRequestFactory {
         return userToBorrowRequestAddress[user];
     }
 
-    function getTotalActivePrioritizedBorrowRequests(uint256 _batchLimit,uint256 numOfResponse)
-        external
-        view
-        returns (address[] memory)
-    {
-
-       uint256 total =  s_prioritizedBorrowRequests.length;
-       uint256 limit = total > _batchLimit ? _batchLimit : total;
-        address[] memory borrowRequest = new address[](s_prioritizedBorrowRequests.length );
+    function getTotalActivePrioritizedBorrowRequests(
+        uint256 _batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory) {
+        uint256 total = s_prioritizedBorrowRequests.length;
+        uint256 limit = total > _batchLimit ? _batchLimit : total;
+        address[] memory borrowRequest = new address[](
+            s_prioritizedBorrowRequests.length
+        );
         uint256 counter = 0;
-        
 
         for (uint256 i = 0; i < limit; i++) {
             BorrowRequest_v1 borrowRequest_v1 = BorrowRequest_v1(
@@ -115,7 +114,7 @@ contract BorrowRequestFactory {
                 continue;
             }
             borrowRequest[counter] = address(s_prioritizedBorrowRequests[i]);
-            if(borrowRequest.length == numOfResponse){
+            if (borrowRequest.length == numOfResponse) {
                 break;
             }
             counter++;
@@ -133,27 +132,52 @@ contract BorrowRequestFactory {
         address[] memory activeBorrowRequest = new address[](counter);
         for (uint256 i = 0; i < counter; i++) {
             activeBorrowRequest[i] = borrowRequest[i];
-        // console.log(address(activeBorrowRequest[i]));
+            // console.log(address(activeBorrowRequest[i]));
         }
         return activeBorrowRequest;
     }
 
-    function getBatchedActiveBorrowRequestContractAddresses(uint256 _batchLimit) external
-        view
-        returns (address[] memory){
-         uint256 total =  _getTotalActiveBorrowRequestContractAddresses().length;
-         uint256 numOfResponse = total > _batchLimit ? _batchLimit : total;
-         address[] memory borrowRequest = new address[](numOfResponse);
-         borrowRequest =_getTotalActiveBorrowRequestContractAddresses();
+    function getBatchedActiveBorrowRequestContractAddresses(
+        uint256 startIndex,
+        uint256 numberOfResponse,
+        uint256 _batchLimit
+    ) external view returns (address[] memory) {
 
-        return borrowRequest; 
+        uint256 total = _getTotalActiveBorrowRequestContractAddresses().length;
+        uint256 _startIndex = startIndex > total ? 0 : startIndex;
+        uint256 limit = total > _batchLimit ? _batchLimit : total;
+        uint256 _numberOfResponse = numberOfResponse > limit ? limit : numberOfResponse;
+        address[] memory activeBorrowRequest = _getTotalActiveBorrowRequestContractAddresses();
+         address[] memory batchedBorrowRequests = new address[](_numberOfResponse);
 
-        } 
+        // console.log(total);
+        // console.log(limit);
 
-        function getTotalActiveBorrowRequestContractCount() external view returns(uint256 numberOfContracts){
-            return _getTotalActiveBorrowRequestContractAddresses().length;
+        for (uint256 i = _startIndex; i < _numberOfResponse; i++) {
+           
+             if (i < startIndex) {
+                continue;
+            } 
+             batchedBorrowRequests[i] = activeBorrowRequest[i];
+        //    console.log(address(batchedBorrowRequests[i]));
+
+            if (i > limit) {
+                break;
+            }
         }
 
+
+        return batchedBorrowRequests;
+    }
+
+    function getTotalActiveBorrowRequestContractCount()
+        external
+        view
+        returns (uint256 numberOfContracts)
+    {
+        // console.log(_getTotalActiveBorrowRequestContractAddresses().length);
+        return _getTotalActiveBorrowRequestContractAddresses().length;
+    }
 
     // @dev returns the total active borrow requests addresses.
     function _getTotalActiveBorrowRequestContractAddresses()
@@ -161,8 +185,10 @@ contract BorrowRequestFactory {
         view
         returns (address[] memory)
     {
-         address[] memory borrowRequest = new address[](totalBorrowRequests.length);
-         uint256 counter = 0;
+        address[] memory borrowRequest = new address[](
+            totalBorrowRequests.length
+        );
+        uint256 counter = 0;
 
         for (uint256 i = 0; i < totalBorrowRequests.length; i++) {
             BorrowRequest_v1 borrowRequest_v1 = BorrowRequest_v1(
@@ -188,8 +214,8 @@ contract BorrowRequestFactory {
     function getBorrowRequestPositionOnActiveRequestQue(
         address _borrowRequest
     ) external view returns (uint256 position) {
-
-        if(s_isValidContract[_borrowRequest] == false) revert inValidContractAddress();
+        if (s_isValidContract[_borrowRequest] == false)
+            revert inValidContractAddress();
         address[]
             memory borrowRequests = _getTotalActiveBorrowRequestContractAddresses();
         for (uint256 i = 0; i < borrowRequests.length; i++) {

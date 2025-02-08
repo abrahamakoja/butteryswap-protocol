@@ -17,5 +17,5 @@ SupportedTokenInteractions:; forge script script/interactions.s.sol:SupportedTok
 LimitMarketInteractions:; forge script script/interactions.s.sol:LimitMarketInteractions  --rpc-url $(LOCAL_RPC_URL) --account localKey1 --broadcast -v
 EnforcerInteractions:; forge script script/interactions.s.sol:EnforcerInteractions executeLoanRequests --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
 BorrowRequestInteractions:; forge script script/interactions.s.sol:BorrowRequestInteractions --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
-BorrowRequestFactoryInteractions:; forge script script/interactions.s.sol:BorrowRequestFactoryInteractions --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -v
+BorrowRequestFactoryInteractions:; forge script script/interactions.s.sol:BorrowRequestFactoryInteractions --rpc-url $(LOCAL_RPC_URL) --account localKey1  --broadcast -vvv
 
