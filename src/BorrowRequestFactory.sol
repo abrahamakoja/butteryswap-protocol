@@ -42,7 +42,8 @@ contract BorrowRequestFactory {
     BorrowRequest_v1[] public totalBorrowRequests;
     BorrowRequest_v1[] private s_prioritizedBorrowRequests;
     ISupportedTokens supportedTokensContract;
-    mapping(address => address[]) public userToBorrowRequestAddress;
+    mapping(address => address[]) private userToBorrowRequestAddresses;
+    mapping(address => address[]) private userToPrioritizedBorrowRequestAddresses;
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
     mapping(address => bool) private s_isValidContract;
@@ -80,7 +81,7 @@ contract BorrowRequestFactory {
         address[2] calldata _owners,
         bool _priority
     ) external {
-        rawCreateBorrowRequest(_collateralAmount, _tokens, _owners, _priority);
+        _rawCreateBorrowRequest(_collateralAmount, _tokens, _owners, _priority);
     }
 
     ////////////////////////////////////////////////
@@ -90,8 +91,8 @@ contract BorrowRequestFactory {
     // Function to retrieve all borrow request contracts for a user // legacy
     function getUserToBorrowRequestAddresses(
         address user
-    ) external view returns (address[] memory) {
-        return userToBorrowRequestAddress[user];
+    ) external view returns (address[] memory borrowRequestAddresses, address[] memory prioritizedBorrowRequestAddresses ) {
+        return (userToBorrowRequestAddresses[user],userToPrioritizedBorrowRequestAddresses[user]);
     }
 
     function getTotalActivePrioritizedBorrowRequests(
@@ -129,12 +130,12 @@ contract BorrowRequestFactory {
         //   console.log(s_prioritizedBorrowRequests.length);
         //   console.log(  payable(address(s_prioritizedBorrowRequests[0])));
 
-        address[] memory activeBorrowRequest = new address[](counter);
+        address[] memory activePrioritizedBorrowRequests = new address[](counter);
         for (uint256 i = 0; i < counter; i++) {
-            activeBorrowRequest[i] = borrowRequest[i];
+            activePrioritizedBorrowRequests[i] = borrowRequest[i];
             // console.log(address(activeBorrowRequest[i]));
         }
-        return activeBorrowRequest;
+        return activePrioritizedBorrowRequests;
     }
 
     function getBatchedActiveBorrowRequestContractAddresses(
@@ -147,7 +148,7 @@ contract BorrowRequestFactory {
         uint256 _startIndex = startIndex > total ? 0 : startIndex;
         uint256 limit = total > _batchLimit ? _batchLimit : total;
         uint256 _numberOfResponse = numberOfResponse > limit ? limit : numberOfResponse;
-        address[] memory activeBorrowRequest = _getTotalActiveBorrowRequestContractAddresses();
+        address[] memory activeBorrowRequests = _getTotalActiveBorrowRequestContractAddresses();
          address[] memory batchedBorrowRequests = new address[](_numberOfResponse);
 
         // console.log(total);
@@ -158,7 +159,7 @@ contract BorrowRequestFactory {
              if (i < startIndex) {
                 continue;
             } 
-             batchedBorrowRequests[i] = activeBorrowRequest[i];
+             batchedBorrowRequests[i] = activeBorrowRequests[i];
         //    console.log(address(batchedBorrowRequests[i]));
 
             if (i > limit) {
@@ -181,7 +182,7 @@ contract BorrowRequestFactory {
 
     // @dev returns the total active borrow requests addresses.
     function _getTotalActiveBorrowRequestContractAddresses()
-        internal
+        private
         view
         returns (address[] memory)
     {
@@ -230,12 +231,16 @@ contract BorrowRequestFactory {
     /// Internal Functions ///
     ////////////////////////
 
+    ////////////////////////
+    /// Private Functions ///
+    ////////////////////////
+
     /// @notice Internal function to create a new BorrowRequest_v1 instance
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
     /// @param owners The address of the enforcer contract
     /// @param priority The address of the enforcer contract
-    function rawCreateBorrowRequest(
+    function _rawCreateBorrowRequest(
         uint256 collateralAmount,
         address[] calldata tokens,
         address[2] calldata owners,
@@ -265,19 +270,20 @@ contract BorrowRequestFactory {
             collateralAmount,
             tokens,
             block.timestamp
-        );
+        );   
 
         // check and update priority
         if (priority) {
             s_loanIsPrioritized[address(BorrowRequest)] = true;
             s_prioritizedBorrowRequests.push(BorrowRequest);
+             userToPrioritizedBorrowRequestAddresses[msg.sender].push(address(BorrowRequest));
         } else {
             totalBorrowRequests.push(BorrowRequest);
         }
         // priority should have its own handler
         // integrate into enforcer
 
-        userToBorrowRequestAddress[msg.sender].push(address(BorrowRequest));
+        userToBorrowRequestAddresses[msg.sender].push(address(BorrowRequest));
         s_isValidContract[address(BorrowRequest)] = true;
 
         emit BorrowRequestCreated(

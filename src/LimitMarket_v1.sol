@@ -52,13 +52,22 @@ interface IBorrowRequestFactory {
 }
 
 interface ILendRequestFactory {
-    function getTotalActiveLendRequestContractAddresses()
+    function getTotalActiveLendRequestContractCount()
         external
         view
-        returns (address[] memory);
-    function getPrioritizedLendRequest(
-        address LendRequestContractAddress
-    ) external view returns (bool isPrioritized);
+        returns (uint256 numberOfContracts);
+        function getLendRequestPositionOnActiveRequestQue(
+        address lendRequest
+    ) external view returns (uint256 position);
+    function getBatchedActiveLendRequestAddresses(
+        uint256 startIndex,
+        uint256 numberOfResponse,
+        uint256 _batchLimit
+    ) external view returns (address[] memory);
+    function getTotalActivePrioritizedLendRequests(
+        uint256 _batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory);
     function createLendRequest(
         address[2] calldata _owners,
         bool _priority
@@ -243,11 +252,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         uint256 _batchLimit
     ) external view returns (address[] memory borrowRequests) {
         return
-            i_BorrowRequestFactory.getBatchedActiveBorrowRequestContractAddresses(
-                _startIndex,
-                _numberOfResponse,
-                _batchLimit
-            );
+            i_BorrowRequestFactory
+                .getBatchedActiveBorrowRequestContractAddresses(
+                    _startIndex,
+                    _numberOfResponse,
+                    _batchLimit
+                );
     }
 
     // @dev returns the total active borrow requests count.
@@ -273,57 +283,49 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     }
 
     // **** lend requests functions ****//
-    function getPrioritizedLendRequestAddress()
-        external
-        view
-        returns (address loanRequest)
-    {
-        address[] memory lendRequests = i_LendRequestFactory
-            .getTotalActiveLendRequestContractAddresses();
-        for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (
-                i_LendRequestFactory.getPrioritizedLendRequest(lendRequests[i])
-            ) {
-                loanRequest = address(lendRequests[i]);
-            }
-        }
-        return loanRequest;
+
+     function getLendersPositionOnQue(
+        address lendRequest
+    ) external view returns (uint256 position) {
+        return
+            i_LendRequestFactory.getLendRequestPositionOnActiveRequestQue(
+                lendRequest
+            );
     }
 
-    // @dev returns the total active borrow requests count.
+    function getPrioritizedLendRequestAddress(
+        uint256 batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory prioritizedLoans) {
+        return
+            i_LendRequestFactory.getTotalActivePrioritizedLendRequests(
+                batchLimit,
+                numOfResponse
+            );
+    }
+
+    // @dev returns the total active lend requests count.
     function getTotalActiveLendRequestContractCount()
         external
         view
         returns (uint256 count)
     {
-        address[] memory lendRequests = i_LendRequestFactory
-            .getTotalActiveLendRequestContractAddresses();
-        return lendRequests.length;
+        return i_LendRequestFactory.getTotalActiveLendRequestContractCount();
     }
 
     // returns specific number of requests using a start index and a number of requested contracts
     function getActiveLendRequestViaLimit(
-        uint256 startIndex,
-        uint256 requestedNumber
+        uint256 _startIndex,
+        uint256 _numberOfResponse,
+        uint256 _batchLimit
     ) external view returns (address[] memory lendRequests) {
-        address[] memory lendRequest = i_LendRequestFactory
-            .getTotalActiveLendRequestContractAddresses();
-        uint256 counter = 0;
-        for (uint256 i = 0; i < lendRequest.length; i++) {
-            if (i < startIndex) {
-                continue;
-            } else if (i >= startIndex) {
-                lendRequest[counter] = address(lendRequest[i]);
-                if (counter >= requestedNumber) {
-                    break;
-                }
-                counter++;
-            }
-        }
-        address[] memory requestedLendRequest = new address[](counter);
-        for (uint256 i = 0; i < counter; i++) {
-            requestedLendRequest[i] = address(lendRequest[i]);
-        }
-        return requestedLendRequest;
+        return
+            i_LendRequestFactory.getBatchedActiveLendRequestAddresses(
+                _startIndex,
+                _numberOfResponse,
+                _batchLimit
+            );
     }
+
+    
 }

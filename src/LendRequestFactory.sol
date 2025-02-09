@@ -16,17 +16,20 @@ contract LendRequestFactory {
     //////////////
 
     error LendRequestFactory_TransferFailed(
-        address borrowRequest,
+        address lendRequest,
         uint256 sentAmount
     );
-
+    error inValidContractAddress();
 
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
     mapping(address => address[]) public userToLendRequestContracts;
+    mapping(address => address[]) private userToPrioritizedLendRequestContracts;
+    mapping(address => bool) private s_isValidContract;
     LendRequest_v1[] public totalLendRequestArray; //get this and only display the active
+    LendRequest_v1[] public s_prioritizedLendRequests;
 
-     receive() external payable {}
+    receive() external payable {}
 
     //////////////
     /// Events ///
@@ -42,12 +45,10 @@ contract LendRequestFactory {
         address[2] calldata _owners,
         bool _priority
     ) external payable {
-       
-
-        rawCreateLendRequest(_owners, _priority);
+        _rawCreateLendRequest(_owners, _priority);
     }
 
-    function rawCreateLendRequest(
+    function _rawCreateLendRequest(
         address[2] calldata owners,
         bool priority
     ) private {
@@ -60,10 +61,16 @@ contract LendRequestFactory {
 
         if (priority == true) {
             s_loanIsPrioritized[address(lendRequest)] = true;
+            s_prioritizedLendRequests.push(lendRequest);
+            userToPrioritizedLendRequestContracts[msg.sender].push(
+                address(lendRequest)
+            );
+        } else {
+            totalLendRequestArray.push(lendRequest);
         }
-        userToLendRequestContracts[msg.sender].push(address(lendRequest));
-        totalLendRequestArray.push(lendRequest);
 
+        userToLendRequestContracts[msg.sender].push(address(lendRequest));
+        s_isValidContract[address(lendRequest)] = true;
         // emits
         emit LendRequestCreated(msg.sender, address(lendRequest), msg.value);
 
@@ -79,8 +86,80 @@ contract LendRequestFactory {
             );
     }
 
-    function getTotalActiveLendRequestContractAddresses()
-        public
+    // getters
+
+    function getTotalActivePrioritizedLendRequests(
+        uint256 _batchLimit,
+        uint256 numOfResponse
+    ) external view returns (address[] memory) {
+        uint256 total = s_prioritizedLendRequests.length;
+        uint256 limit = total > _batchLimit ? _batchLimit : total;
+        address[] memory lendRequest = new address[](
+            s_prioritizedLendRequests.length
+        );
+        uint256 counter = 0;
+
+        for (uint256 i = 0; i < limit; i++) {
+            LendRequest_v1 lendRequest_v1 = LendRequest_v1(
+                payable(address(s_prioritizedLendRequests[i]))
+            );
+            uint8 status = uint8(lendRequest_v1.getRequestState());
+            if (status != 0) {
+                continue;
+            }
+            lendRequest[counter] = address(s_prioritizedLendRequests[i]);
+            if (lendRequest.length == numOfResponse) {
+                break;
+            }
+            counter++;
+        }
+
+        //  console.log(numOfResponse);
+        //  console.log(total);
+        //   console.log(limit);
+        //   console.log(_batchLimit);
+
+        address[] memory activePrioritizedLendRequests = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            activePrioritizedLendRequests[i] = lendRequest[i];
+            // console.log(address(activePrioritizedLendRequests[i]));
+        }
+        return activePrioritizedLendRequests;
+    }
+
+    function getBatchedActiveLendRequestAddresses(
+        uint256 startIndex,
+        uint256 numberOfResponse,
+        uint256 _batchLimit
+    ) external view returns (address[] memory) {
+        uint256 total = _getTotalActiveLendRequestContractAddresses().length;
+        uint256 _startIndex = startIndex > total ? 0 : startIndex;
+        uint256 limit = total > _batchLimit ? _batchLimit : total;
+        uint256 _numberOfResponse = numberOfResponse > limit
+            ? limit
+            : numberOfResponse;
+        address[]
+            memory activeLendRequests = _getTotalActiveLendRequestContractAddresses();
+        address[] memory batchedLendRequests = new address[](_numberOfResponse);
+
+        // console.log(total);
+        // console.log(limit);
+
+        for (uint256 i = _startIndex; i < _numberOfResponse; i++) {
+            if (i < startIndex) {
+                continue;
+            }
+            batchedLendRequests[i] = activeLendRequests[i];
+
+            if (i > limit) {
+                break;
+            }
+        }
+        return batchedLendRequests;
+    }
+
+    function _getTotalActiveLendRequestContractAddresses()
+        private
         view
         returns (address[] memory)
     {
@@ -88,6 +167,7 @@ contract LendRequestFactory {
             totalLendRequestArray.length
         );
         uint256 counter = 0;
+
         for (uint256 i = 0; i < totalLendRequestArray.length; i++) {
             LendRequest_v1 lendRequest_v1 = LendRequest_v1(
                 payable(address(totalLendRequestArray[i]))
@@ -108,11 +188,21 @@ contract LendRequestFactory {
         return activeLendRequest;
     }
 
+    function getTotalActiveLendRequestAddress()
+        external
+        view
+        returns (uint256 numberOfResponse)
+    {
+        return _getTotalActiveLendRequestContractAddresses().length;
+    }
+
     function getLendRequestPositionOnActiveRequestQue(
         address lendRequest
     ) external view returns (uint256 position) {
+        if (s_isValidContract[lendRequest] == false)
+            revert inValidContractAddress();
         address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
+            memory lendRequests = _getTotalActiveLendRequestContractAddresses();
         for (uint256 i = 0; i < lendRequests.length; i++) {
             if (lendRequests[i] == address(lendRequest)) {
                 position = i + 1;
@@ -121,25 +211,24 @@ contract LendRequestFactory {
         return position;
     }
 
-    // @dev returns the specific index of an active borrow requests within the array of active borrow request.
-    function getActiveLendRequestContractAddressViaIndex(
-        uint256 index
-    ) external view returns (address borrowRequest) {
-        address[]
-            memory lendRequests = getTotalActiveLendRequestContractAddresses();
-        address targetLendRequestContract;
-        for (uint256 i = 0; i < lendRequests.length; i++) {
-            if (lendRequests[i] == lendRequests[index]) {
-                targetLendRequestContract = address(lendRequests[i]);
-            }
-        }
-        return targetLendRequestContract;
+    function getTotalActiveLendRequestContractCount() external view returns(uint256 numberOfContracts){
+       return _getTotalActiveLendRequestContractAddresses().length;
     }
 
     function getUserToLendRequestAddresses(
         address user
-    ) external view returns (address[] memory) {
-        return userToLendRequestContracts[user];
+    )
+        external
+        view
+        returns (
+            address[] memory lendRequestAddresses,
+            address[] memory prioritizedLendRequestContracts
+        )
+    {
+        return (
+            userToLendRequestContracts[user],
+            userToPrioritizedLendRequestContracts[user]
+        );
     }
 
     function getPrioritizedLendRequest(
