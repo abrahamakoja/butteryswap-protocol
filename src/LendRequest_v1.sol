@@ -10,7 +10,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {LoanRequest} from "./LoanRequest.sol"; 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-// BorrowRequest_v1 Contract Definition
+// LendRequest_v1 Contract Definition
 contract LendRequest_v1 is ReentrancyGuard {
 
      //////////////
