@@ -1,19 +1,27 @@
 {
+    "solidity-language-server.trace.server.verbosity": "message",
     "wake.compiler.solc.remappings": [
         "@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
         "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
         "@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/",
+        "@uniswap/v4-core/=lib/v4-core/",
+        "solmate/=lib/solmate/",
+        "@ensdomains/=lib/v4-core/node_modules/@ensdomains/",
         "chainlink-brownie-contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/src/v0.6/vendor/@arbitrum/nitro-contracts/src/",
         "ds-test/=lib/foundry-chainlink-toolkit/lib/forge-std/lib/ds-test/src/",
-        "erc4626-tests/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/lib/erc4626-tests/",
+        "erc4626-tests/=lib/v4-core/lib/openzeppelin-contracts/lib/erc4626-tests/",
+        "forge-gas-snapshot/=lib/v4-periphery/lib/permit2/lib/forge-gas-snapshot/src/",
         "forge-std/=lib/forge-std/src/",
         "foundry-chainlink-toolkit/=lib/foundry-chainlink-toolkit/",
         "foundry-devops/=lib/foundry-devops/",
         "halmos-cheatcodes/=lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes/src/",
+        "hardhat/=lib/v4-core/node_modules/hardhat/",
         "openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/",
         "openzeppelin-contracts/=lib/foundry-chainlink-toolkit/lib/openzeppelin-contracts/",
         "openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src/",
-        "solidity-stringutils/=lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/"
-    ],
-    "solidity-language-server.trace.server.verbosity": "message"
+        "permit2/=lib/v4-periphery/lib/permit2/",
+        "solidity-stringutils/=lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/",
+        "v4-core/=lib/v4-core/src/",
+        "v4-periphery/=lib/v4-periphery/"
+    ]
 }

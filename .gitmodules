@@ -13,3 +13,18 @@
 [submodule "lib/foundry-chainlink-toolkit"]
 	path = lib/foundry-chainlink-toolkit
 	url = https://github.com/smartcontractkit/foundry-chainlink-toolkit
+[submodule "lib/solmate"]
+	path = lib/solmate
+	url = https://github.com/transmissions11/solmate
+[submodule "lib/v4-core"]
+	path = lib/v4-core
+	url = https://github.com/uniswap/v4-core
+[submodule "lib/v4-periphery"]
+	path = lib/v4-periphery
+	url = https://github.com/uniswap/v4-periphery
+[submodule "lib/permit2"]
+	path = lib/permit2
+	url = https://github.com/uniswap/permit2
+[submodule "lib/universal-router"]
+	path = lib/universal-router
+	url = https://github.com/uniswap/universal-router
