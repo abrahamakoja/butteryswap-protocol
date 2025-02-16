@@ -28,6 +28,8 @@ contract LendRequestFactory {
     mapping(address => bool) private s_isValidContract;
     LendRequest_v1[] public totalLendRequestArray; //get this and only display the active
     LendRequest_v1[] public s_prioritizedLendRequests;
+    uint256 private constant i_originationFee = 6; //move to admin contract
+    uint256 private constant SETTLEMENT_FEE = 6; //move to admin contract
 
     receive() external payable {}
 
@@ -53,10 +55,12 @@ contract LendRequestFactory {
         bool priority
     ) private {
         // effects
+        uint amountLended = msg.value;
         LendRequest_v1 lendRequest = new LendRequest_v1(
             owners,
             msg.value,
-            block.timestamp
+            block.timestamp,
+            SETTLEMENT_FEE
         );
 
         if (priority == true) {
@@ -74,16 +78,49 @@ contract LendRequestFactory {
         // emits
         emit LendRequestCreated(msg.sender, address(lendRequest), msg.value);
 
+       payOriginationFee(amountLended);
         //  interactions
-        (bool success, ) = payable(lendRequest).call{
-            value: msg.value,
-            gas: 2300
-        }("");
+        (bool success, ) = payable(lendRequest).call{value: msg.value}("");
         if (!success)
             revert LendRequestFactory_TransferFailed(
                 address(lendRequest),
                 msg.value
             );
+    }
+
+
+    function payOriginationFee(uint256 _amountLended) private {
+        // collect origination fee
+        (bool feeTransfered, ) = payable(address(this)).call{
+            value: calculateCollateralAmountMinusFee(
+                _amountLended,
+                i_originationFee
+            )
+        }("");
+        if (!feeTransfered)
+            revert LendRequestFactory_TransferFailed(
+                address(this),
+                calculateCollateralAmountMinusFee(
+                    _amountLended,
+                    i_originationFee
+                )
+            );
+    }
+    // move to the admin
+    function calculateOriginationFee(
+        uint256 collateralAmount,
+        uint256 originationFee
+    ) internal pure returns (uint256) {
+        return (collateralAmount * originationFee) / 100;
+    }
+    function calculateCollateralAmountMinusFee(
+        uint256 collateralAmount,
+        uint256 originationFee
+    ) internal pure returns (uint256) {
+        return
+            (collateralAmount -
+                (calculateOriginationFee(collateralAmount, originationFee))) *
+            1e18;
     }
 
     // getters
@@ -211,8 +248,12 @@ contract LendRequestFactory {
         return position;
     }
 
-    function getTotalActiveLendRequestContractCount() external view returns(uint256 numberOfContracts){
-       return _getTotalActiveLendRequestContractAddresses().length;
+    function getTotalActiveLendRequestContractCount()
+        external
+        view
+        returns (uint256 numberOfContracts)
+    {
+        return _getTotalActiveLendRequestContractAddresses().length;
     }
 
     function getUserToLendRequestAddresses(

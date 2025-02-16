@@ -4,9 +4,12 @@ optimizer_runs = 200
 src = "src"
 out = "out"
 libs = ["lib"]
-remappings = ['@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/','@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/']
+remappings = ['@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/','@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/','@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/']
 fs_permissions = [
     { access = "read", path = "./broadcast" },
     { access = "read", path = "./reports" },
 ]
+
+
+# lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

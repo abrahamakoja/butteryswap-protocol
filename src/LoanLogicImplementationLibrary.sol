@@ -13,7 +13,7 @@ library LoanLogicImplementationLibrary {
         address owner
     );
 
-    using erc20TokenLibrary for erc20TokenLibrary.tokenData;
+    // using erc20TokenLibrary for erc20TokenLibrary.tokenData;
 
     enum RequestState {
         OPEN,
@@ -24,12 +24,12 @@ library LoanLogicImplementationLibrary {
     }
 
     struct BorrowRequest {
-        address[3] tokens;
+        address[] tokens;  
         uint256 collateralAmount;
         uint256 loanAmountRequested;
         address[2] owners;
         uint256 collateralAmountMinusFee;
-        uint256 originationFee;
+        uint256 SETTLEMENT_FEE;
         RequestState state;
         uint256 timeCreated;
     }
@@ -38,7 +38,7 @@ library LoanLogicImplementationLibrary {
         uint256 amountLended;
         address[2] owners;
         uint256 amountLendedMinusFee;
-        uint256 originationFee;
+        uint256 SETTLEMENT_FEE;
         RequestState state;
         uint256 timeCreated;
     }
@@ -57,13 +57,6 @@ library LoanLogicImplementationLibrary {
     event contractClosed(address[2] owners, uint256 final_balance);
     event BorrowRequestCreated(erc20TokenLibrary.tokenData token);
     event executionSuccess(address activeBorrower);
-
-    function updateState(BorrowRequest storage request) internal {
-        request.state = RequestState.SETTLED;
-    }
-    function updateLendState(LendRequest storage request) internal {
-        request.state = RequestState.SETTLED;
-    }
 
     // Public functions for active loan
     function createActiveLoan(
@@ -85,22 +78,31 @@ library LoanLogicImplementationLibrary {
             });
     }
 
-    // Public functions for borrow requests
-
-    function calculateCollateralAmountMinusFee(
+    // change to settlement fee
+    function calculateSettlementFee(
         uint256 collateralAmount,
-        uint256 originationFee
+        uint256 SETTLEMENT_FEE
     ) internal pure returns (uint256) {
-        return collateralAmount - originationFee;
+        return (collateralAmount * SETTLEMENT_FEE) / 100;
+    }
+
+    function calculateAmountMinusFee(
+        uint256 collateralAmount,
+        uint256 SETTLEMENT_FEE
+    ) internal pure returns (uint256) {
+        return
+            (collateralAmount -
+                (calculateSettlementFee(collateralAmount, SETTLEMENT_FEE))) *
+            1e18; //change magic number to precision constant
     }
 
     function createBorrowRequest(
         address[2] memory _owners,
         uint256 _collateralAmount,
         uint256 _loanAmountRequested,
-        address[3] memory _tokens,
+        address[] memory _tokens,
         uint256 _timeCreated,
-        uint256 _originationFee
+        uint256 _SETTLEMENT_FEE
     ) internal pure returns (BorrowRequest memory) {
         return
             BorrowRequest({
@@ -108,11 +110,11 @@ library LoanLogicImplementationLibrary {
                 collateralAmount: _collateralAmount,
                 loanAmountRequested: _loanAmountRequested,
                 owners: _owners,
-                collateralAmountMinusFee: calculateCollateralAmountMinusFee(
+                collateralAmountMinusFee: calculateAmountMinusFee(
                     _collateralAmount,
-                    _originationFee
+                    _SETTLEMENT_FEE
                 ),
-                originationFee: _originationFee,
+                SETTLEMENT_FEE: _SETTLEMENT_FEE,
                 state: RequestState.OPEN,
                 timeCreated: _timeCreated
             });
@@ -140,7 +142,6 @@ library LoanLogicImplementationLibrary {
         address contractAddress,
         uint256 _loanAmountRequested
     ) internal {
-        
         request.state = RequestState.ADDING_LIQUIDITY;
         request.collateralAmount += _collateralAmount;
         request.loanAmountRequested += _loanAmountRequested;
@@ -154,7 +155,6 @@ library LoanLogicImplementationLibrary {
             _collateralAmount
         );
         request.state = RequestState.OPEN;
-        
     }
 
     function cancelBorrowRequest(
@@ -170,11 +170,11 @@ library LoanLogicImplementationLibrary {
         if (request.state == RequestState.OPEN) revert(); //do proper reverts
         if (request.state == RequestState.SETTLED) revert(); //do proper reverts;
         // effects
-        request.originationFee =
+        request.SETTLEMENT_FEE =
             ((request.collateralAmount * 5) / 100) *
             10 ** 18;
         request.collateralAmountMinusFee =
-            (request.collateralAmount - request.originationFee) *
+            (request.collateralAmount - request.SETTLEMENT_FEE) *
             10 ** 18;
 
         // Use the token's transfer function from the erc20TokenLibrary
@@ -197,7 +197,7 @@ library LoanLogicImplementationLibrary {
             erc20TokenLibrary.transferTokens(
                 address(request.tokens[index]),
                 address(request.owners[1]),
-                request.originationFee
+                request.SETTLEMENT_FEE
             );
         }
     }
@@ -208,20 +208,6 @@ library LoanLogicImplementationLibrary {
         return request.state;
     }
 
-    function getBorrowOwners(
-        BorrowRequest storage request
-    ) internal view returns (address[2] memory) {
-        return request.owners;
-    }
-    // Get contract balance for both borrow and lend request
-
-    function getBalance(
-        address contractAddress
-    ) internal view returns (uint256) {
-        return contractAddress.balance;
-    }
-    // get contract balance for borrow request
-
     // Function to get the details of a BorrowRequest
     function getBorrowRequestDetails(
         BorrowRequest storage request
@@ -229,12 +215,12 @@ library LoanLogicImplementationLibrary {
         internal
         view
         returns (
-            address[3] memory _tokens,
+            address[] memory _tokens,
             uint256 collateralAmount,
             uint256 loanAmountRequested,
             address[2] memory owners,
             uint256 collateralAmountMinusFee,
-            uint256 originationFee,
+            uint256 SETTLEMENT_FEE,
             RequestState state,
             uint256 _timeCreated
         )
@@ -244,7 +230,7 @@ library LoanLogicImplementationLibrary {
         loanAmountRequested = request.loanAmountRequested;
         owners = request.owners;
         collateralAmountMinusFee = request.collateralAmountMinusFee;
-        originationFee = request.originationFee;
+        SETTLEMENT_FEE = request.SETTLEMENT_FEE;
         state = request.state;
         _timeCreated = request.timeCreated;
     }
@@ -271,19 +257,24 @@ library LoanLogicImplementationLibrary {
         lender = request.lender;
         borrower = request.borrower;
     }
-
+    // ***********************************************
     /* Public functions for lend requests **/
+
     function createLendRequest(
         address[2] memory _owners,
         uint256 _amountLended,
-        uint256 _timeCreated
+        uint256 _timeCreated,
+        uint256 _SETTLEMENT_FEE
     ) internal pure returns (LendRequest memory) {
         return
             LendRequest({
                 amountLended: _amountLended,
                 owners: _owners,
-                amountLendedMinusFee: 0,
-                originationFee: 0,
+                amountLendedMinusFee:calculateAmountMinusFee(
+                    _amountLended,
+                    _SETTLEMENT_FEE
+                ), 
+                SETTLEMENT_FEE: _SETTLEMENT_FEE,
                 state: RequestState.OPEN,
                 timeCreated: _timeCreated
             });
@@ -312,36 +303,8 @@ library LoanLogicImplementationLibrary {
         amountLended = request.amountLended;
         owners = request.owners;
         balanceMinusFee = request.amountLendedMinusFee;
-        feeEarned = request.originationFee;
+        feeEarned = request.SETTLEMENT_FEE;
         state = request.state;
-    }
-
-    function withdrawLendFunds(
-        LendRequest storage request,
-        address contractAddress,
-        address recipient,
-        uint256 amount
-    ) internal {
-        if (request.state == RequestState.OPEN)
-            revert LoanLogicImplementationLibrary__UnauthorizedAccess(
-                contractAddress,
-                contractAddress
-            );
-        else if (request.state == RequestState.CANCELLING)
-            request.state = RequestState.CANCELLED;
-        else if (request.state == RequestState.SETTLED)
-            revert LoanLogicImplementationLibrary__UnauthorizedAccess(
-                contractAddress,
-                contractAddress
-            );
-
-        emit FundsWithdrawn(amount, request.amountLendedMinusFee);
-        (bool success, ) = recipient.call{value: amount, gas: 50000}("");
-        if (!success)
-            revert LoanLogicImplementationLibrary__InsufficientFunds(
-                contractAddress.balance,
-                amount
-            );
     }
 
     function cancelLendRequest(
@@ -371,46 +334,40 @@ library LoanLogicImplementationLibrary {
             );
     }
 
-    function getLendOwners(
-        LendRequest storage request
-    ) internal view returns (address[2] memory) {
-        return request.owners;
-    }
-
     // function called by enforcer on each borrow request
     // transfer memecoin to new multisig
     function acceptLoan(
         BorrowRequest storage request,
-        address multisigAddress
+        address activeLoanAddress
     ) internal {
         request.state = RequestState.SETTLED;
         for (uint256 index = 0; index < request.tokens.length; index++) {
             erc20TokenLibrary.transferTokens(
                 address(request.tokens[index]),
-                address(multisigAddress),
+                address(activeLoanAddress),
                 request.collateralAmountMinusFee
             );
         }
         // erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
     }
+
     // function called by enforcer on each lend request
     // transfer native currency to borrower
 
     function offerLoan(
         LendRequest storage request,
         address borrowerAddress,
-        uint256 amount
+        uint256 loanAmountRequested
     ) internal {
         request.state = RequestState.SETTLED;
-        (bool success, ) = borrowerAddress.call{value: amount, gas: 50000}("");
+        (bool success, ) = borrowerAddress.call{
+            value: loanAmountRequested,
+            gas: 50000
+        }("");
         if (!success)
             revert LoanLogicImplementationLibrary__InsufficientFunds(
                 address(this).balance,
                 request.amountLendedMinusFee
             );
-    }
-
-    function executeLoan(address activeBorrower) internal {
-        emit executionSuccess(activeBorrower);
     }
 }

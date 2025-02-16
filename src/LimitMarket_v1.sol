@@ -43,12 +43,13 @@ interface IBorrowRequestFactory {
         uint256 _batchLimit
     ) external view returns (address[] memory);
 
-    function createBorrowRequest(
+   function createBorrowRequest(
         uint256 _collateralAmount,
+        uint256 _loanAmountRequested,
         address[] calldata _tokens,
         address[2] calldata _owners,
         bool _priority
-    ) external;
+    ) external ;
 }
 
 interface ILendRequestFactory {
@@ -155,9 +156,10 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// @param tokens The list of tokens to be used as collateral
     function Borrow(
         uint256 collateralAmount,
+        uint256 loanAmountRequested,
         address[] calldata tokens,
         bool priority
-    ) external nonReentrant enforcerContractIsSet {
+    ) external payable nonReentrant enforcerContractIsSet {
         // checks
         if (tokens.length == 0 || tokens.length > 3)
             revert LimitMarket_v1_InvalidTokenCount(tokens.length);
@@ -166,12 +168,13 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
         address[2] memory owners = [msg.sender, address(enforcerContract)];
 
-        // emits
+        // emits 
         emit TokensDeposited(msg.sender, tokens, collateralAmount);
         i_BorrowRequestFactory.createBorrowRequest(
             collateralAmount,
+            loanAmountRequested,
             tokens,
-            owners,
+            owners, 
             priority
         );
     }

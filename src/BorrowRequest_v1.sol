@@ -51,6 +51,7 @@ interface ISupportedTokens {
 
 // BorrowRequest_v1 Contract Definition
 contract BorrowRequest_v1 is ReentrancyGuard {
+    
     //////////////
     /// Errors ///
     /////////////
@@ -65,7 +66,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
     /// Type Declarations ///
     ////////////////////////
 
-    ///////////////
+    /////////////// 
     /**  Enums **/
     /////////////
 
@@ -113,9 +114,9 @@ contract BorrowRequest_v1 is ReentrancyGuard {
         address[2] memory _owners,
         uint256 collateralAmount,
         uint256 loanAmountRequested,
-        address[3] memory token,
+        address[] memory token,
         uint256 _timeCreated,
-        uint256 originationFee,
+        uint256 SETTLEMENT_FEE,
         uint256 _maxAssetLimit,
         address supportedTokensAddress
     ) {
@@ -125,7 +126,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
             loanAmountRequested,
             token,
             _timeCreated,
-            originationFee
+            SETTLEMENT_FEE
         );
         i_borrower = _owners[0];
         i_admin = _owners[1];
@@ -255,7 +256,7 @@ contract BorrowRequest_v1 is ReentrancyGuard {
         external
         view
         returns (
-            address[3] memory tokens,
+            address[] memory tokens,
             uint256 collateralAmount,
             uint256 loanAmountRequested,
             address[2] memory owners,

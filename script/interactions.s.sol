@@ -19,6 +19,7 @@ contract LimitMarketInteractions is Script {
     address mostrecentlyDeployedST;
     address mostrecentlyBorrowRequestFactory;
     address mostrecentlyLendRequestFactory;
+      address[] tokens;
 
     function run() external {
         mostrecentlyBorrowRequestFactory = DevOpsTools
@@ -43,9 +44,9 @@ contract LimitMarketInteractions is Script {
             "SupportedTokens",
             block.chainid
         );
-        address[] memory tokens = new address[](2);
-        tokens[0] = mostrecentlyDeployedButterToken;
-        tokens[1] = mostrecentlyDeployedJATToken;
+      
+        tokens.push(mostrecentlyDeployedButterToken);
+        tokens.push(mostrecentlyDeployedJATToken);
 
         updateContracts(
             payable(mostrecentlyDeployedLimitMarket),
@@ -57,129 +58,20 @@ contract LimitMarketInteractions is Script {
         borrow(
             mostrecentlyDeployedLimitMarket,
             mostrecentlyBorrowRequestFactory,
-            tokens
+            tokens,
+            2
         );
         priorityBorrow(
             mostrecentlyDeployedLimitMarket,
             mostrecentlyBorrowRequestFactory,
-            tokens
+            tokens,
+            10
         );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        priorityBorrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        priorityBorrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        borrow(
-            mostrecentlyDeployedLimitMarket,
-            mostrecentlyBorrowRequestFactory,
-            tokens
-        );
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // borrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
-        // priorityBorrow(mostrecentlyDeployedLimitMarket,mostrecentlyBorrowRequestFactory, tokens);
+       
 
         priorityLend(mostrecentlyDeployedLimitMarket);
         lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        lend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        priorityLend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // priorityLend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
-        // lend(mostrecentlyDeployedLimitMarket);
+        
     }
 
     function updateContracts(
@@ -212,13 +104,10 @@ contract LimitMarketInteractions is Script {
     function borrow(
         address _mostrecentlyDeployedLimitMarket,
         address _mostrecentlyBorrowRequestFactory,
-        address[] memory token
+        address[] memory token,
+        uint256 loanAmountRequested
     ) public {
-        address[] memory tokenAddresses = new address[](token.length);
-        for (uint256 index = 0; index < token.length; index++) {
-            tokenAddresses[index] = token[index]; // Corrected assignment
-            // console.log("token", index, ": ", token[index]);
-        }
+        
         vm.startBroadcast();
 
         for (uint256 index = 0; index < token.length; index++) {
@@ -229,9 +118,12 @@ contract LimitMarketInteractions is Script {
             );
         }
 
-        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).Borrow(
+        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).Borrow{
+            value: 2 ether
+        }(
             20 * 10 ** 18,
-            tokenAddresses,
+            loanAmountRequested * 1 ether,
+            token,
             false
         );
 
@@ -241,13 +133,10 @@ contract LimitMarketInteractions is Script {
     function priorityBorrow(
         address _mostrecentlyDeployedLimitMarket,
         address _mostrecentlyBorrowRequestFactory,
-        address[] memory token
+        address[] memory token,
+         uint256 loanAmountRequested
     ) public {
-        address[] memory tokenAddresses = new address[](token.length);
-        for (uint256 index = 0; index < token.length; index++) {
-            tokenAddresses[index] = token[index]; // Corrected assignment
-            // console.log("token", index, ": ", token[index]);
-        }
+
         vm.startBroadcast();
 
         for (uint256 index = 0; index < token.length; index++) {
@@ -258,9 +147,12 @@ contract LimitMarketInteractions is Script {
             );
         }
 
-        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).Borrow(
+        LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).Borrow{
+            value: 2 ether
+        }(
             30 * 10 ** 18,
-            tokenAddresses,
+             loanAmountRequested * 1 ether,
+            token,
             true
         );
 
@@ -277,7 +169,7 @@ contract LimitMarketInteractions is Script {
     function priorityLend(address _mostrecentlyDeployedLimitMarket) public {
         vm.startBroadcast();
         LimitMarket_v1(payable(_mostrecentlyDeployedLimitMarket)).Lend{
-            value: 6 ether
+            value: 10 ether
         }(true);
         vm.stopBroadcast();
     }
@@ -351,51 +243,51 @@ contract SupportedTokenInteractions is Script {
     // }
 }
 
-contract BorrowRequestInteractions is Script {
-    address _mostrecentlyDeployedEnforcer;
-    address mostrecentlyDeployedButterToken;
+// contract BorrowRequestInteractions is Script {
+//     address _mostrecentlyDeployedEnforcer;
+//     address mostrecentlyDeployedButterToken;
 
-    function run() external {
-        _mostrecentlyDeployedEnforcer = DevOpsTools.get_most_recent_deployment(
-            "Enforcer_v1",
-            block.chainid
-        );
-        mostrecentlyDeployedButterToken = DevOpsTools
-            .get_most_recent_deployment("ButterToken", block.chainid);
+//     function run() external {
+//         _mostrecentlyDeployedEnforcer = DevOpsTools.get_most_recent_deployment(
+//             "Enforcer_v1",
+//             block.chainid
+//         );
+//         mostrecentlyDeployedButterToken = DevOpsTools
+//             .get_most_recent_deployment("ButterToken", block.chainid);
 
-        deployBorrowContract(
-            _mostrecentlyDeployedEnforcer,
-            mostrecentlyDeployedButterToken
-        );
-    }
+//         deployBorrowContract(
+//             _mostrecentlyDeployedEnforcer,
+//             mostrecentlyDeployedButterToken
+//         );
+//     }
 
-    function deployBorrowContract(
-        address mostrecentlyDeployedEnforcer,
-        address token
-    ) public {
-        address[] memory tokenAddresses = new address[](1); // Initialize with correct size
-        tokenAddresses[0] = token; // Assign the token address
+//     function deployBorrowContract(
+//         address mostrecentlyDeployedEnforcer,
+//         address token
+//     ) public {
+//         address[] memory tokenAddresses = new address[](1); // Initialize with correct size
+//         tokenAddresses[0] = token; // Assign the token address
 
-        vm.startBroadcast();
-        BorrowRequest_v1 borrowRequest_v1 = new BorrowRequest_v1(
-            [address(msg.sender), address(mostrecentlyDeployedEnforcer)],
-            2360 * 10 ** 18,
-            tokenAddresses,
-            block.timestamp
-        );
-        borrowRequest_v1.getOwnersAdresses();
-        // borrowRequest_v1.cancelRequest();
+//         vm.startBroadcast();
+//         BorrowRequest_v1 borrowRequest_v1 = new BorrowRequest_v1(
+//             [address(msg.sender), address(mostrecentlyDeployedEnforcer)],
+//             2360 * 10 ** 18,
+//             tokenAddresses,
+//             block.timestamp
+//         );
+//         borrowRequest_v1.getOwnersAdresses();
+//         // borrowRequest_v1.cancelRequest();
 
-        // console.log("enforcer : ", mostrecentlyDeployedEnforcer);
-        // console.log("this contract : ", address(this));
-        // console.log("this sender : ", address(msg.sender));
-        vm.stopBroadcast();
-    }
+//         // console.log("enforcer : ", mostrecentlyDeployedEnforcer);
+//         // console.log("this contract : ", address(this));
+//         // console.log("this sender : ", address(msg.sender));
+//         vm.stopBroadcast();
+//     }
 
-    // fuction BorrowRequestFactoryInteractions is Script{
+//     // fuction BorrowRequestFactoryInteractions is Script{
 
-    // }
-}
+//     // }
+// }
 
 contract BorrowRequestFactoryInteractions is Script {
 
@@ -408,7 +300,7 @@ contract BorrowRequestFactoryInteractions is Script {
     function getLoans(address _borrowRequestFactory) public view {
         //  BorrowRequestFactory(_borrowRequestFactory).getTotalActiveBorrowRequestContractCount();
         //  BorrowRequestFactory(_borrowRequestFactory).getBatchedActiveBorrowRequestContractAddresses(3,3,10);
-         BorrowRequestFactory(_borrowRequestFactory).getTotalActivePrioritizedBorrowRequests(10,1);
+         BorrowRequestFactory(payable(_borrowRequestFactory)).getTotalActivePrioritizedBorrowRequests(10,1);
     }
 }
 
