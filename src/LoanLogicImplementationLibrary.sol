@@ -280,6 +280,12 @@ library LoanLogicImplementationLibrary {
             });
     }
 
+//     forge install uniswap/v4-core
+// forge install uniswap/v4-periphery
+// forge install uniswap/permit2
+// forge install uniswap/universal-router
+// forge install OpenZeppelin/openzeppelin-contracts
+
     function getLendRequestState(
         LendRequest storage request
     ) internal view returns (RequestState) {
