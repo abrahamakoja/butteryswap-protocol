@@ -145,7 +145,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         i_Admin = msg.sender;
     }
 
-    receive() external payable {}
+    // receive() external payable {}
 
     ////////////////////////
     ///External Functions ///
