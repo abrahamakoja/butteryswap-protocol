@@ -12,7 +12,15 @@ docs/
 
 #   Dotenv file
 .env 
+notes.md
+reports.md
 broadcast/
 lib/
+.github/
+.vscode/
+.gitignore
+.gitmodules
+.wake/
+
 
 src/protocol.code-workspace
