@@ -14,6 +14,7 @@ interface iProtocolManager {
     function calculateAmountMinus_OriginationFee(
         uint256
     ) external pure returns (uint256);
+    function minimumDeposit() external view returns (uint256);
     function SETTLEMENT_FEE() external view returns (uint256);
     function MAX_ASSET_LIMIT() external view returns (uint256);
     function MAX_OWNERS_LIMIT() external view returns (uint256);

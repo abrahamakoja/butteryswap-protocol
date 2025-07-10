@@ -20,7 +20,7 @@ import {iTokenManager} from "./interfaces/iTokenManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
-contract BorrowRequestFactory {
+contract BorrowRequestFactory is Ownable {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -49,13 +49,14 @@ contract BorrowRequestFactory {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    BorrowRequest_v1[] public totalBorrowRequests;
+    //@audit check all mapping
+    BorrowRequest_v1[] private totalBorrowRequests;
     BorrowRequest_v1[] private s_prioritizedBorrowRequests;
     iProtocolManager private immutable protocolManager;
     mapping(address => address[]) private userToBorrowRequestAddresses;
     mapping(address borrowRequest => address borrower)
         private borrowRequestToBorrower;
-    mapping(address => address[])
+    mapping(address borrower => address[] prioritizedBorrowRequests)
         private userToPrioritizedBorrowRequestAddresses;
     mapping(address prioritizedBorrowRequest => address borrower)
         private prioritizedBorrowRequestToBorrower;
@@ -64,6 +65,8 @@ contract BorrowRequestFactory {
     mapping(address => bool) private s_isValidContract;
     mapping(address borrowRequest => mapping(address collateral => uint256 value))
         private collateralToValue;
+    mapping(address borrower => uint256 totalAmountRequested)
+        private userToTotalAmountRequested;
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -85,12 +88,13 @@ contract BorrowRequestFactory {
         address indexed borrowRequestAddress,
         uint256 indexed totalCollateralValue
     );
-    event borrowRequestCancelled(
+    event BorrowRequestCancelled(
         address indexed borrower,
         address indexed borrowRequest,
         uint256 indexed borrowRequestBalance
     );
 
+    /** CONSTRUCTOR */
     constructor(address _protocolManager) Ownable(msg.sender) {
         protocolManager = iProtocolManager(_protocolManager);
     }
@@ -104,7 +108,7 @@ contract BorrowRequestFactory {
     /// @param _tokens The list of tokens to be used as collateral
     /// @param _borrower The address of the enforcer contract
     /// @param _priority The address of the enforcer contract
-    function createBorrowRequest(
+    function createRequest(
         uint256[] calldata _collateralAmount,
         uint256 _loanAmountRequested,
         address[] calldata _tokens,
@@ -137,7 +141,7 @@ contract BorrowRequestFactory {
             totalCollateralValue
         );
 
-        _rawCreateBorrowRequest(
+        _rawCreateRequest(
             _collateralAmount,
             _loanAmountRequested,
             _tokens,
@@ -182,7 +186,7 @@ contract BorrowRequestFactory {
             prioritizedBorrowRequestToBorrower[borrowRequest] !=
             address(borrower) ||
             address(borrower) != address(owner)
-        ) return BorrowRequestFactory__notOwner();
+        ) revert BorrowRequestFactory__notOwner();
 
         //   check already deposited tokens count is below or equal to max asset limit allowed
         if (!(depositedTokens.length <= protocolManager.MAX_ASSET_LIMIT())) {
@@ -200,14 +204,14 @@ contract BorrowRequestFactory {
             );
         }
 
-         _rawAddLiquidity(
-         borrower,
-         borrowRequest,
-         state,
-         loanAmountRequested,
-       tokens,
-       collateralAmounts
-    )
+        _rawAddLiquidity(
+            borrower,
+            borrowRequest,
+            state,
+            loanAmountRequested,
+            tokens,
+            collateralAmounts
+        );
     }
 
     function cancelRequest(
@@ -428,7 +432,7 @@ contract BorrowRequestFactory {
     /// @param _priority The address of the enforcer contract
     /// @param _totalCollateralValue total collateral amount in ETH
     /// @param _originationFee Origination fee
-    function _rawCreateBorrowRequest(
+    function _rawCreateRequest(
         uint256[] calldata _collateralAmount,
         uint256 _loanAmountRequested,
         address[] calldata _tokens,
@@ -469,21 +473,27 @@ contract BorrowRequestFactory {
 
         if (_priority) {
             s_loanIsPrioritized[address(BorrowRequest)] = true;
-            prioritizedBorrowRequestToBorrower[_borrower] = address(
-                BorrowRequest
+
+            prioritizedBorrowRequestToBorrower[BorrowRequest] = address(
+                _borrower
             );
+
             s_prioritizedBorrowRequests.push(BorrowRequest);
+
             userToPrioritizedBorrowRequestAddresses[_borrower].push(
                 address(BorrowRequest)
             );
         } else {
             totalBorrowRequests.push(BorrowRequest);
-            borrowRequestToBorrower[_borrower] = address(BorrowRequest);
+
+            borrowRequestToBorrower[borrowRequest] = address(_borrower);
+
             userToBorrowRequestAddresses[_borrower].push(
                 address(BorrowRequest)
             );
         }
 
+        userToTotalAmountRequested[_borrower] += _totalCollateralValue;
         s_isValidContract[address(BorrowRequest)] = true;
 
         emit BorrowRequestCreated(
@@ -493,6 +503,14 @@ contract BorrowRequestFactory {
         );
 
         /** INTERACTIONS */
+
+        /** COLLECT ORIGINATION FEE */
+        (bool success, ) = payable(protocolManager.FEE_CONTRACT()).call{
+            value: _originationFee
+        }("");
+        if (!success) revert BorrowRequestFactory__TransferFailed();
+
+        /** TRANSFER TOKENS TO BORROW REQUEST CONTRACT */
         for (uint256 index = 0; index < _tokens.length; index++) {
             erc20TokenLibrary.transferFromTokens(
                 _tokens[index],
@@ -501,10 +519,6 @@ contract BorrowRequestFactory {
                 _collateralAmount[index]
             );
         }
-
-        // collect origination fee
-        (bool success, ) = payable(address(this)).call{value: msg.value}("");
-        if (!success) revert BorrowRequestFactory__TransferFailed();
     }
 
     function _rawCancelRequest(
@@ -525,7 +539,9 @@ contract BorrowRequestFactory {
             cancellationFee += protocolManager.calculateCancellationFee(
                 _collateralAmount[index]
             );
+
         }
+         userToTotalAmountRequested[_borrower] -= totalCollateralValue;
 
         /** INTERACTIONS */
 
@@ -545,8 +561,9 @@ contract BorrowRequestFactory {
                 )
             );
         }
+
         _state = LoanConfigLibrary.RequestState.CANCELLED;
-        emit borrowRequestCancelled(
+        emit BorrowRequestCancelled(
             BorrowRequest_v1(_borrowRequest).i_Borrower,
             address(_borrowRequest),
             address(_borrowRequest).balance
@@ -574,6 +591,7 @@ contract BorrowRequestFactory {
                 );
             }
 
+            userToTotalAmountRequested[_borrower] += _collateralAmounts[index];
             //  approve tokens
             erc20TokenLibrary.approveTokens(
                 _tokens[index],
@@ -598,5 +616,7 @@ contract BorrowRequestFactory {
                 _collateralAmounts[index]
             );
         }
+
+        _state = LoanConfigLibrary.RequestState.OPEN;
     }
 }

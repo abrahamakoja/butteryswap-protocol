@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
 contract activeLoan {
-    using LoanConfigLibrary for LoanConfigLibrary.ActiveLoan;
+    using LoanConfigLibrary for LoanConfigLibrary.ActiveLoanVault;
 
-    LoanConfigLibrary.ActiveLoan private s_activeLoan;
+    LoanConfigLibrary.ActiveLoanVault private s_activeLoan;
 
     error UnauthorizedTransaction();
 

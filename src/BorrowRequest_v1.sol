@@ -1,25 +1,3 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
-
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -39,11 +17,10 @@ import {Script, console} from "forge-std/Script.sol";
     //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 
-contract BorrowRequest_v1 is ReentrancyGuard, Ownable {
+contract BorrowRequest_v1 is Ownable {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -89,22 +66,22 @@ contract BorrowRequest_v1 is ReentrancyGuard, Ownable {
     }
 
     constructor(
-        address _owner,
+        address borrower,
         uint256[] memory collateralAmount,
         uint256 loanAmountRequested,
         address[] memory token,
         uint256 _timeCreated,
         address _protocolManager
-    ) Ownable(_owner) {
+    ) Ownable(borrower) {
         borrowRequest = LoanConfigLibrary.createBorrowRequest(
-            _owner,
+            borrower,
             collateralAmount,
             loanAmountRequested,
             token,
             _timeCreated
         );
-        i_Borrower = _owner;
-        isOwner[_owner] = true;
+        i_Borrower = borrower;
+        isOwner[borrower] = true;
         protocolManager = iProtocolManager(_protocolManager);
     }
 
@@ -112,35 +89,21 @@ contract BorrowRequest_v1 is ReentrancyGuard, Ownable {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    receive() external payable {}
-
-    // function checkCollateralDetails()
-    //     external
-    //     returns (uint256 numberOfAssets)
-    // {
-    //     return (borrowRequest.checkCollateralDetails());
-    // }
-
     function updateRequest(
         address token,
         uint256 index,
         uint256 collateralAmount,
         uint256 _loanAmountRequested
-    ) external onlyFactory nonReentrant {
+    ) external onlyFactory {
         borrowRequest.updateBorrowRequest(
-            borrowRequest,
             token,
             index,
             collateralAmount,
-            address(this),
             _loanAmountRequested
         );
     }
-    function updateState() external onlyFactory {
 
-    }
-
-    function acceptLoan(address vault) external onlyEnforcer nonReentrant {
+    function acceptLoan(address vault) external onlyEnforcer  {
         emit LoanAccepted(vault);
         borrowRequest.acceptLoan(borrowRequest, address(vault));
     }
@@ -151,9 +114,9 @@ contract BorrowRequest_v1 is ReentrancyGuard, Ownable {
         view
         returns (
             address[] memory tokens,
-            uint256 collateralAmount,
+            uint256[] memory collateralAmount,
             uint256 loanAmountRequested,
-            address owner,
+            address borrower,
             LoanConfigLibrary.RequestState state,
             uint256 timeCreated
         )

@@ -4,38 +4,52 @@ pragma solidity ^0.8.20;
 //  debug
 import {Script, console} from "forge-std/Script.sol";
 
-////////////////
-/// Imports ///
-//////////////
+/*//////////////////////////////////////////////////////////////
+                                 IMPORT
+    //////////////////////////////////////////////////////////////*/
 
 import {LendRequest_v1} from "./LendRequest_v1.sol";
+import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
 contract LendRequestFactory {
-    ////////////////
-    /// Errors ///
-    //////////////
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
 
-    error LendRequestFactory_TransferFailed(
+    error LendRequestFactory__TransferFailed(
         address lendRequest,
         uint256 sentAmount
     );
-    error inValidContractAddress();
+    error LendRequestFactory__InValidContractAddress();
+    error LendRequestFactory__NoAmountSent();
+    error LendRequestFactory__InsufficientBalance(
+        uint256 balance,
+        uint256 amountDeposited
+    );
 
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+    iProtocolManager private immutable protocolManager;
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
-    mapping(address => address[]) public userToLendRequestContracts;
-    mapping(address => address[]) private userToPrioritizedLendRequestContracts;
+    mapping(address lender => address[] prioritizedLendRequests)
+        private userToLendRequestAddresses;
+    mapping(address prioritizedLendRequest => address lender)
+        private prioritizedLendRequestToLender;
+    mapping(address lendRequest => address lender) private lendRequestToLender;
+    mapping(address => address[]) private userToPrioritizedLendRequestAddresses;
     mapping(address => bool) private s_isValidContract;
-    LendRequest_v1[] public totalLendRequestArray; //get this and only display the active
-    LendRequest_v1[] public s_prioritizedLendRequests;
-    uint256 private constant i_originationFee = 6; //move to admin contract
-    uint256 private constant SETTLEMENT_FEE = 6; //move to admin contract
+    LendRequest_v1[] private totalLendRequestArray; //get this and only display the active
+    LendRequest_v1[] private s_prioritizedLendRequests;
+    mapping(address lender => uint256 totalAmountRequested)
+        private lenderToTotalAmountRequested;
 
-    receive() external payable {}
-
-    //////////////
-    /// Events ///
-    ////////////
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
 
     event LendRequestCreated(
         address indexed user,
@@ -43,87 +57,50 @@ contract LendRequestFactory {
         uint256 amountLended
     );
 
-    function createLendRequest(
-        address[2] calldata _owners,
-        bool _priority
-    ) external payable {
-        _rawCreateLendRequest(_owners, _priority);
+    event LendRequestCancelled(
+        address indexed borrower,
+        address indexed borrowRequest,
+        uint256 indexed borrowRequestBalance
+    );
+
+    /** CONSTRUCTOR */
+    constructor(address _protocolManager) Ownable(msg.sender) {
+        protocolManager = iProtocolManager(_protocolManager);
     }
 
-    function _rawCreateLendRequest(
-        address[2] calldata owners,
-        bool priority
-    ) private {
-        // effects
-        uint amountLended = msg.value;
-        LendRequest_v1 lendRequest = new LendRequest_v1(
-            owners,
-            msg.value,
-            block.timestamp,
-            SETTLEMENT_FEE
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function createRequest(
+        address lender,
+        bool priority,
+        uint256 deposit
+    ) external payable {
+        uint256 originationFee;
+        /** CHECKS */
+
+        if (deposit == 0) revert LendRequestFactory__NoAmountSent();
+
+        if (deposit > lender.balance)
+            revert LendRequestFactory__InsufficientBalance(
+                lender.balance,
+                deposit
+            );
+
+        if (deposit < protocolManager.minimumDeposit())
+            revert LendRequestFactory__BelowMinimumDeposit();
+
+        originationFee = protocolManager.calculateAmountMinus_OriginationFee(
+            deposit
         );
 
-        if (priority == true) {
-            s_loanIsPrioritized[address(lendRequest)] = true;
-            s_prioritizedLendRequests.push(lendRequest);
-            userToPrioritizedLendRequestContracts[msg.sender].push(
-                address(lendRequest)
-            );
-        } else {
-            totalLendRequestArray.push(lendRequest);
-        }
-
-        userToLendRequestContracts[msg.sender].push(address(lendRequest));
-        s_isValidContract[address(lendRequest)] = true;
-        // emits
-        emit LendRequestCreated(msg.sender, address(lendRequest), msg.value);
-
-       payOriginationFee(amountLended);
-        //  interactions
-        (bool success, ) = payable(lendRequest).call{value: msg.value}("");
-        if (!success)
-            revert LendRequestFactory_TransferFailed(
-                address(lendRequest),
-                msg.value
-            );
+        _rawCreateRequest(lender, priority, deposit, originationFee);
     }
 
-
-    function payOriginationFee(uint256 _amountLended) private {
-        // collect origination fee
-        (bool feeTransfered, ) = payable(address(this)).call{
-            value: calculateCollateralAmountMinusFee(
-                _amountLended,
-                i_originationFee
-            )
-        }("");
-        if (!feeTransfered)
-            revert LendRequestFactory_TransferFailed(
-                address(this),
-                calculateCollateralAmountMinusFee(
-                    _amountLended,
-                    i_originationFee
-                )
-            );
-    }
-    // move to the admin
-    function calculateOriginationFee(
-        uint256 collateralAmount,
-        uint256 originationFee
-    ) internal pure returns (uint256) {
-        return (collateralAmount * originationFee) / 100;
-    }
-    function calculateCollateralAmountMinusFee(
-        uint256 collateralAmount,
-        uint256 originationFee
-    ) internal pure returns (uint256) {
-        return
-            (collateralAmount -
-                (calculateOriginationFee(collateralAmount, originationFee))) *
-            1e18;
-    }
-
-    // getters
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
 
     function getTotalActivePrioritizedLendRequests(
         uint256 _batchLimit,
@@ -237,7 +214,7 @@ contract LendRequestFactory {
         address lendRequest
     ) external view returns (uint256 position) {
         if (s_isValidContract[lendRequest] == false)
-            revert inValidContractAddress();
+            revert LendRequestFactory__InValidContractAddress();
         address[]
             memory lendRequests = _getTotalActiveLendRequestContractAddresses();
         for (uint256 i = 0; i < lendRequests.length; i++) {
@@ -267,8 +244,8 @@ contract LendRequestFactory {
         )
     {
         return (
-            userToLendRequestContracts[user],
-            userToPrioritizedLendRequestContracts[user]
+            userToLendRequestAddresses[user],
+            userToPrioritizedLendRequestAddresses[user]
         );
     }
 
@@ -276,5 +253,87 @@ contract LendRequestFactory {
         address LendRequestContractAddress
     ) external view returns (bool isPrioritized) {
         return s_loanIsPrioritized[LendRequestContractAddress];
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                 PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _rawCreateLendRequest(
+        address _lender,
+        bool _priority,
+        uint256 _deposit,
+        uint256 _originationFee
+    ) private {
+        uint256 depositMinusFee = _deposit - _originationFee;
+        /** EFFECTS */
+        LendRequest_v1 lendRequest = new LendRequest_v1(
+            _lender,
+            _deposit,
+            block.timestamp
+        );
+
+        if (priority == true) {
+            s_loanIsPrioritized[address(lendRequest)] = true;
+            prioritizedLendRequestToLender[lendRequest] = address(_lender);
+            s_prioritizedLendRequests.push(lendRequest);
+            userToPrioritizedLendRequestAddresses[_lender].push(
+                address(lendRequest)
+            );
+        } else {
+            totalLendRequestArray.push(lendRequest);
+            lendRequestToLender[lendRequest] = address(_lender);
+            userToLendRequestAddresses[msg.sender].push(address(lendRequest));
+        }
+
+        lenderToTotalAmountRequested[lender] += _deposit;
+        s_isValidContract[address(lendRequest)] = true;
+
+        emit LendRequestCreated(_lender, address(lendRequest), _deposit);
+
+        /** INTERACTIONS */
+
+        /** COLLECT ORIGINATION FEE */
+        (bool feePaid, ) = payable(protocolManager.FEE_CONTRACT()).call{
+            value: _originationFee
+        }("");
+        if (!feePaid) revert BorrowRequestFactory__TransferFailed();
+        /** TRANSFER tO LEND REQUEST CONTRACT */
+        (bool success,) = payable(lendRequest).call{value: depositMinusFee}("");
+        if (!success)
+            revert LendRequestFactory__TransferFailed(
+                address(lendRequest),
+                depositMinusFee
+            );
+    }
+
+    function _getTotalActiveLendRequestContractAddresses()
+        private
+        view
+        returns (address[] memory)
+    {
+        address[] memory lendRequest = new address[](
+            totalLendRequestArray.length
+        );
+        uint256 counter = 0;
+
+        for (uint256 i = 0; i < totalLendRequestArray.length; i++) {
+            LendRequest_v1 lendRequest_v1 = LendRequest_v1(
+                payable(address(totalLendRequestArray[i]))
+            );
+            uint8 status = uint8(lendRequest_v1.getRequestState());
+            if (status != 0) {
+                continue;
+            }
+            lendRequest[counter] = address(totalLendRequestArray[i]);
+            counter++;
+        }
+
+        address[] memory activeLendRequest = new address[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            activeLendRequest[i] = lendRequest[i];
+        }
+
+        return activeLendRequest;
     }
 }

@@ -157,13 +157,13 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
     function Borrow(
-        uint256 collateralAmount,
+        uint256[] calldata collateralAmount,
         uint256 loanAmountRequested,//ensure to check this
         address[] calldata tokens,
         bool priority
-    ) external payable nonReentrant enforcerContractIsSet {
-
-        i_BorrowRequestFactory.createBorrowRequest(
+    ) external payable nonReentrant  {
+       
+        i_BorrowRequestFactory.createRequest(
             collateralAmount,
             loanAmountRequested,
             tokens,
@@ -183,36 +183,12 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
 
     function Lend(
         bool _priority
-    ) external payable nonReentrant enforcerContractIsSet {
-        // checks
-        if (msg.value == 0)
-            revert LimitMarket_v1_NoAmountSent(msg.sender.balance, msg.value);
-        if (msg.value > msg.sender.balance)
-            revert LimitMarket_v1_InvalidAmount(msg.sender.balance, msg.value);
-        if (msg.value >= msg.sender.balance)
-            revert LimitMarket_v1_InsufficientBalance(
-                msg.sender.balance,
-                msg.value
-            ); 
-
-        // checks to add
-        // msg.value should be equal or greater than dollar price of the minimum allowed amount
-        address[2] memory owners = [msg.sender, address(enforcerContract)];
-        i_LendRequestFactory.createLendRequest(owners, _priority);
+    ) external payable nonReentrant  {
+       uint256 deposit = msg.value;
+       
+        i_LendRequestFactory.createLendRequest(owners, _priority,deposit);
     }
 
-    // update enforcer contract
-    function updateContracts(
-        address _enforcerAddress,
-        address _BorrowRequestFactory,
-        address _LendRequestFactory
-    ) external onlyAdmin notUpdating {
-        _setUpdating(UpdateState.UPDATING);
-        enforcerContract = _enforcerAddress;
-        i_BorrowRequestFactory = IBorrowRequestFactory(_BorrowRequestFactory);
-        i_LendRequestFactory = ILendRequestFactory(_LendRequestFactory);
-        _setUpdating(UpdateState.NOTUPDATING);
-    }
 
     ////////////////////////
     /// Public Functions ///
