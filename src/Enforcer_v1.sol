@@ -44,7 +44,7 @@ import {Script, console} from "forge-std/Script.sol";
 
 
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
-import {LoanLogicImplementationLibrary} from "./LoanLogicImplementationLibrary.sol";
+import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {activeLoan} from "./activeLoan.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -98,7 +98,7 @@ interface IBorrowRequest_v1 {
             address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
-            LoanLogicImplementationLibrary.RequestState state
+            LoanConfigLibrary.RequestState state
         );
 }
      
@@ -116,7 +116,7 @@ interface ILendRequest_v1 {
             address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
-            LoanLogicImplementationLibrary.RequestState state
+            LoanConfigLibrary.RequestState state
         );
 }
 
@@ -398,7 +398,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
 
  /// @notice This function returns the array of active Loans attached to a specific user.
  /// @param user: address of the user. 
- /// @return adress[]: array of active loan addresses,
+ /// @return adress[]: array of active loan addresses
     function getUserActiveLoanContracts(
         address user         
     ) external view returns (address[] memory) {

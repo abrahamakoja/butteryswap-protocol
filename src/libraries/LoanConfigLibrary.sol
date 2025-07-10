@@ -3,33 +3,29 @@ pragma solidity ^0.8.20;
 
 import {erc20TokenLibrary} from "./erc20TokenLibrary.sol";
 
-library LoanLogicImplementationLibrary {
-    error LoanLogicImplementationLibrary__InsufficientFunds(
+library LoanConfigLibrary {
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+    error LoanConfigLibrary__InsufficientFunds(
         uint256 balance,
         uint256 requestedAmount
     );
-    error LoanLogicImplementationLibrary__UnauthorizedAccess(
-        address caller,
-        address owner
+    error LoanConfigLibrary__UnauthorizedAccess(address caller, address owner);
+    error LoanLogicImplementationLibrary__InsufficientFunds(
+        uint256 balance,
+        uint256 collateralAmount
     );
-
-    // using erc20TokenLibrary for erc20TokenLibrary.tokenData;
-
-    enum RequestState {
-        OPEN,
-        CANCELLED,
-        SETTLED,
-        ADDING_LIQUIDITY,
-        CANCELLING
-    }
+    /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+    using erc20TokenLibrary for erc20TokenLibrary.tokenData; //remove interaction from this library
 
     struct BorrowRequest {
-        address[] tokens;  
+        address[] tokens;
         uint256 collateralAmount;
         uint256 loanAmountRequested;
-        address[2] owners;
-        uint256 collateralAmountMinusFee;
-        uint256 SETTLEMENT_FEE;
+        address owner;
         RequestState state;
         uint256 timeCreated;
     }
@@ -38,21 +34,33 @@ library LoanLogicImplementationLibrary {
         uint256 amountLended;
         address[2] owners;
         uint256 amountLendedMinusFee;
-        uint256 SETTLEMENT_FEE;
         RequestState state;
         uint256 timeCreated;
     }
 
     struct ActiveLoan {
         uint256 collateral;
-        uint256 amoutToPayBack;
+        uint256 amountToPayBack;
         address[3] owners;
         address memeCoin;
         address borrower;
         address lender;
     }
+    /*//////////////////////////////////////////////////////////////
+                           ENUMS
+    //////////////////////////////////////////////////////////////*/
+    enum RequestState {
+        CLOSED,
+        OPEN,
+        CANCELLED,
+        SETTLED,
+        ADDING_LIQUIDITY,
+        CANCELLING
+    }
 
-    // Event declaration
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
     event FundsWithdrawn(uint256 amount, uint256 balanceAfterFee);
     event contractClosed(address[2] owners, uint256 final_balance);
     event BorrowRequestCreated(erc20TokenLibrary.tokenData token);
@@ -63,7 +71,7 @@ library LoanLogicImplementationLibrary {
         address[3] memory _owners,
         uint256 _collateral,
         address memcoinAddress,
-        uint256 _amoutToPayBack,
+        uint256 _amountToPayBack,
         address _borrower,
         address _lender
     ) internal pure returns (ActiveLoan memory) {
@@ -72,49 +80,25 @@ library LoanLogicImplementationLibrary {
                 memeCoin: memcoinAddress,
                 collateral: _collateral,
                 owners: _owners,
-                amoutToPayBack: _amoutToPayBack,
+                amountToPayBack: _amountToPayBack,
                 borrower: _borrower,
                 lender: _lender
             });
     }
 
-    // change to settlement fee
-    function calculateSettlementFee(
-        uint256 collateralAmount,
-        uint256 SETTLEMENT_FEE
-    ) internal pure returns (uint256) {
-        return (collateralAmount * SETTLEMENT_FEE) / 100;
-    }
-
-    function calculateAmountMinusFee(
-        uint256 collateralAmount,
-        uint256 SETTLEMENT_FEE
-    ) internal pure returns (uint256) {
-        return
-            (collateralAmount -
-                (calculateSettlementFee(collateralAmount, SETTLEMENT_FEE))) *
-            1e18; //change magic number to precision constant
-    }
-
     function createBorrowRequest(
-        address[2] memory _owners,
+        address _owner,
         uint256 _collateralAmount,
         uint256 _loanAmountRequested,
         address[] memory _tokens,
-        uint256 _timeCreated,
-        uint256 _SETTLEMENT_FEE
+        uint256 _timeCreated
     ) internal pure returns (BorrowRequest memory) {
         return
             BorrowRequest({
                 tokens: _tokens,
                 collateralAmount: _collateralAmount,
                 loanAmountRequested: _loanAmountRequested,
-                owners: _owners,
-                collateralAmountMinusFee: calculateAmountMinusFee(
-                    _collateralAmount,
-                    _SETTLEMENT_FEE
-                ),
-                SETTLEMENT_FEE: _SETTLEMENT_FEE,
+                owner: _owner,
                 state: RequestState.OPEN,
                 timeCreated: _timeCreated
             });
@@ -126,15 +110,7 @@ library LoanLogicImplementationLibrary {
         return (request.tokens.length);
     }
 
-    function approveAssets(address _token, uint256 _collateralAmount) internal {
-        erc20TokenLibrary.approveTokens(
-            _token,
-            address(this),
-            _collateralAmount
-        );
-    }
-
-    function addBorrowLiquidity(
+    function updateBorrowRequest(
         BorrowRequest storage request,
         address _token,
         uint256 index,
@@ -146,14 +122,6 @@ library LoanLogicImplementationLibrary {
         request.collateralAmount += _collateralAmount;
         request.loanAmountRequested += _loanAmountRequested;
         request.tokens[index] = (address(_token));
-
-        // interactions
-        erc20TokenLibrary.transferFromTokens(
-            address(_token),
-            msg.sender,
-            address(contractAddress),
-            _collateralAmount
-        );
         request.state = RequestState.OPEN;
     }
 
@@ -270,21 +238,17 @@ library LoanLogicImplementationLibrary {
             LendRequest({
                 amountLended: _amountLended,
                 owners: _owners,
-                amountLendedMinusFee:calculateAmountMinusFee(
-                    _amountLended,
-                    _SETTLEMENT_FEE
-                ), 
-                SETTLEMENT_FEE: _SETTLEMENT_FEE,
+                amountLendedMinusFee: 0,
                 state: RequestState.OPEN,
                 timeCreated: _timeCreated
             });
     }
 
-//     forge install uniswap/v4-core
-// forge install uniswap/v4-periphery
-// forge install uniswap/permit2
-// forge install uniswap/universal-router
-// forge install OpenZeppelin/openzeppelin-contracts
+    //     forge install uniswap/v4-core
+    // forge install uniswap/v4-periphery
+    // forge install uniswap/permit2
+    // forge install uniswap/universal-router
+    // forge install OpenZeppelin/openzeppelin-contracts
 
     function getLendRequestState(
         LendRequest storage request

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
-
+// move this to manager
 abstract contract ButteryRun_v1 {
     error protocolUpdateInprogress();
     error OnlyOwnerAllowed();
@@ -18,10 +18,7 @@ abstract contract ButteryRun_v1 {
         _;
     }
 
-    // modifier onlyOwner() {
-    //     if (msg.sender != deployer) revert OnlyOwnerAllowed(); // Reverts if the caller is not an owner
-    //     _;
-    // }
+    
 
     constructor() {
         deployer = msg.sender;

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {LoanLogicImplementationLibrary} from "./LoanLogicImplementationLibrary.sol";
+import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
 contract activeLoan {
-    using LoanLogicImplementationLibrary for LoanLogicImplementationLibrary.ActiveLoan;
+    using LoanConfigLibrary for LoanConfigLibrary.ActiveLoan;
 
-    LoanLogicImplementationLibrary.ActiveLoan private s_activeLoan;
+    LoanConfigLibrary.ActiveLoan private s_activeLoan;
 
     error UnauthorizedTransaction();
 
@@ -35,7 +35,7 @@ contract activeLoan {
         isLender[_lender] = true;
 
         s_activeLoan =
-            LoanLogicImplementationLibrary.createActiveLoan(_owners, collateral, memcoinAddress, amountLended, _borrower, _lender);
+            LoanConfigLibrary.createActiveLoan(_owners, collateral, memcoinAddress, amountLended, _borrower, _lender);
         emit ActiveLoanInitialized(_borrower, _lender, amountLended, collateral);
     }
 

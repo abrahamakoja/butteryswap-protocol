@@ -5,8 +5,8 @@ import {Script, console} from "forge-std/Script.sol";
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 import {LimitMarket_v1} from "../src/LimitMarket_v1.sol";
 import {Enforcer_v1} from "../src/Enforcer_v1.sol";
-import {erc20TokenLibrary} from "../src/erc20TokenLibrary.sol";
-import {SupportedTokens} from "../src/SupportedTokens.sol";
+import {erc20TokenLibrary} from "../src/libraries/erc20TokenLibrary.sol";
+import {TokenManager} from "../src/TokenManager.sol";
 import {BorrowRequest_v1} from "../src/BorrowRequest_v1.sol";
 import {BorrowRequestFactory} from "../src/BorrowRequestFactory.sol";
 
@@ -41,7 +41,7 @@ contract LimitMarketInteractions is Script {
             block.chainid
         );
         mostrecentlyDeployedST = DevOpsTools.get_most_recent_deployment(
-            "SupportedTokens",
+            "TokenManager",
             block.chainid
         );
       
@@ -218,7 +218,7 @@ contract SupportedTokenInteractions is Script {
 
     function run() external {
         mostrecentlyDeployed = DevOpsTools.get_most_recent_deployment(
-            "SupportedTokens",
+            "TokenManager",
             block.chainid
         );
 
@@ -230,13 +230,13 @@ contract SupportedTokenInteractions is Script {
 
     function approveTokenRequest(address _mostrecentlyDeployed) public {
         vm.startBroadcast();
-        SupportedTokens(payable(_mostrecentlyDeployed)).approveTokenRequest(0);
+        TokenManager(payable(_mostrecentlyDeployed)).approveTokenRequest(0);
         vm.stopBroadcast();
     }
 
     // function delistToken(address _mostrecentlyDeployed) public {
     //     vm.startBroadcast();
-    //     SupportedTokens(payable(_mostrecentlyDeployed)).delistToken(
+    //     TokenManager(payable(_mostrecentlyDeployed)).delistToken(
     //         address(mostrecentlyDeployedJatToken)
     //     );
     //     vm.stopBroadcast();

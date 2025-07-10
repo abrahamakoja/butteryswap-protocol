@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /**
  * @title LimitMarket_v1
  * @author ButterySwap Protocol
- * @notice
+ * @notice  
  */
 
 // debug
@@ -75,8 +75,10 @@ interface ILendRequestFactory {
     ) external;
 }
 
-// LimitMarket_v1 Contract Definition
+
 contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
+
+
     ////////////////
     /// Errors ///
     //////////////
@@ -104,7 +106,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     address private immutable i_Admin;
     IBorrowRequestFactory i_BorrowRequestFactory;
     ILendRequestFactory i_LendRequestFactory;
-    address private enforcerContract;
+    address private enforcerContract; //this should be a constant
 
     //////////////
     /// Events ///
@@ -121,7 +123,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ////////////////
 
     modifier enforcerContractIsSet() {
-        if (address(enforcerContract) == address(0)) revert(); //prevent function from running if enforcer isnt set, move this to a modifier
+        if (address(enforcerContract) == address(0)) revert(); //prevent function from running if enforcer is not set, move this to a modifier
         if (address(enforcerContract) != address(enforcerContract)) revert();
         _;
     }
@@ -142,7 +144,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ) Ownable(msg.sender) {
         i_BorrowRequestFactory = IBorrowRequestFactory(BorrowRequestFactory);
         i_LendRequestFactory = ILendRequestFactory(LendRequestFactory);
-        i_Admin = msg.sender;
+        i_Admin = msg.sender;// no need
     }
 
     // receive() external payable {}
@@ -156,27 +158,27 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// @param tokens The list of tokens to be used as collateral
     function Borrow(
         uint256 collateralAmount,
-        uint256 loanAmountRequested,
+        uint256 loanAmountRequested,//ensure to check this
         address[] calldata tokens,
         bool priority
     ) external payable nonReentrant enforcerContractIsSet {
-        // checks
-        if (tokens.length == 0 || tokens.length > 3)
-            revert LimitMarket_v1_InvalidTokenCount(tokens.length);
-        if (collateralAmount == 0)
-            revert LimitMarket_v1_NoCollateralSent(collateralAmount);
 
-        address[2] memory owners = [msg.sender, address(enforcerContract)];
-
-        // emits 
-        emit TokensDeposited(msg.sender, tokens, collateralAmount);
         i_BorrowRequestFactory.createBorrowRequest(
             collateralAmount,
             loanAmountRequested,
             tokens,
-            owners, 
+            msg.sender, 
             priority
         );
+    }
+
+    function addLiquidityToBorrowRequest(
+        address borrowRequest,
+        address[] calldata tokens,
+        uint256[] calldata collateralAmounts,
+        uint256[] calldata _loanAmountRequested
+    ) external  nonReentrant {
+        i_BorrowRequestFactory.addLiquidity(msg.sender, borrowRequest,tokens,collateralAmounts,_loanAmountRequested);
     }
 
     function Lend(
@@ -191,7 +193,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
             revert LimitMarket_v1_InsufficientBalance(
                 msg.sender.balance,
                 msg.value
-            );
+            ); 
 
         // checks to add
         // msg.value should be equal or greater than dollar price of the minimum allowed amount
@@ -228,17 +230,10 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// External & Public View & Pure Functions ///
     //////////////////////////////////////////////
 
-    function getEnforcerContractAddress()
-        external
-        view
-        onlyAdmin
-        returns (address)
-    {
-        return enforcerContract;
-    }
+   
 
     // **** borrow requests functions ****//
-
+/// move all getters to individual interfaces or limit market interface
     function getBorrowersPositionOnQue(
         address borrowRequest
     ) external view returns (uint256 position) {
@@ -329,6 +324,4 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
                 _batchLimit
             );
     }
-
-    
 }

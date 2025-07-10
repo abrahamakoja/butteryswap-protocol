@@ -7,7 +7,7 @@ import {Script, console} from "forge-std/Script.sol";
 /// Imports ///
 //////////////
 
-import {LoanLogicImplementationLibrary} from "./LoanLogicImplementationLibrary.sol";
+import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // LendRequest_v1 Contract Definition
@@ -33,8 +33,8 @@ contract LendRequest_v1 is ReentrancyGuard {
     address private immutable i_admin;
     mapping(address user => bool isAnOwner) public isOwner;
     address public immutable i_lender;
-    using LoanLogicImplementationLibrary for LoanLogicImplementationLibrary.LendRequest;
-    LoanLogicImplementationLibrary.LendRequest private s_lendRequest;
+    using LoanConfigLibrary for LoanConfigLibrary.LendRequest;
+    LoanConfigLibrary.LendRequest private s_lendRequest;
 
     ///////////////
     /// Events ///
@@ -70,7 +70,7 @@ contract LendRequest_v1 is ReentrancyGuard {
         uint256 _timeCreated,
          uint256 SETTLEMENT_FEE
     ) payable {
-        s_lendRequest = LoanLogicImplementationLibrary.createLendRequest(
+        s_lendRequest = LoanConfigLibrary.createLendRequest(
             _owners,
             amountLended,
             _timeCreated,
@@ -89,7 +89,7 @@ contract LendRequest_v1 is ReentrancyGuard {
     ////////////////////////
 
     function cancelRequest() external onlyLender nonReentrant {
-        LoanLogicImplementationLibrary.cancelLendRequest(
+        LoanConfigLibrary.cancelLendRequest(
             s_lendRequest,
             address(this),
             s_lendRequest.owners[0]
@@ -99,7 +99,7 @@ contract LendRequest_v1 is ReentrancyGuard {
     function offerLoan(address borrower) external onlyAdmin nonReentrant {
         // transfer eth to an address and transfer tokens to an address
         emit LoanOffered(address(borrower), address(this).balance);
-        LoanLogicImplementationLibrary.offerLoan(
+        LoanConfigLibrary.offerLoan(
             s_lendRequest,
             address(borrower),
             address(this).balance
@@ -123,10 +123,10 @@ contract LendRequest_v1 is ReentrancyGuard {
     function getRequestState()
         external
         view
-        returns (LoanLogicImplementationLibrary.RequestState)
+        returns (LoanConfigLibrary.RequestState)
     {
         return
-            LoanLogicImplementationLibrary.getLendRequestState(s_lendRequest);
+            LoanConfigLibrary.getLendRequestState(s_lendRequest);
     }
 
     function getLendRequestDetails()
@@ -137,7 +137,7 @@ contract LendRequest_v1 is ReentrancyGuard {
             address[2] memory owners,
             uint256 balanceMinusFee,
             uint256 feeEarned,
-            LoanLogicImplementationLibrary.RequestState state
+            LoanConfigLibrary.RequestState state
         )
     {
         return s_lendRequest.getLendRequestDetails();
