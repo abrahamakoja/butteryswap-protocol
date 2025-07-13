@@ -17,10 +17,9 @@ import {Script, console} from "forge-std/Script.sol";
     //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 
-contract BorrowRequest_v1 is Ownable {
+contract BorrowRequest_v1 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -33,7 +32,6 @@ contract BorrowRequest_v1 is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     address public immutable i_Borrower;
-    mapping(address user => bool isAnOwner) public isOwner;
     iProtocolManager private immutable protocolManager;
 
     /*//////////////////////////////////////////////////////////////
@@ -41,7 +39,7 @@ contract BorrowRequest_v1 is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     using LoanConfigLibrary for LoanConfigLibrary.BorrowRequest;
-    LoanConfigLibrary.BorrowRequest public borrowRequest;
+    LoanConfigLibrary.BorrowRequest private s_borrowRequest;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -72,8 +70,8 @@ contract BorrowRequest_v1 is Ownable {
         address[] memory token,
         uint256 _timeCreated,
         address _protocolManager
-    ) Ownable(borrower) {
-        borrowRequest = LoanConfigLibrary.createBorrowRequest(
+    )  {
+        s_borrowRequest = LoanConfigLibrary.createBorrowRequest(
             borrower,
             collateralAmount,
             loanAmountRequested,
@@ -81,7 +79,6 @@ contract BorrowRequest_v1 is Ownable {
             _timeCreated
         );
         i_Borrower = borrower;
-        isOwner[borrower] = true;
         protocolManager = iProtocolManager(_protocolManager);
     }
 
@@ -95,7 +92,7 @@ contract BorrowRequest_v1 is Ownable {
         uint256 collateralAmount,
         uint256 _loanAmountRequested
     ) external onlyFactory {
-        borrowRequest.updateBorrowRequest(
+        s_borrowRequest.updateBorrowRequest(
             token,
             index,
             collateralAmount,
@@ -103,9 +100,13 @@ contract BorrowRequest_v1 is Ownable {
         );
     }
 
+     function resetRequestDetails() external {
+        s_borrowRequest.resetBorrowRequestDetails();
+    }
+
     function acceptLoan(address vault) external onlyEnforcer  {
         emit LoanAccepted(vault);
-        borrowRequest.acceptLoan(borrowRequest, address(vault));
+        s_borrowRequest.acceptLoan( address(vault));
     }
 
     // Function to get the borrow request details
@@ -121,6 +122,6 @@ contract BorrowRequest_v1 is Ownable {
             uint256 timeCreated
         )
     {
-        return borrowRequest.getBorrowRequestDetails();
+        return s_borrowRequest.getBorrowRequestDetails();
     }
 }

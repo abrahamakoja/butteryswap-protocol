@@ -311,7 +311,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
         return s_tokenDetails[ERC20TokenAddress];
     }
 
-    function checkTokenIslisted(
+    function checkTokenIsListed(
         address token
     ) external view isValidAddress(token) returns (bool isListed) {
         if (

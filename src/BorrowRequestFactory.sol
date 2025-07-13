@@ -51,22 +51,33 @@ contract BorrowRequestFactory is Ownable {
 
     //@audit check all mapping
     BorrowRequest_v1[] private totalBorrowRequests;
+
     BorrowRequest_v1[] private s_prioritizedBorrowRequests;
+
     iProtocolManager private immutable protocolManager;
-    mapping(address => address[]) private userToBorrowRequestAddresses;
+
+    mapping(address borrower => address[] borrowRequestAddresses)
+        private userToBorrowRequestAddresses;
+
     mapping(address borrowRequest => address borrower)
         private borrowRequestToBorrower;
+
     mapping(address borrower => address[] prioritizedBorrowRequests)
         private userToPrioritizedBorrowRequestAddresses;
+
     mapping(address prioritizedBorrowRequest => address borrower)
         private prioritizedBorrowRequestToBorrower;
+
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
+
     mapping(address => bool) private s_isValidContract;
+
     mapping(address borrowRequest => mapping(address collateral => uint256 value))
         private collateralToValue;
+
     mapping(address borrower => uint256 totalAmountRequested)
-        private userToTotalAmountRequested;
+        private borrowerToTotalAmountRequested;
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -90,8 +101,9 @@ contract BorrowRequestFactory is Ownable {
     );
     event BorrowRequestCancelled(
         address indexed borrower,
-        address indexed borrowRequest,
-        uint256 indexed borrowRequestBalance
+        address indexed borrowRequestAddress,
+        uint256 indexed totalCollateralValue,
+        uint256 borrowRequestBalance
     );
 
     /** CONSTRUCTOR */
@@ -159,26 +171,28 @@ contract BorrowRequestFactory is Ownable {
         uint256[] calldata collateralAmounts,
         uint256 loanAmountRequested
     ) external onlyLimitMarket {
+        // check borrowRequest is valid
+        if (s_isValidContract[borrowRequest] == false)
+            revert BorrowRequestFactory__inValidRequest();
         (
             address[] memory depositedTokens,
             uint256[] memory depositedCollateralAmount,
             ,
             ,
+            ,
             address owner,
-            uint8 state,
+            LoanConfigLibrary.RequestState state,
 
         ) = BorrowRequest_v1(borrowRequest).getBorrowRequestDetails();
 
         if (state != LoanConfigLibrary.RequestState.OPEN)
             revert BorrowRequestFactory__RequestNotOpen();
+        state = LoanConfigLibrary.RequestState.ADDING_LIQUIDITY;
 
         // check collateralAmount and tokens match in length
         if (collateralAmounts.length != tokens.length) {
             revert BorrowRequestFactory__rangeDataMisMatch();
         }
-        // check borrowRequest is valid
-        if (s_isValidContract[borrowRequest] == false)
-            revert BorrowRequestFactory__inValidRequest();
 
         // check borrower owns borrow request
         if (
@@ -217,13 +231,13 @@ contract BorrowRequestFactory is Ownable {
     function cancelRequest(
         address borrower,
         address borrowRequest
-    ) external onlyLimitMarket {
+    ) external payable onlyLimitMarket {
         (
             address[] memory tokens,
             uint256[] memory collateralAmount,
             ,
             ,
-            address owner,
+            address _borrower,
             uint8 state,
 
         ) = BorrowRequest_v1(borrowRequest).getBorrowRequestDetails();
@@ -232,6 +246,7 @@ contract BorrowRequestFactory is Ownable {
 
         if (state != LoanConfigLibrary.RequestState.OPEN)
             revert BorrowRequestFactory__RequestNotOpen();
+        state = LoanConfigLibrary.RequestState.CANCELLING;
 
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -242,14 +257,8 @@ contract BorrowRequestFactory is Ownable {
             borrowRequestToBorrower[borrowRequest] != address(borrower) ||
             prioritizedBorrowRequestToBorrower[borrowRequest] !=
             address(borrower) ||
-            address(borrower) != address(owner)
-        ) return BorrowRequestFactory__notOwner();
-
-        if (collateralAmount == 0)
-            revert BorrowRequestFactory__InsufficientFunds(
-                borrowRequest.balance,
-                collateralAmount
-            );
+            address(borrower) != address(_borrower)
+        ) revert BorrowRequestFactory__notOwner();
 
         _rawCancelRequest(
             borrower,
@@ -307,21 +316,11 @@ contract BorrowRequestFactory is Ownable {
             counter++;
         }
 
-        //  console.log(numOfResponse);
-        //  console.log(total);
-        //   console.log(limit);
-        //   console.log(_batchLimit);
-        //   console.log(address(borrowRequest[0]));
-        //   console.log(borrowRequest.length );
-        //   console.log(s_prioritizedBorrowRequests.length);
-        //   console.log(  payable(address(s_prioritizedBorrowRequests[0])));
-
         address[] memory activePrioritizedBorrowRequests = new address[](
             counter
         );
         for (uint256 i = 0; i < counter; i++) {
             activePrioritizedBorrowRequests[i] = borrowRequest[i];
-            // console.log(address(activeBorrowRequest[i]));
         }
         return activePrioritizedBorrowRequests;
     }
@@ -343,15 +342,11 @@ contract BorrowRequestFactory is Ownable {
             _numberOfResponse
         );
 
-        // console.log(total);
-        // console.log(limit);
-
         for (uint256 i = _startIndex; i < _numberOfResponse; i++) {
             if (i < startIndex) {
                 continue;
             }
             batchedBorrowRequests[i] = activeBorrowRequests[i];
-            //    console.log(address(batchedBorrowRequests[i]));
 
             if (i > limit) {
                 break;
@@ -365,7 +360,6 @@ contract BorrowRequestFactory is Ownable {
         view
         returns (uint256 numberOfContracts)
     {
-        // console.log(_getTotalActiveBorrowRequestContractAddresses().length);
         return _getTotalActiveBorrowRequestContractAddresses().length;
     }
 
@@ -486,14 +480,14 @@ contract BorrowRequestFactory is Ownable {
         } else {
             totalBorrowRequests.push(BorrowRequest);
 
-            borrowRequestToBorrower[borrowRequest] = address(_borrower);
+            borrowRequestToBorrower[BorrowRequest] = address(_borrower);
 
             userToBorrowRequestAddresses[_borrower].push(
                 address(BorrowRequest)
             );
         }
 
-        userToTotalAmountRequested[_borrower] += _totalCollateralValue;
+        borrowerToTotalAmountRequested[_borrower] += _totalCollateralValue;
         s_isValidContract[address(BorrowRequest)] = true;
 
         emit BorrowRequestCreated(
@@ -532,25 +526,29 @@ contract BorrowRequestFactory is Ownable {
         uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
 
         /** EFFECTS */
-        _state = LoanConfigLibrary.RequestState.CANCELLING;
 
         for (uint256 index = 0; index < _collateralAmount.length; index++) {
             totalCollateralValue += _collateralAmount[index];
             cancellationFee += protocolManager.calculateCancellationFee(
                 _collateralAmount[index]
             );
-
         }
-         userToTotalAmountRequested[_borrower] -= totalCollateralValue;
+
+        /**UPDATE MAPPINGS */
+        s_isValidContract[_borrowRequest] = false;
+        borrowerToTotalAmountRequested[_borrower] -= totalCollateralValue;
+        if (s_loanIsPrioritized[_borrowRequest]) {
+            s_loanIsPrioritized[_borrowRequest] = false;
+        }
 
         /** INTERACTIONS */
 
-        // collect cancellation fee
+        /** COLLECT CANCELLATION FEE */
         (bool success, ) = payable(protocolManager.FEE_CONTRACT()).call{
             value: cancellationFee
         }("");
 
-        // user withdraw collateral
+        /** BORROWER WITHDRAWS ALL COLLATERAL */
         for (uint256 index = 0; index < _tokens.length; index++) {
             erc20TokenLibrary.transferTokens(
                 address(_tokens[index]),
@@ -566,6 +564,7 @@ contract BorrowRequestFactory is Ownable {
         emit BorrowRequestCancelled(
             BorrowRequest_v1(_borrowRequest).i_Borrower,
             address(_borrowRequest),
+            totalCollateralValue,
             address(_borrowRequest).balance
         );
     }
@@ -578,9 +577,8 @@ contract BorrowRequestFactory is Ownable {
         address[] memory _tokens,
         address[] memory _collateralAmounts
     ) private {
-        _state = LoanConfigLibrary.RequestState.ADDING_LIQUIDITY;
-
         // check if asset is supported by protocol / approve and execute transfer within the loop if true
+        /** COLLECT ORIGINATION FEE */
         for (uint256 index = 0; index > _tokens.length; index++) {
             if (
                 iTokenManager(protocolManager.TokenManager())
@@ -590,8 +588,10 @@ contract BorrowRequestFactory is Ownable {
                     address(_tokens[index])
                 );
             }
-
-            userToTotalAmountRequested[_borrower] += _collateralAmounts[index];
+            /**UPDATE MAPPING */
+            borrowerToTotalAmountRequested[_borrower] += _collateralAmounts[
+                index
+            ];
             //  approve tokens
             erc20TokenLibrary.approveTokens(
                 _tokens[index],

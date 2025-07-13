@@ -3,100 +3,81 @@ pragma solidity ^0.8.20;
 // debug
 import {Script, console} from "forge-std/Script.sol";
 
-////////////////
-/// Imports ///
-//////////////
+/*//////////////////////////////////////////////////////////////
+                                 IMPORT
+    //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 
-// LendRequest_v1 Contract Definition
-contract LendRequest_v1 is ReentrancyGuard {
-    //////////////
-    /// Errors ///
-    /////////////
+contract LendRequest_v1 {
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
 
     error LendRequest_v1__UnauthorizedAccess();
 
-    //////////////////////////
-    /// Type Declarations ///
-    ////////////////////////
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
 
-    ///////////////
-    /**  Enums **/
-    /////////////
-
-    /////////////////////////
-    /// State variables ////
-    ///////////////////////
-
-    address private immutable i_admin;
-    mapping(address user => bool isAnOwner) public isOwner;
     address public immutable i_lender;
+    iProtocolManager private immutable protocolManager;
+    /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
     using LoanConfigLibrary for LoanConfigLibrary.LendRequest;
     LoanConfigLibrary.LendRequest private s_lendRequest;
 
-    ///////////////
-    /// Events ///
-    /////////////
+    /*//////////////////////////////////////////////////////////////
+                               EVENTS
+    //////////////////////////////////////////////////////////////*/
 
-    event LoanOffered(address borrower, uint256 LoanAmountRecieved);
+    event LoanOffered(address borrower, uint256 LoanAmountReceived);
 
-    ///////////////////
-    /// Modifiers ////
-    /////////////////
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
 
-    modifier onlyLender() {
-        if (!isOwner[msg.sender]) revert LendRequest_v1__UnauthorizedAccess();
-        if (msg.sender != address(i_lender))
-            revert LendRequest_v1__UnauthorizedAccess();
-        _;
-    }
-    modifier onlyAdmin() {
-        if (!isOwner[msg.sender]) revert LendRequest_v1__UnauthorizedAccess();
-        if (msg.sender != address(i_admin))
+    modifier onlyEnforcer() {
+        if (msg.sender != address(protocolManager.Enforcer()))
             revert LendRequest_v1__UnauthorizedAccess();
         _;
     }
 
-    //////////////////
-    /// Functions ///
-    ////////////////
+    modifier onlyFactory() {
+        if (msg.sender != protocolManager.LendRequestFactory())
+            revert LendRequest_v1__UnauthorizedAccess();
+        _;
+    }
 
-    /// @dev contract constructor.
+    /** CONSTRUCTOR */
     constructor(
-        address[2] memory _owners,
-        uint256 amountLended,
+        address lender,
+        uint256 deposit,
         uint256 _timeCreated,
-         uint256 SETTLEMENT_FEE
+        address _protocolManager
     ) payable {
         s_lendRequest = LoanConfigLibrary.createLendRequest(
-            _owners,
-            amountLended,
-            _timeCreated,
-            SETTLEMENT_FEE
+            lender,
+            deposit,
+            _timeCreated
         );
-        i_lender = _owners[0];
-        i_admin = _owners[1];
-        isOwner[i_lender] = true;
-        isOwner[i_admin] = true;
+        i_lender = lender;
+        protocolManager = iProtocolManager(_protocolManager);
     }
 
-    receive() external payable {}
-
-    //////////////////////////
-    ///External Functions ///
-    ////////////////////////
-
-    function cancelRequest() external onlyLender nonReentrant {
-        LoanConfigLibrary.cancelLendRequest(
-            s_lendRequest,
-            address(this),
-            s_lendRequest.owners[0]
-        );
+    /** RECEIVE FALLBACK */
+    receive() external payable {
+        if (msg.sender != protocolManager.BorrowRequestFactory())
+            revert LendRequest_v1__UnauthorizedAccess();
     }
 
-    function offerLoan(address borrower) external onlyAdmin nonReentrant {
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function offerLoan(address borrower) external onlyEnforcer {
         // transfer eth to an address and transfer tokens to an address
         emit LoanOffered(address(borrower), address(this).balance);
         LoanConfigLibrary.offerLoan(
@@ -106,38 +87,24 @@ contract LendRequest_v1 is ReentrancyGuard {
         );
     }
 
-    function addLiquidity() external onlyLender nonReentrant {
-        if (msg.sender != address(i_lender)) {
-            revert LendRequest_v1__UnauthorizedAccess();
-        }
+    function updateRequestState(
+        LoanConfigLibrary.RequestState state
+    ) external onlyFactory {
+        s_lendRequest.updateLendRequestState( state);
     }
 
-    /////////////////////////////////////////////////
-    ///  internal & private view & pure functions ///
-    ////////////////////////////////////////////////
-
-    ////////////////////////////////////////////////
-    /// External & Public View & Pure Functions ///
-    //////////////////////////////////////////////
-
-    function getRequestState()
-        external
-        view
-        returns (LoanConfigLibrary.RequestState)
-    {
-        return
-            LoanConfigLibrary.getLendRequestState(s_lendRequest);
+    function resetRequestDetails() external onlyFactory {
+        s_lendRequest.resetLendRequestDetails();
     }
 
     function getLendRequestDetails()
         external
         view
         returns (
-            uint256 amountLended,
-            address[2] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
-            LoanConfigLibrary.RequestState state
+            uint256 deposit,
+            address lender,
+            LoanConfigLibrary.RequestState state,
+            uint256 timeCreated
         )
     {
         return s_lendRequest.getLendRequestDetails();
