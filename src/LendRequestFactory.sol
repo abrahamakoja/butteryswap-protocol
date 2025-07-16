@@ -232,7 +232,7 @@ contract LendRequestFactory is Ownable {
 
     function cancelRequest(
         address lender,
-        address lendRequest
+        address payable lendRequest
     ) external payable onlyLimitMarket {
         // check if loan request is valid'
         if (s_isValidContract[lendRequest] == false)
@@ -281,15 +281,15 @@ contract LendRequestFactory is Ownable {
             LendRequest_v1 lendRequest_v1 = LendRequest_v1(
                 payable(address(s_prioritizedLendRequests[i]))
             );
-            uint8 status = uint8(lendRequest_v1._getLendRequestDetails(address(lendRequest_v1)));
+            uint8 status = _getLendRequestDetails(address(lendRequest_v1));
             if (status != 0) {
                 continue;
-            }
+            }     
             lendRequest[counter] = address(s_prioritizedLendRequests[i]);
             if (lendRequest.length == numOfResponse) {
                 break;
             }
-            counter++;
+            counter++;//check
         }
 
         address[] memory activePrioritizedLendRequests = new address[](counter);
@@ -395,26 +395,27 @@ contract LendRequestFactory is Ownable {
         LendRequest_v1 lendRequest = new LendRequest_v1(
             _lender,
             _deposit,
-            block.timestamp
+            block.timestamp,
+              address(protocolManager)
         );
 
         if (_priority == true) {
             s_loanIsPrioritized[address(lendRequest)] = true;
-            prioritizedLendRequestToLender[lendRequest] = address(_lender);
+            prioritizedLendRequestToLender[address(lendRequest)] = address(_lender);
             s_prioritizedLendRequests.push(lendRequest);
             userToPrioritizedLendRequestAddresses[_lender].push(
                 address(lendRequest)
             );
-            lendRequestToPositionOnPrioritizedList[lendRequest] =
+            lendRequestToPositionOnPrioritizedList[address(lendRequest)] =
                 s_prioritizedLendRequests.length +
-                protocolManager.INDEX_PRECISION;
+                protocolManager.INDEX_PRECISION();
         } else {
             s_totalUnPrioritizedLendRequest.push(lendRequest);
             lendRequestToLender[lendRequest] = address(_lender);
             userToLendRequestAddresses[_lender].push(address(lendRequest));
-            lendRequestToPositionOnNonPrioritizedList[lendRequest] =
+            lendRequestToPositionOnNonPrioritizedList[address(lendRequest)] =
                 s_totalUnPrioritizedLendRequest.length +
-                protocolManager.INDEX_PRECISION;
+                protocolManager.INDEX_PRECISION();
         }
 
         lenderToTotalAmountRequested[_lender] += _deposit;
@@ -444,7 +445,7 @@ contract LendRequestFactory is Ownable {
     function _rawAddLiquidity(
         address _lender,
         uint256 _deposit,
-        address _lendRequest
+        address payable _lendRequest
     ) private {
         /** EFFECTS */
         uint256 originationFee = protocolManager
@@ -456,7 +457,7 @@ contract LendRequestFactory is Ownable {
 
         /** UPDATE MAPPING/ LEND REQUEST STATE */
         lenderToTotalAmountRequested[_lender] += _deposit;
-        LendRequest_v1(_lendRequest).updateLendRequestState(_state);
+        LendRequest_v1(_lendRequest).updateRequestState(_state);
 
         /** EMIT EVENT */
         emit LendRequestUpdated(_lendRequest, _deposit);
@@ -480,7 +481,7 @@ contract LendRequestFactory is Ownable {
 
     function _rawCancelRequest(
         address _lender,
-        address _lendRequest,
+        address payable _lendRequest,
         uint256 _deposit
     ) private {
         /** EFFECTS */
@@ -525,7 +526,7 @@ contract LendRequestFactory is Ownable {
         view
         returns (address[] memory)
     {
-        address[] memory lendRequest = new address[](
+       payable address[] memory  lendRequest = new address[](
             s_totalUnPrioritizedLendRequest.length
         );
         uint256 counter = 0;
@@ -534,10 +535,14 @@ contract LendRequestFactory is Ownable {
             LendRequest_v1 lendRequest_v1 = LendRequest_v1(
                 payable(address(s_totalUnPrioritizedLendRequest[i]))
             );
-            uint8 status = uint8(lendRequest_v1.getRequestState());
-            if (status != 0) {
-                continue;
-            }
+           (
+            ,
+            address _lender,
+            LoanConfigLibrary.RequestState _state,
+
+        ) = _getLendRequestDetails(address(lendRequest_v1));
+           if (_state != LoanConfigLibrary.RequestState.OPEN)
+            revert LendRequestFactory__RequestNotOpen();
             lendRequest[counter] = address(s_totalUnPrioritizedLendRequest[i]);
             counter++;
         }
@@ -551,7 +556,7 @@ contract LendRequestFactory is Ownable {
     }
 
     function _getLendRequestDetails(
-        address lendRequest
+        address payable  lendRequest
     )
         private
         view

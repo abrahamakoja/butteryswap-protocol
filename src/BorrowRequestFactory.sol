@@ -21,6 +21,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
 contract BorrowRequestFactory is Ownable {
+    //@audit ensure states are updated after updates creation and deletion and always emit after state change
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
