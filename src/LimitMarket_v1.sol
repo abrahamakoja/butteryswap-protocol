@@ -15,7 +15,6 @@ import {Script, console} from "forge-std/Script.sol";
 //////////////
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {LendRequest_v1} from "./LendRequest_v1.sol";
 import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
