@@ -12,7 +12,13 @@ interface iProtocolManager {
         uint256
     ) external pure returns (uint256);
     function calculateCancellationFee(uint256) external pure returns (uint256);
-    function calculateAmountMinus_OriginationFee(
+    function calculate_OriginationFee(
+        uint256
+    ) external pure returns (uint256);
+    function calculate_CollateralValue(
+        uint256
+    ) external pure returns (uint256);
+    function calculate_PriorityFee(
         uint256
     ) external pure returns (uint256);
     function minimumDeposit() external view returns (uint256);

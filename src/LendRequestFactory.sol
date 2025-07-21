@@ -12,8 +12,9 @@ import {LendRequest_v1} from "./LendRequest_v1.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract LendRequestFactory is Ownable {
+contract LendRequestFactory is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -32,6 +33,7 @@ contract LendRequestFactory is Ownable {
     error LendRequestFactory__BelowMinimumDeposit();
     error LendRequestFactory__RequestNotOpen();
     error LendRequestFactory__inValidRequest();
+    error LendRequestFactory__InsufficientLiquidityProvided();
     error LendRequestFactory__notOwner();
     error LendRequestFactory__CancellationFeePaymentFailed();
     error LendRequestFactory__OriginationFeePaymentFailed();
@@ -114,9 +116,7 @@ contract LendRequestFactory is Ownable {
     function createRequest(
         address lender,
         bool priority
-    ) external payable onlyLimitMarket {
-        uint256 originationFee;
-        uint256 priorityFee;
+    ) external payable onlyLimitMarket nonReentrant {
         /** CHECKS */
 
         if (msg.value == 0) revert LendRequestFactory__NoAmountSent();
@@ -130,23 +130,13 @@ contract LendRequestFactory is Ownable {
         if (msg.value < protocolManager.minimumDeposit())
             revert LendRequestFactory__BelowMinimumDeposit();
 
-        originationFee = protocolManager.calculateAmountMinus_OriginationFee(
-            msg.value
-        );
-        priorityFee = protocolManager.calculateAmountMinus_OriginationFee(
-            msg.value
-        );
-        _rawCreateRequest(lender, priority, originationFee, priorityFee);
+        _rawCreateRequest(lender, priority);
     }
 
     function prioritizeLoanRequest(
         address lender,
-        uint256 priorityFee,
         address payable lendRequest
-    ) external payable onlyLimitMarket {
-        // check enough fee is sent
-        if (priorityFee < protocolManager.PRIORITY_FEE())
-            revert LendRequestFactory__insufficientPriorityFee();
+    ) external payable onlyLimitMarket nonReentrant {
         // check if loan request is valid
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
@@ -155,19 +145,26 @@ contract LendRequestFactory is Ownable {
             revert LendRequestFactory__RequestIsPrioritized();
         //get loan details
         (
-            ,
             address _lender,
             LoanConfigLibrary.RequestState _state,
 
         ) = _getRequestDetails(lendRequest);
+        // check enough fee is sent
+        if (
+            msg.value <
+            protocolManager.calculate_PriorityFee(lendRequest.balance)
+        ) revert();
+
+        if (msg.value == 0)
+            revert LendRequestFactory__insufficientPriorityFee();
         // check if loan is open
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
-            
+
         LoanConfigLibrary.RequestState state = LoanConfigLibrary
             .RequestState
             .PRIORITIZING;
-              // update state
+        // update state
         LendRequest_v1((lendRequest)).updateRequestState(state);
 
         // check if lender is authorized to interact with loan
@@ -177,20 +174,26 @@ contract LendRequestFactory is Ownable {
             address(lender) != address(_lender)
         ) revert LendRequestFactory__notOwner();
 
-        _rawPrioritizeLoanRequest(lendRequest, lender, priorityFee);
+        _rawPrioritizeLoanRequest(lendRequest, lender);
     }
 
     function addLiquidity(
         address lender,
-        uint256 deposit,
         address payable lendRequest
-    ) external payable onlyLimitMarket {
+    ) external payable onlyLimitMarket nonReentrant {
+        if (msg.value == 0)
+            revert LendRequestFactory__InsufficientLiquidityProvided();
+        if (msg.value > lender.balance)
+            revert LendRequestFactory__InsufficientBalance(
+                lender.balance,
+                msg.value
+            );
+
         // check if loan request is valid
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
         //get loan details
         (
-            ,
             address _lender,
             LoanConfigLibrary.RequestState _state,
 
@@ -210,19 +213,18 @@ contract LendRequestFactory is Ownable {
             address(lender) != address(_lender)
         ) revert LendRequestFactory__notOwner();
 
-        _rawAddLiquidity(lender, deposit, lendRequest);
+        _rawAddLiquidity(lender, lendRequest);
     }
 
     function cancelRequest(
         address lender,
         address payable lendRequest
-    ) external payable onlyLimitMarket {
+    ) external payable onlyLimitMarket nonReentrant {
         // check if loan request is valid'
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
         //get loan details
         (
-            uint256 _deposit,
             address _lender,
             LoanConfigLibrary.RequestState _state,
 
@@ -242,7 +244,7 @@ contract LendRequestFactory is Ownable {
             address(lender) != address(_lender)
         ) revert LendRequestFactory__notOwner();
 
-        _rawCancelRequest(lender, lendRequest, _deposit);
+        _rawCancelRequest(lender, lendRequest);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -367,20 +369,14 @@ contract LendRequestFactory is Ownable {
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function _rawCreateRequest(
-        address _lender,
-        bool _priority,
-        uint256 _originationFee,
-        uint256 _priorityFee
-    ) private {
+    function _rawCreateRequest(address _lender, bool _priority) private {
         /** EFFECTS */
         uint256 depositMinusFee;
-
-        if (_priority == true) {
-            depositMinusFee = msg.value - (_originationFee + _priorityFee);
-        } else {
-            depositMinusFee = msg.value - _originationFee;
-        }
+        uint256 originationFee = protocolManager.calculate_OriginationFee(
+            msg.value
+        );
+        uint256 priorityFee = protocolManager.calculate_PriorityFee(msg.value);
+       
         /** DEPLOY NEW LEND REQUEST CONTRACT */
         LendRequest_v1 lendRequest;
         try
@@ -392,6 +388,7 @@ contract LendRequestFactory is Ownable {
         returns (LendRequest_v1 _lendRequest) {
             lendRequest = _lendRequest;
             if (_priority == true) {
+                 depositMinusFee = msg.value - (originationFee + priorityFee);
                 s_loanIsPrioritized[address(lendRequest)] = true;
                 prioritizedLendRequestToLender[address(lendRequest)] = address(
                     _lender
@@ -404,6 +401,7 @@ contract LendRequestFactory is Ownable {
                     s_prioritizedLendRequests.length +
                     protocolManager.INDEX_PRECISION();
             } else {
+                depositMinusFee = msg.value - originationFee;
                 s_totalUnPrioritizedLendRequest.push(lendRequest);
                 lendRequestToLender[address(lendRequest)] = address(_lender);
                 userToLendRequestAddresses[_lender].push(address(lendRequest));
@@ -425,24 +423,25 @@ contract LendRequestFactory is Ownable {
             _lender,
             address(lendRequest),
             msg.value,
-            _originationFee
+            originationFee
         );
         if (_priority == true)
-            emit LendRequestPrioritized(address(lendRequest), _priorityFee);
+            emit LendRequestPrioritized(address(lendRequest), priorityFee);
 
         /** INTERACTIONS */
 
-        /** COLLECT PRIORITY FEE */
         if (_priority == true) {
+           /** COLLECT PRIORITY FEE */
+            uint256 fee = priorityFee + originationFee;
             (bool priorityFeePaid, ) = protocolManager.FEE_CONTRACT().call{
-                value: _priorityFee + _originationFee
+                value: fee
             }("");
             if (!priorityFeePaid)
                 revert LendRequestFactory__PriorityFeePaymentFailed();
         } else {
             /** COLLECT ORIGINATION FEE */
             (bool originationFeePaid, ) = protocolManager.FEE_CONTRACT().call{
-                value: _originationFee
+                value: originationFee
             }("");
             if (!originationFeePaid)
                 revert LendRequestFactory__OriginationFeePaymentFailed();
@@ -451,10 +450,8 @@ contract LendRequestFactory is Ownable {
 
     function _rawPrioritizeLoanRequest(
         address payable _lendRequest,
-        address _lender,
-        uint256 _priorityFee
+        address _lender
     ) private {
-      
         uint256 precision = protocolManager.INDEX_PRECISION();
         // change mapping
         lendRequestToLender[_lendRequest] = address(0);
@@ -463,7 +460,6 @@ contract LendRequestFactory is Ownable {
             lendRequestToPositionOnNonPrioritizedList[_lendRequest]
         ];
         delete lendRequestToPositionOnNonPrioritizedList[_lendRequest];
-
 
         // set prioritized mappings
         s_loanIsPrioritized[address(_lendRequest)] = true;
@@ -479,36 +475,38 @@ contract LendRequestFactory is Ownable {
         LoanConfigLibrary.RequestState state = LoanConfigLibrary
             .RequestState
             .OPEN;
-        emit LendRequestPrioritized(_lendRequest, _priorityFee);
+        emit LendRequestPrioritized(_lendRequest, msg.value);
 
         /** COLLECT PRIORITY FEE */
         (bool priorityFeePaid, ) = address(protocolManager.FEE_CONTRACT()).call{
-            value: _priorityFee
+            value: msg.value
         }("");
         if (!priorityFeePaid)
             revert LendRequestFactory__PriorityFeePaymentFailed();
-            
+
         LendRequest_v1(_lendRequest).updateRequestState(state);
     }
 
     function _rawAddLiquidity(
         address _lender,
-        uint256 _deposit,
         address payable _lendRequest
     ) private {
         /** EFFECTS */
-        uint256 originationFee = protocolManager
-            .calculateAmountMinus_OriginationFee(_deposit);
-        uint256 depositMinusFee = _deposit - originationFee;
+        uint256 originationFee = protocolManager.calculate_OriginationFee(
+            msg.value
+        );
+        uint256 depositMinusFee = msg.value - originationFee;
+        if (depositMinusFee + originationFee != msg.value) revert();
+
         LoanConfigLibrary.RequestState _state = LoanConfigLibrary
             .RequestState
             .OPEN;
 
         /** UPDATE MAPPING */
-        lenderToTotalAmountDeposited[_lender] += _deposit;
+        lenderToTotalAmountDeposited[_lender] += msg.value;
 
         /** EMIT EVENT */
-        emit LendRequestUpdated(_lendRequest, _deposit);
+        emit LendRequestUpdated(_lendRequest, msg.value);
 
         /** TRANSFER TO LEND REQUEST CONTRACT */
         (bool success, ) = _lendRequest.call{value: depositMinusFee}("");
@@ -532,18 +530,18 @@ contract LendRequestFactory is Ownable {
 
     function _rawCancelRequest(
         address _lender,
-        address payable _lendRequest,
-        uint256 _deposit
+        address payable _lendRequest
     ) private {
         /** EFFECTS */
         uint256 cancellationFee = protocolManager.calculateCancellationFee(
-            _deposit
+            _lendRequest.balance
         );
-        uint256 amountMinusFee = _deposit - cancellationFee;
+        uint256 contractBalance = address(_lendRequest).balance;
+        uint256 amountMinusFee = contractBalance - cancellationFee;
 
         /** UPDATE MAPPINGS */
         s_isValidContract[_lendRequest] = false;
-        lenderToTotalAmountDeposited[_lender] -= _deposit;
+        lenderToTotalAmountDeposited[_lender] -= contractBalance;
         if (s_loanIsPrioritized[_lendRequest]) {
             s_loanIsPrioritized[_lendRequest] = false;
         }
@@ -552,8 +550,8 @@ contract LendRequestFactory is Ownable {
         emit LendRequestCancelled(
             _lender,
             _lendRequest,
-            _deposit,
-            _lendRequest.balance
+            contractBalance,
+            address(_lendRequest).balance
         );
 
         /** INTERACTIONS */
@@ -567,7 +565,7 @@ contract LendRequestFactory is Ownable {
         (bool success, ) = _lender.call{value: amountMinusFee}("");
         if (!success)
             revert LendRequestFactory__LendRequestCancellationFailed(
-                _lendRequest.balance
+                address(_lendRequest).balance
             );
         /** RESET STATE */
         LendRequest_v1(_lendRequest).resetRequestDetails();
@@ -617,15 +615,14 @@ contract LendRequestFactory is Ownable {
         private
         view
         returns (
-            uint256 deposit,
             address lender,
             LoanConfigLibrary.RequestState state,
             uint256 timeCreated
         )
     {
-        (deposit, lender, state, timeCreated) = LendRequest_v1(lendRequest)
-            .getLendRequestDetails();
+        (lender, state, timeCreated) = LendRequest_v1(lendRequest)
+            .getRequestDetails();
 
-        return (deposit, lender, state, timeCreated);
+        return (lender, state, timeCreated);
     }
 }

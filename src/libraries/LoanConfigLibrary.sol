@@ -19,7 +19,6 @@ library LoanConfigLibrary {
     }
 
     struct LendRequest {
-        uint256 deposit;
         address lender;
         RequestState state;
         uint256 timeCreated;
@@ -73,13 +72,12 @@ library LoanConfigLibrary {
             });
     }
 
-     function updateBorrowRequestState(
+    function updateBorrowRequestState(
         BorrowRequest storage request,
         LoanConfigLibrary.RequestState _state
     ) internal {
         request.state = _state;
     }
-
 
     function updateBorrowRequest(
         BorrowRequest storage request,
@@ -187,19 +185,16 @@ library LoanConfigLibrary {
 
     function createLendRequest(
         address _lender,
-        uint256 _deposit,
         uint256 _timeCreated
     ) internal pure returns (LendRequest memory) {
         return
             LendRequest({
-                deposit: _deposit,
                 lender: _lender,
                 state: RequestState.OPEN,
                 timeCreated: _timeCreated
             });
     }
 
-   
     function updateLendRequestState(
         LendRequest storage request,
         LoanConfigLibrary.RequestState _state
@@ -218,14 +213,8 @@ library LoanConfigLibrary {
     )
         internal
         view
-        returns (
-            uint256 deposit,
-            address lender,
-            RequestState state,
-            uint256 timeCreated
-        )
+        returns (address lender, RequestState state, uint256 timeCreated)
     {
-        deposit = request.deposit;
         lender = request.lender;
         state = request.state;
         timeCreated = request.timeCreated;

@@ -59,7 +59,6 @@ contract LendRequest_v1 {
     ) payable {
         s_lendRequest = LoanConfigLibrary.createLendRequest(
             lender,
-            msg.value,
             _timeCreated
         );
         i_lender = lender;
@@ -98,11 +97,10 @@ contract LendRequest_v1 {
         //  delete s_lendRequest;
     }
 
-    function getLendRequestDetails()
+    function getRequestDetails()
         external
         view
         returns (
-            uint256 deposit,
             address lender,
             LoanConfigLibrary.RequestState state,
             uint256 timeCreated
