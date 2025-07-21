@@ -100,6 +100,13 @@ contract BorrowRequest_v1 {
         );
     }
 
+    function updateRequestState(
+        LoanConfigLibrary.RequestState state
+    ) external onlyFactory {
+        s_borrowRequest.updateBorrowRequestState( state);
+       
+    }
+
      function resetRequestDetails() external {
         s_borrowRequest.resetBorrowRequestDetails();
     }

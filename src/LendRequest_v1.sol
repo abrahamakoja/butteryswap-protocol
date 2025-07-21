@@ -54,22 +54,21 @@ contract LendRequest_v1 {
     /** CONSTRUCTOR */
     constructor(
         address lender,
-        uint256 deposit,
         uint256 _timeCreated,
         address _protocolManager
     ) payable {
         s_lendRequest = LoanConfigLibrary.createLendRequest(
             lender,
-            deposit,
+            msg.value,
             _timeCreated
         );
         i_lender = lender;
         protocolManager = iProtocolManager(_protocolManager);
     }
 
-    /** RECEIVE FALLBACK */
+    /** RECEIVE FUNCTION */
     receive() external payable {
-        if (msg.sender != protocolManager.BorrowRequestFactory())
+        if (msg.sender != protocolManager.LendRequestFactory())
             revert LendRequest_v1__UnauthorizedAccess();
     }
 
@@ -91,10 +90,12 @@ contract LendRequest_v1 {
         LoanConfigLibrary.RequestState state
     ) external onlyFactory {
         s_lendRequest.updateLendRequestState( state);
+       
     }
 
     function resetRequestDetails() external onlyFactory {
         s_lendRequest.resetLendRequestDetails();
+        //  delete s_lendRequest;
     }
 
     function getLendRequestDetails()

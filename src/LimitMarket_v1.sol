@@ -185,7 +185,7 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     ) external payable nonReentrant  {
        uint256 deposit = msg.value;
        
-        i_LendRequestFactory.createLendRequest(owners, _priority,deposit);
+        i_LendRequestFactory.createLendRequest(msg.sender, _priority,deposit);
     }
 
 

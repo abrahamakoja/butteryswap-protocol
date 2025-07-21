@@ -73,6 +73,14 @@ library LoanConfigLibrary {
             });
     }
 
+     function updateBorrowRequestState(
+        BorrowRequest storage request,
+        LoanConfigLibrary.RequestState _state
+    ) internal {
+        request.state = _state;
+    }
+
+
     function updateBorrowRequest(
         BorrowRequest storage request,
         address _token,
@@ -191,6 +199,7 @@ library LoanConfigLibrary {
             });
     }
 
+   
     function updateLendRequestState(
         LendRequest storage request,
         LoanConfigLibrary.RequestState _state
