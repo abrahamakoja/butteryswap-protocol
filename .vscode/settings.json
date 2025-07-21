@@ -25,5 +25,8 @@
         "universal-router/=lib/universal-router/",
         "v4-core/=lib/v4-core/src/",
         "v4-periphery/=lib/v4-periphery/"
+    ],
+    "cSpell.words": [
+        "Reentrancy"
     ]
 }

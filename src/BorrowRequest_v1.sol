@@ -3,9 +3,9 @@ pragma solidity ^0.8.20;
 
 /**
  * @title BorrowRequest v1
- * @author Butteryswap
+ * @author ButterySwap
  * @notice This contract handles the management of a borrow requests before it is processed by the Enforcer_v1 contract or cancelled by the user.
- * users can top up their loans by adding liquidity to the borrow request but cannot remove the added liquity unless they decide to cancel the request entirely,
+ * users can top up their loans by adding liquidity to the borrow request but cannot remove the added liquidity unless they decide to cancel the request entirely,
  * by cancelling the request, the user's liquidity is returned to their wallet after a cancellation fee is removed.
  */
 

@@ -137,6 +137,14 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         address lender,
         address payable lendRequest
     ) external payable onlyLimitMarket nonReentrant {
+          // check enough fee is sent
+        if (
+            msg.value <
+            protocolManager.calculate_PriorityFee(lendRequest.balance)
+        ) revert();
+
+        if (msg.value == 0)
+            revert LendRequestFactory__insufficientPriorityFee();
         // check if loan request is valid
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
@@ -149,28 +157,19 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             LoanConfigLibrary.RequestState _state,
 
         ) = _getRequestDetails(lendRequest);
-        // check enough fee is sent
-        if (
-            msg.value <
-            protocolManager.calculate_PriorityFee(lendRequest.balance)
-        ) revert();
-
-        if (msg.value == 0)
-            revert LendRequestFactory__insufficientPriorityFee();
+      
         // check if loan is open
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
 
-        LoanConfigLibrary.RequestState state = LoanConfigLibrary
-            .RequestState
-            .PRIORITIZING;
+        _state = LoanConfigLibrary.RequestState.PRIORITIZING;
         // update state
-        LendRequest_v1((lendRequest)).updateRequestState(state);
+        LendRequest_v1((lendRequest)).updateRequestState(_state);
 
         // check if lender is authorized to interact with loan
         if (
-            lendRequestToLender[lendRequest] != address(lender) ||
-            prioritizedLendRequestToLender[lendRequest] != address(lender) ||
+            lendRequestToLender[lendRequest] != address(_lender) ||
+            prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
             address(lender) != address(_lender)
         ) revert LendRequestFactory__notOwner();
 
@@ -232,16 +231,14 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         // check if loan is open
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
-        LoanConfigLibrary.RequestState state = LoanConfigLibrary
-            .RequestState
-            .CANCELLING;
-        LendRequest_v1(lendRequest).updateRequestState(state);
+        _state = LoanConfigLibrary.RequestState.CANCELLING;
+        LendRequest_v1(lendRequest).updateRequestState(_state);
 
         // check if lender is authorized to interact with loan
         if (
-            lendRequestToLender[lendRequest] != address(lender) ||
-            prioritizedLendRequestToLender[lendRequest] != address(lender) ||
-            address(lender) != address(_lender)
+            lendRequestToLender[lendRequest] != address(_lender) ||
+            (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
+                address(lender) != address(_lender))
         ) revert LendRequestFactory__notOwner();
 
         _rawCancelRequest(lender, lendRequest);
@@ -376,7 +373,11 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             msg.value
         );
         uint256 priorityFee = protocolManager.calculate_PriorityFee(msg.value);
-       
+        if (_priority == true) {
+            depositMinusFee = msg.value - (originationFee + priorityFee);
+        } else {
+            depositMinusFee = msg.value - originationFee;
+        }
         /** DEPLOY NEW LEND REQUEST CONTRACT */
         LendRequest_v1 lendRequest;
         try
@@ -388,7 +389,6 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         returns (LendRequest_v1 _lendRequest) {
             lendRequest = _lendRequest;
             if (_priority == true) {
-                 depositMinusFee = msg.value - (originationFee + priorityFee);
                 s_loanIsPrioritized[address(lendRequest)] = true;
                 prioritizedLendRequestToLender[address(lendRequest)] = address(
                     _lender
@@ -401,7 +401,6 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
                     s_prioritizedLendRequests.length +
                     protocolManager.INDEX_PRECISION();
             } else {
-                depositMinusFee = msg.value - originationFee;
                 s_totalUnPrioritizedLendRequest.push(lendRequest);
                 lendRequestToLender[address(lendRequest)] = address(_lender);
                 userToLendRequestAddresses[_lender].push(address(lendRequest));
@@ -431,8 +430,9 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         /** INTERACTIONS */
 
         if (_priority == true) {
-           /** COLLECT PRIORITY FEE */
+            /** SUM BOTH PRIORITY AND ORIGINATION FEES TOGETHER */
             uint256 fee = priorityFee + originationFee;
+            /** COLLECT PRIORITY FEE */
             (bool priorityFeePaid, ) = protocolManager.FEE_CONTRACT().call{
                 value: fee
             }("");
