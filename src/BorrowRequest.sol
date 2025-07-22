@@ -17,7 +17,7 @@ import {Script, console} from "forge-std/Script.sol";
     //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 
 contract BorrowRequest {
     /*//////////////////////////////////////////////////////////////
@@ -30,7 +30,7 @@ contract BorrowRequest {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    iProtocolManager private immutable protocolManager;
+    IProtocolManager private immutable protocolManager;
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -39,11 +39,7 @@ contract BorrowRequest {
     using LoanConfigLibrary for LoanConfigLibrary.BorrowRequest;
     LoanConfigLibrary.BorrowRequest private s_borrowRequest;
 
-    /*//////////////////////////////////////////////////////////////
-                                 EVENTS
-    //////////////////////////////////////////////////////////////*/
-
-    event LoanAccepted(address activeLoan);
+    
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -76,7 +72,7 @@ contract BorrowRequest {
             token,
             _timeCreated
         );
-        protocolManager = iProtocolManager(_protocolManager);
+        protocolManager = IProtocolManager(_protocolManager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -109,8 +105,18 @@ contract BorrowRequest {
     }
 
     function acceptLoan(address vault) external onlyEnforcer  {
-        emit LoanAccepted(vault);
+        // emit LoanAccepted(vault);
         s_borrowRequest.acceptLoan( address(vault));
+
+        // request.state = RequestState.SETTLED;
+        // for (uint256 index = 0; index < request.tokens.length; index++) {
+        //     erc20TokenLibrary.transferTokens(
+        //         address(request.tokens[index]),
+        //         address(activeLoanAddress),
+        //         request.collateralAmountMinusFee
+        //     );
+        // }
+        // erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
     }
 
     // Function to get the borrow request details

@@ -16,9 +16,9 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
-import {iBorrowRequestFactory} from "./interfaces/iBorrowRequestFactory.sol";
-import {iLendRequestFactory} from "./interfaces/iLendRequestFactory.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
+import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 
 contract LimitMarket_v1 is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
@@ -41,8 +41,8 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     address private immutable i_Admin;
-    iBorrowRequestFactory BorrowRequestFactory;
-    iLendRequestFactory LendRequestFactory;
+    IBorrowRequestFactory BorrowRequestFactory;
+    ILendRequestFactory LendRequestFactory;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -62,8 +62,8 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
         address borrowRequestFactory,
         address lendRequestFactory
     ) Ownable(msg.sender) {
-        BorrowRequestFactory = iBorrowRequestFactory(borrowRequestFactory);
-        LendRequestFactory = iLendRequestFactory(lendRequestFactory);
+        BorrowRequestFactory = IBorrowRequestFactory(borrowRequestFactory);
+        LendRequestFactory = ILendRequestFactory(lendRequestFactory);
     }
 
     /*//////////////////////////////////////////////////////////////

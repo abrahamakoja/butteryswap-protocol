@@ -3,14 +3,19 @@ pragma solidity ^0.8.20;
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 
-contract activeLoan {
+contract ActiveLoan {
     using LoanConfigLibrary for LoanConfigLibrary.ActiveLoanVault;
 
     LoanConfigLibrary.ActiveLoanVault private s_activeLoan;
 
     error UnauthorizedTransaction();
 
-    event ActiveLoanInitialized(address borrower, address lender, uint256 amountLended, uint256 collateralRecieved);
+    event ActiveLoanInitialized(
+        address borrower,
+        address lender,
+        uint256 amountLended,
+        uint256 collateralRecieved
+    );
 
     mapping(address => bool) private isOwner;
     mapping(address => bool) private isBorrower;
@@ -24,7 +29,14 @@ contract activeLoan {
         _;
     }
 
-    constructor(address[3] memory _owners, uint256 collateral, address memcoinAddress, uint256 amountLended) {
+    constructor(
+        address[3] memory _owners,
+        uint256[] memory collateral,
+        address[] memory memcoinAddress,
+        uint256 amountLended,
+        uint256 loanOffered,
+        uint256 timeCreated
+    ) {
         for (uint256 i = 0; i < _owners.length; i++) {
             Owners[i] = _owners[i];
             isOwner[_owners[i]] = true;
@@ -34,9 +46,20 @@ contract activeLoan {
         isBorrower[_borrower] = true;
         isLender[_lender] = true;
 
-        s_activeLoan =
-            LoanConfigLibrary.createActiveLoan(_owners, collateral, memcoinAddress, amountLended, _borrower, _lender);
-        emit ActiveLoanInitialized(_borrower, _lender, amountLended, collateral);
+        s_activeLoan = LoanConfigLibrary.createActiveLoan(
+            _owners,
+            collateral,
+            memcoinAddress,
+            amountLended,
+            _borrower,
+            _lender
+        );
+        emit ActiveLoanInitialized(
+            _borrower,
+            _lender,
+            amountLended,
+            collateral
+        );
     }
 
     receive() external payable {}

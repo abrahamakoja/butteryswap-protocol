@@ -24,11 +24,11 @@ import {Script, console} from "forge-std/Script.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {iBorrowRequest} from "./interfaces/iBorrowRequest.sol";
-import {iLendRequest_v1} from "./interfaces/iLendRequest_v1.sol";
-import {iActiveLoan} from "./interfaces/iActiveLoan.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
-import {iLimitMarket} from "./interfaces/iLimitMarket.sol";
+import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
+import {ILendRequest} from "./interfaces/ILendRequest.sol";
+import {IActiveLoan} from "./interfaces/IActiveLoan.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 
 
 contract Enforcer_v1 is Script, ReentrancyGuard, Ownable  {
@@ -53,13 +53,13 @@ contract Enforcer_v1 is Script, ReentrancyGuard, Ownable  {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    iBorrowRequest BorrowRequest ;
-    iLendRequest_v1 LendRequest ;
+    IBorrowRequest BorrowRequest ;
+    ILendRequest LendRequest ;
     executionState private currentLoanState;
     uint256 private s_startingBorrowRequestIndex;
     uint256 private s_startingLendRequestIndex;
     address private s_limitMarketAddress;
-    iLimitMarket limitMarket;
+    ILimitMarket limitMarket;
     /// @dev keeps count on the number of times a batch was processed by the executeLoanRequests() function.
     uint256 private s_batchCount;
     uint256 private s_priorityBorrowCount;
@@ -214,7 +214,7 @@ contract Enforcer_v1 is Script, ReentrancyGuard, Ownable  {
             (address memeCoin, uint256 collateral, , , ,) = BorrowRequest.getBorrowRequestDetails();
           
             /// *** lend request effects *** ///
-             LendRequest = ILendRequest_v1(_activeLendRequestAddress);
+             LendRequest = ILendRequest(_activeLendRequestAddress);
             address activeLender = LendRequest.i_lender();
             (uint256 amountLended, , , , ) = LendRequest.getLendRequestDetails();
         

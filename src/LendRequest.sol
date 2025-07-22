@@ -8,7 +8,7 @@ import {Script, console} from "forge-std/Script.sol";
     //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 
 contract LendRequest {
     /*//////////////////////////////////////////////////////////////
@@ -22,7 +22,7 @@ contract LendRequest {
     //////////////////////////////////////////////////////////////*/
 
     address public immutable i_lender;
-    iProtocolManager private immutable protocolManager;
+    IProtocolManager private immutable protocolManager;
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
@@ -62,7 +62,7 @@ contract LendRequest {
             _timeCreated
         );
         i_lender = lender;
-        protocolManager = iProtocolManager(_protocolManager);
+        protocolManager = IProtocolManager(_protocolManager);
     }
 
     /** RECEIVE FUNCTION */
@@ -75,13 +75,13 @@ contract LendRequest {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function offerLoan(address borrower) external onlyEnforcer {
+    function offerLoan(address borrower,uint256 amount) external onlyEnforcer {
         // transfer eth to an address and transfer tokens to an address
-        emit LoanOffered(address(borrower), address(this).balance);
+        emit LoanOffered(address(borrower), amount);
         LoanConfigLibrary.offerLoan(
             s_lendRequest,
             address(borrower),
-            address(this).balance
+            amount
         );
     }
 

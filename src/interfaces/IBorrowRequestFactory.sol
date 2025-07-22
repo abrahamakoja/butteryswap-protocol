@@ -1,25 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-interface iBorrowRequestFactory {
-    function getTotalActiveBorrowRequestContractCount()
+interface IBorrowRequestFactory {
+    function getTotalRequests()
         external
-        view
-        returns (uint256 numberOfContracts);
-    function getBorrowRequestPositionOnActiveRequestQue(
-        address borrowRequest
-    ) external view returns (uint256 position);
-
-    function getTotalActivePrioritizedBorrowRequests(
-        uint256 _batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory);
-
-    function getBatchedActiveBorrowRequestContractAddresses(
-        uint256 startIndex,
-        uint256 numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory);
+        returns (
+            uint256 totalNonPrioritizedBorrowRequests,
+            uint256 totalPrioritizedBorrowRequest
+        );
 
     function createRequest(
         uint256[] calldata _collateralAmount,
@@ -43,4 +31,10 @@ interface iBorrowRequestFactory {
     ) external;
 
     function cancelRequest(address borrower, address borrowRequest) external;
+    function getNonPrioritizedRequestViaIndex(
+        uint256 index
+    ) external returns (address);
+    function getPrioritizedRequestViaIndex(
+        uint256 index
+    ) external returns (address);
 }

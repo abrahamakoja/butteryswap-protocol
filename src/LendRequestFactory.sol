@@ -8,8 +8,8 @@ import {Script, console} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 
-import {LendRequest} from "./LendRequest.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {LendRequest} from "./LendRequest.sol"; 
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -47,23 +47,35 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    //  LendRequest LendRequest;
-    iProtocolManager private immutable protocolManager;
+
+    IProtocolManager private immutable protocolManager;
+
+    LendRequest[] private s_totalNonPrioritizedLendRequest;
+
+    LendRequest[] private s_prioritizedLendRequests;
+
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
-    mapping(address lender => address[] prioritizedLendRequests)
-        private userToLendRequestAddresses;
+
     mapping(address prioritizedLendRequest => address lender)
         private prioritizedLendRequestToLender;
+
     mapping(address lendRequest => address lender) private lendRequestToLender;
-    mapping(address => address[]) private userToPrioritizedLendRequestAddresses; //@audit create for non prioritized
-    mapping(address => bool) private s_isValidContract;
-    LendRequest[] private s_totalUnPrioritizedLendRequest;
-    LendRequest[] private s_prioritizedLendRequests;
+
+    mapping(address lender => address[] prioritizedLendRequest)
+        private userToPrioritizedLendRequestAddresses;
+
+    mapping(address lender => address[] nonPrioritizedLendRequest)
+        private userToNonPrioritizedLendRequestAddresses;
+
+    mapping(address lendRequest => bool isValid) private s_isValidContract;
+
     mapping(address lender => uint256 totalAmountRequested)
         private lenderToTotalAmountDeposited;
+
     mapping(address prioritizedLendRequest => uint256 position)
         private lendRequestToPositionOnPrioritizedList;
+
     mapping(address nonPrioritizedLendRequest => uint256 position)
         private lendRequestToPositionOnNonPrioritizedList;
 
@@ -106,7 +118,15 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
 
     /** CONSTRUCTOR */
     constructor(address _protocolManager) Ownable(msg.sender) {
-        protocolManager = iProtocolManager(_protocolManager);
+        protocolManager = IProtocolManager(_protocolManager);
+    }
+
+
+    function getNonPrioritizedRequestViaIndex(uint256 index) external view returns(address request){
+        return address(s_totalNonPrioritizedLendRequest[index]);
+    }
+    function getPrioritizedRequestViaIndex(uint256 index) external view returns(address request){
+        return address(s_prioritizedLendRequests[index]);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -244,9 +264,9 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
                 address(lender) != address(_lender))
         ) revert LendRequestFactory__notOwner();
-         uint256 contractBalance = lendRequest.balance;
+        uint256 contractBalance = lendRequest.balance;
 
-        _rawCancelRequest(lender, lendRequest,contractBalance);
+        _rawCancelRequest(lender, lendRequest, contractBalance);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -406,19 +426,21 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
                     s_prioritizedLendRequests.length +
                     protocolManager.INDEX_PRECISION();
             } else {
-                s_totalUnPrioritizedLendRequest.push(lendRequest);
-                lendRequestToLender[address(lendRequest)] = address(_lender);
-                userToLendRequestAddresses[_lender].push(address(lendRequest));
+                s_totalNonPrioritizedLendRequest.push(lendRequest);
+                userToNonPrioritizedLendRequestAddresses[_lender].push(
+                    address(lendRequest)
+                );
                 lendRequestToPositionOnNonPrioritizedList[
                     address(lendRequest)
                 ] =
-                    s_totalUnPrioritizedLendRequest.length +
+                    s_totalNonPrioritizedLendRequest.length +
                     protocolManager.INDEX_PRECISION();
             }
         } catch {
             revert LendRequestFactory__LendRequestFailed(depositMinusFee);
         }
 
+        lendRequestToLender[address(lendRequest)] = address(_lender);
         lenderToTotalAmountDeposited[_lender] += msg.value;
         s_isValidContract[address(lendRequest)] = true;
 
@@ -459,9 +481,11 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     ) private {
         uint256 precision = protocolManager.INDEX_PRECISION();
         // change mapping
-        lendRequestToLender[_lendRequest] = address(0); //@audit try delete
-        // delete userToLendRequestAddresses[_lender];
-        delete s_totalUnPrioritizedLendRequest[
+
+        delete userToNonPrioritizedLendRequestAddresses[_lender][
+            lendRequestToPositionOnNonPrioritizedList[_lendRequest]
+        ];
+        delete s_totalNonPrioritizedLendRequest[
             lendRequestToPositionOnNonPrioritizedList[_lendRequest]
         ];
         delete lendRequestToPositionOnNonPrioritizedList[_lendRequest];
@@ -535,13 +559,14 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
 
     function _rawCancelRequest(
         address _lender,
-        address payable _lendRequest,uint256 contractBalance
+        address payable _lendRequest,
+        uint256 contractBalance
     ) private {
         /** EFFECTS */
         uint256 cancellationFee = protocolManager.calculateCancellationFee(
             _lendRequest.balance
         );
-       
+
         uint256 amountMinusFee = contractBalance - cancellationFee;
 
         /** UPDATE MAPPINGS */
@@ -577,41 +602,56 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        EXTERNAL VIEW FUNCTIONS 
+    //////////////////////////////////////////////////////////////*/
+
+    function getTotalRequests()
+        external
+        view
+        returns (
+            uint256 totalNonPrioritizedLendRequests,
+            uint256 totalPrioritizedLendRequest
+        )
+    {
+        return (s_totalNonPrioritizedLendRequest.length, s_prioritizedLendRequests.length);
+    }
+
+    /*//////////////////////////////////////////////////////////////
              INTERNAL, PUBLIC & PRIVATE  VIEW FUNCTIONS 
     //////////////////////////////////////////////////////////////*/
 
     // function _getTotalActiveLendRequestContractAddresses()
     //     private
     //     view
-    //     returns (address[] memory)
+    //     returns ()
     // {
-    //    payable address[] memory  lendRequest = new address[](
-    //         s_totalUnPrioritizedLendRequest.length
+    // address[] memory  lendRequest = new address[](
+    //     s_totalNonPrioritizedLendRequest.length
+    // );
+    // uint256 counter = 0;
+
+    // for (uint256 i = 0; i < s_totalNonPrioritizedLendRequest.length; i++) {
+    //     LendRequest LendRequest = LendRequest(
+    //         (address(s_totalNonPrioritizedLendRequest[i]))
     //     );
-    //     uint256 counter = 0;
+    //    (
+    //     ,
+    //     address _lender,
+    //     LoanConfigLibrary.RequestState _state,
 
-    //     for (uint256 i = 0; i < s_totalUnPrioritizedLendRequest.length; i++) {
-    //         LendRequest LendRequest = LendRequest(
-    //             payable(address(s_totalUnPrioritizedLendRequest[i]))
-    //         );
-    //        (
-    //         ,
-    //         address _lender,
-    //         LoanConfigLibrary.RequestState _state,
+    // ) = _getRequestDetails(address(LendRequest));
+    //    if (_state != LoanConfigLibrary.RequestState.OPEN)
+    //     revert LendRequestFactory__RequestNotOpen();
+    //     lendRequest[counter] = address(s_totalNonPrioritizedLendRequest[i]);
+    //     counter++;
+    // }
 
-    //     ) = _getLendRequestDetails(address(LendRequest));
-    //        if (_state != LoanConfigLibrary.RequestState.OPEN)
-    //         revert LendRequestFactory__RequestNotOpen();
-    //         lendRequest[counter] = address(s_totalUnPrioritizedLendRequest[i]);
-    //         counter++;
-    //     }
+    // address[] memory activeLendRequest = new address[](counter);
+    // for (uint256 i = 0; i < counter; i++) {
+    //     activeLendRequest[i] = lendRequest[i];
+    // }
 
-    //     address[] memory activeLendRequest = new address[](counter);
-    //     for (uint256 i = 0; i < counter; i++) {
-    //         activeLendRequest[i] = lendRequest[i];
-    //     }
-
-    //     return activeLendRequest;
+    // return activeLendRequest;
     // }
 
     function _getRequestDetails(

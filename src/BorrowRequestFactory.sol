@@ -15,8 +15,8 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {BorrowRequest} from "./BorrowRequest.sol";
 import {erc20TokenLibrary} from "./libraries/erc20TokenLibrary.sol";
-import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
-import {iTokenManager} from "./interfaces/iTokenManager.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -64,7 +64,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
     BorrowRequest[] private s_prioritizedBorrowRequests;
 
-    iProtocolManager private immutable protocolManager;
+    IProtocolManager private immutable protocolManager;
 
     mapping(address borrower => address[] borrowRequestAddresses)
         private userToBorrowRequestAddresses;
@@ -128,7 +128,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
     /** CONSTRUCTOR */
     constructor(address _protocolManager) Ownable(msg.sender) {
-        protocolManager = iProtocolManager(_protocolManager);
+        protocolManager = IProtocolManager(_protocolManager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -509,7 +509,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             for (uint256 index = 0; index < _tokens.length; index++) {
                 // check each token is listed
                 if (
-                    !iTokenManager(protocolManager.TokenManager())
+                    !ITokenManager(protocolManager.TokenManager())
                         .checkTokenIsListed(_tokens[index])
                 ) revert BorrowRequestFactory__unSupportedToken(_tokens[index]);
 
@@ -520,7 +520,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 totalCollateralValue += protocolManager
                     .calculate_CollateralValue(_collateralAmount[index]);
 
-                collateralToValue[address(BorrowRequest)][
+                collateralToValue[address(borrowRequest)][
                     _tokens[index]
                 ] += _collateralAmount[index];
 
@@ -533,26 +533,26 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             }
 
             if (_priority) {
-                s_loanIsPrioritized[address(BorrowRequest)] = true;
+                s_loanIsPrioritized[address(borrowRequest)] = true;
 
                 prioritizedBorrowRequestToBorrower[
-                    address(BorrowRequest)
+                    address(borrowRequest)
                 ] = address(_borrower);
 
-                s_prioritizedBorrowRequests.push(BorrowRequest);
+                s_prioritizedBorrowRequests.push(borrowRequest);
 
                 userToPrioritizedBorrowRequestAddresses[_borrower].push(
-                    address(BorrowRequest)
+                    address(borrowRequest)
                 );
             } else {
-                totalBorrowRequests.push(BorrowRequest);
+                totalBorrowRequests.push(borrowRequest);
 
-                borrowRequestToBorrower[address(BorrowRequest)] = address(
+                borrowRequestToBorrower[address(borrowRequest)] = address(
                     _borrower
                 );
 
                 userToBorrowRequestAddresses[_borrower].push(
-                    address(BorrowRequest)
+                    address(borrowRequest)
                 );
             }
         } catch {
@@ -726,7 +726,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         // check if asset is supported by protocol / approve and execute transfer within the same loop
         for (uint256 index = 0; index > _tokens.length; index++) {
             if (
-                iTokenManager(protocolManager.TokenManager())
+                ITokenManager(protocolManager.TokenManager())
                     .checkTokenIsListed(_tokens[index])
             ) {
                 revert BorrowRequestFactory__unSupportedToken(
