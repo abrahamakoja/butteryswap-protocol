@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-interface ILendRequestFactory {
+interface iLendRequestFactory {
     function getTotalActiveLendRequestContractCount()
         external
         view
@@ -18,8 +18,10 @@ interface ILendRequestFactory {
         uint256 _batchLimit,
         uint256 numOfResponse
     ) external view returns (address[] memory);
-    function createLendRequest(
-        address[2] calldata _owners,
-        bool _priority
+    function createRequest(address lender, bool _priority) external;
+
+    function prioritizeLoanRequest(
+        address lender,
+        address lendRequest
     ) external;
 }

@@ -13,7 +13,7 @@ import {Script, console} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 
-import {BorrowRequest_v1} from "./BorrowRequest_v1.sol";
+import {BorrowRequest} from "./BorrowRequest.sol";
 import {erc20TokenLibrary} from "./libraries/erc20TokenLibrary.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 import {iTokenManager} from "./interfaces/iTokenManager.sol";
@@ -59,9 +59,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     //@audit check all mapping
-    BorrowRequest_v1[] private totalBorrowRequests;
 
-    BorrowRequest_v1[] private s_prioritizedBorrowRequests;
+    BorrowRequest[] private totalBorrowRequests;
+
+    BorrowRequest[] private s_prioritizedBorrowRequests;
 
     iProtocolManager private immutable protocolManager;
 
@@ -120,6 +121,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         uint256 indexed depositedAmount,
         uint256 indexed amountRequested
     );
+    event BorrowRequestPrioritized(
+        address indexed borrowRequestAddress,
+        uint256 indexed priorityFee
+    );
 
     /** CONSTRUCTOR */
     constructor(address _protocolManager) Ownable(msg.sender) {
@@ -147,8 +152,6 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
         /** CHECKS */
         // uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
-        uint256 originationFee;
-        uint256 priorityFee;
 
         if (collateralAmount.length != tokens.length)
             revert BorrowRequestFactory__rangeDataMisMatch();
@@ -171,17 +174,24 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         address borrower,
         address borrowRequest
     ) external payable onlyLimitMarket nonReentrant {
-          if (
+        if (
             msg.value <
             protocolManager.calculate_PriorityFee(borrowRequest.balance)
         ) revert();
 
         if (msg.value == 0)
             revert BorrowRequestFactory__insufficientPriorityFee();
+        if (
+            msg.value !=
+            protocolManager.calculate_PriorityFee(borrowRequest.balance)
+        ) revert();
+
         if (s_isValidContract[borrowRequest] == false)
             revert BorrowRequestFactory__InvalidRequest();
+
         if (s_loanIsPrioritized[borrowRequest] == true)
             revert BorrowRequestFactory__RequestIsPrioritized();
+
         /** GET LOAN DETAILS */
         (
             ,
@@ -194,8 +204,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert BorrowRequestFactory__RequestNotOpen();
+
         _state = LoanConfigLibrary.RequestState.PRIORITIZING;
-        BorrowRequest_v1(borrowRequest).updateRequestState(_state);
+
+        BorrowRequest(borrowRequest).updateRequestState(_state);
 
         // check borrower owns borrow request
         if (
@@ -205,13 +217,8 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 address(borrower) != address(_borrower))
         ) revert BorrowRequestFactory__notOwner();
 
-        _rawPrioritizeLoanRequest(borrowRequest, borrower);
+        _rawPrioritizeLoanRequest(borrowRequest, borrower, _state);
     }
-
-    function _rawPrioritizeLoanRequest(
-        address _borrowRequest,
-        address _borrower
-    ) private {}
 
     function addLiquidity(
         address borrower,
@@ -237,7 +244,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert BorrowRequestFactory__RequestNotOpen();
         _state = LoanConfigLibrary.RequestState.ADDING_LIQUIDITY;
-        BorrowRequest_v1(borrowRequest).updateRequestState(_state);
+        BorrowRequest(borrowRequest).updateRequestState(_state);
 
         // check collateralAmount and tokens match in length
         if (collateralAmounts.length != tokens.length) {
@@ -270,10 +277,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         _rawAddLiquidity(
             borrower,
             borrowRequest,
-            _state,
             loanAmountRequested,
             tokens,
-            collateralAmounts
+            collateralAmounts,
+            _state
         );
     }
 
@@ -298,7 +305,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert BorrowRequestFactory__RequestNotOpen();
         _state = LoanConfigLibrary.RequestState.CANCELLING;
-        BorrowRequest_v1(borrowRequest).updateRequestState(_state);
+        BorrowRequest(borrowRequest).updateRequestState(_state);
 
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -354,10 +361,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     //     uint256 counter = 0;
 
     //     for (uint256 i = 0; i < limit; i++) {
-    //         BorrowRequest_v1 borrowRequest_v1 = BorrowRequest_v1(
+    //         BorrowRequest BorrowRequest = BorrowRequest(
     //             payable(address(s_prioritizedBorrowRequests[i]))
     //         );
-    //         uint8 status = uint8(borrowRequest_v1.getRequestState());
+    //         uint8 status = uint8(BorrowRequest.getRequestState());
     //         if (status != 0) {
     //             continue;
     //         }
@@ -427,10 +434,10 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     //     uint256 counter = 0;
 
     //     for (uint256 i = 0; i < totalBorrowRequests.length; i++) {
-    //         BorrowRequest_v1 borrowRequest_v1 = BorrowRequest_v1(
+    //         BorrowRequest BorrowRequest = BorrowRequest(
     //             payable(address(totalBorrowRequests[i]))
     //         );
-    //         uint8 status = uint8(borrowRequest_v1.getRequestState());
+    //         uint8 status = uint8(BorrowRequest.getRequestState());
     //         if (status != 0) {
     //             continue;
     //         }
@@ -471,7 +478,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Internal function to create a new BorrowRequest_v1 instance
+    /// @notice Internal function to create a new BorrowRequest instance
     /// @param _collateralAmount The amount of collateral to be locked
     /// @param _tokens The list of tokens to be used as collateral
     /// @param _borrower The address of the enforcer contract
@@ -487,9 +494,9 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         uint256 totalCollateralValue;
         uint256 originationFee;
         uint256 priorityFee;
-        BorrowRequest_v1 BorrowRequest;
+        BorrowRequest borrowRequest;
         try
-            new BorrowRequest_v1(
+            new BorrowRequest(
                 _borrower,
                 _collateralAmount,
                 _loanAmountRequested,
@@ -497,8 +504,8 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 block.timestamp,
                 address(protocolManager)
             )
-        returns (BorrowRequest_v1 _BorrowRequest) {
-            BorrowRequest = _BorrowRequest;
+        returns (BorrowRequest _BorrowRequest) {
+            borrowRequest = _BorrowRequest;
             for (uint256 index = 0; index < _tokens.length; index++) {
                 // check each token is listed
                 if (
@@ -569,16 +576,16 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
         borrowerToTotalAmountRequested[_borrower] += totalCollateralValue;
 
-        s_isValidContract[address(BorrowRequest)] = true;
+        s_isValidContract[address(borrowRequest)] = true;
 
         /** EMIT EVENTS */
         emit BorrowRequestCreated(
             _borrower,
-            address(BorrowRequest),
+            address(borrowRequest),
             totalCollateralValue
         );
         if (_priority == true)
-            emit BorrowRequestPrioritized(address(BorrowRequest));
+            emit BorrowRequestPrioritized(address(borrowRequest));
 
         /** INTERACTIONS */
 
@@ -605,16 +612,48 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             erc20TokenLibrary.transferFromTokens(
                 _tokens[index],
                 address(_borrower),
-                address(BorrowRequest),
+                address(borrowRequest),
                 _collateralAmount[index]
             );
         }
     }
 
+    function _rawPrioritizeLoanRequest(
+        address _borrowRequest,
+        address _borrower,
+        LoanConfigLibrary.RequestState _state
+    ) private {
+        /** UPDATE MAPPING */
+        delete borrowRequestToBorrower[address(_borrowRequest)];
+        s_loanIsPrioritized[address(_borrowRequest)] = true;
+
+        prioritizedBorrowRequestToBorrower[address(_borrowRequest)] = address(
+            _borrower
+        );
+
+        s_prioritizedBorrowRequests.push(BorrowRequest(_borrowRequest));
+
+        userToPrioritizedBorrowRequestAddresses[_borrower].push(
+            address(_borrowRequest)
+        );
+
+        _state = LoanConfigLibrary.RequestState.OPEN;
+        emit BorrowRequestPrioritized(_borrowRequest, msg.value);
+
+        /** COLLECT PRIORITY FEE */
+        (bool priorityFeePaid, ) = address(protocolManager.FEE_CONTRACT()).call{
+            value: msg.value
+        }("");
+        if (!priorityFeePaid)
+            revert BorrowRequestFactory__PriorityFeePaymentFailed();
+
+        BorrowRequest(_borrowRequest).updateRequestState(_state);
+    }
+
     function _rawCancelRequest(
         address _borrower,
         address _borrowRequest,
-        uint256[] memory _tokens,
+        address[] memory _tokens,
         uint256[] memory _collateralAmount,
         LoanConfigLibrary.RequestState _state
     ) private {
@@ -640,20 +679,13 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
         /** EMIT EVENTS */
         emit BorrowRequestCancelled(
-            BorrowRequest_v1(_borrowRequest).i_Borrower,
+            address(_borrower),
             address(_borrowRequest),
             totalCollateralValue,
             address(_borrowRequest).balance
         );
 
         /** INTERACTIONS */
-
-        /** UPDATE STATE */
-        BorrowRequest_v1(_borrowRequest).updateRequestState(_state); // @audit try resetting
-        /** COLLECT CANCELLATION FEE */
-        (bool success, ) = protocolManager.FEE_CONTRACT().call{
-            value: cancellationFee
-        }("");
 
         /** BORROWER WITHDRAWS ALL COLLATERAL */
         for (uint256 index = 0; index < _tokens.length; index++) {
@@ -666,6 +698,17 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 )
             );
         }
+
+        /** COLLECT CANCELLATION FEE */
+        (bool success, ) = protocolManager.FEE_CONTRACT().call{
+            value: cancellationFee
+        }("");
+        if (!success) {
+            revert();
+        }
+
+        /** UPDATE STATE */
+        BorrowRequest(_borrowRequest).updateRequestState(_state); // @audit try resetting
     }
 
     function _rawAddLiquidity(
@@ -673,15 +716,12 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         address _borrowRequest,
         uint256 _loanAmountRequested,
         address[] memory _tokens,
-        uint256[] memory _collateralAmounts
+        uint256[] memory _collateralAmounts,
+        LoanConfigLibrary.RequestState _state
     ) private {
         /** EFFECTS */
         uint256 totalCollateralValue;
         uint256 originationFee;
-
-        LoanConfigLibrary.RequestState _state = LoanConfigLibrary
-            .RequestState
-            .OPEN;
 
         // check if asset is supported by protocol / approve and execute transfer within the same loop
         for (uint256 index = 0; index > _tokens.length; index++) {
@@ -725,13 +765,15 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             );
 
             // update states
-            BorrowRequest_v1(_borrowRequest).updateRequest(
+            BorrowRequest(_borrowRequest).updateRequest(
                 _tokens[index],
                 index,
                 _collateralAmounts[index],
                 _loanAmountRequested
             );
         }
+
+        _state = LoanConfigLibrary.RequestState.OPEN;
 
         /** EMIT EVENT */
         emit BorrowRequestUpdated(
@@ -754,9 +796,12 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             revert BorrowRequestFactory__OriginationFeePaymentFailed();
 
         _state = LoanConfigLibrary.RequestState.OPEN;
-        BorrowRequest_v1(address(_borrowRequest)).updateRequestState(_state);
+        BorrowRequest(address(_borrowRequest)).updateRequestState(_state);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                              PRIVATE VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
     function _getRequestDetails(
         address borrowRequest
     )
@@ -778,7 +823,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             borrower,
             state,
             timeCreated
-        ) = BorrowRequest_v1(borrowRequest).getBorrowRequestDetails();
+        ) = BorrowRequest(borrowRequest).getBorrowRequestDetails();
 
         return (
             tokens,

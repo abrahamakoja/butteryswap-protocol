@@ -46,9 +46,6 @@ library LoanConfigLibrary {
         CANCELLING
     }
 
-    /*//////////////////////////////////////////////////////////////
-                           INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
 
     /*//////////////////////////////////////////////////////////////
                    BORROW REQUEST INTERNAL FUNCTIONS
@@ -204,7 +201,7 @@ library LoanConfigLibrary {
 
     function resetLendRequestDetails(LendRequest storage request) internal {
         delete request.state;
-        delete request.deposit;
+        // delete request.deposit;
     }
 
     // Function to get the details of a lendRequest details

@@ -19,19 +19,17 @@ import {Script, console} from "forge-std/Script.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 
-contract BorrowRequest_v1 {
+contract BorrowRequest {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error BorrowRequest_v1__UnauthorizedAccess();
-    error BorrowRequest_v1__unSupportedToken(address token);
+    error BorrowRequest__UnauthorizedAccess();
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    address public immutable i_Borrower;
     iProtocolManager private immutable protocolManager;
 
     /*//////////////////////////////////////////////////////////////
@@ -53,13 +51,13 @@ contract BorrowRequest_v1 {
 
     modifier onlyEnforcer() {
         if (msg.sender != address(protocolManager.Enforcer()))
-            revert BorrowRequest_v1__UnauthorizedAccess();
+            revert BorrowRequest__UnauthorizedAccess();
         _;
     }
 
     modifier onlyFactory() {
         if (msg.sender != protocolManager.BorrowRequestFactory())
-            revert BorrowRequest_v1__UnauthorizedAccess();
+            revert BorrowRequest__UnauthorizedAccess();
         _;
     }
 
@@ -78,7 +76,6 @@ contract BorrowRequest_v1 {
             token,
             _timeCreated
         );
-        i_Borrower = borrower;
         protocolManager = iProtocolManager(_protocolManager);
     }
 

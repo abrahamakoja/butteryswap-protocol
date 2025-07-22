@@ -4,84 +4,26 @@ pragma solidity ^0.8.20;
 /**
  * @title LimitMarket_v1
  * @author ButterySwap Protocol
- * @notice  
+ * @notice
  */
 
 // debug
 import {Script, console} from "forge-std/Script.sol";
 
-////////////////
-/// Imports ///
-//////////////
+/*//////////////////////////////////////////////////////////////
+                                IMPORTS
+    //////////////////////////////////////////////////////////////*/
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {iBorrowRequestFactory} from "./interfaces/iBorrowRequestFactory.sol";
+import {iLendRequestFactory} from "./interfaces/iLendRequestFactory.sol";
 
-///////////////////
-/// Interfaces ///
-/////////////////
-
-interface IBorrowRequestFactory {
-    function getTotalActiveBorrowRequestContractCount()
-        external
-        view
-        returns (uint256 numberOfContracts);
-    function getBorrowRequestPositionOnActiveRequestQue(
-        address borrowRequest
-    ) external view returns (uint256 position);
-
-    function getTotalActivePrioritizedBorrowRequests(
-        uint256 _batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory);
-
-    function getBatchedActiveBorrowRequestContractAddresses(
-        uint256 startIndex,
-        uint256 numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory);
-
-   function createBorrowRequest(
-        uint256 _collateralAmount,
-        uint256 _loanAmountRequested,
-        address[] calldata _tokens,
-        address[2] calldata _owners,
-        bool _priority
-    ) external ;
-}
-
-interface ILendRequestFactory {
-    function getTotalActiveLendRequestContractCount()
-        external
-        view
-        returns (uint256 numberOfContracts);
-        function getLendRequestPositionOnActiveRequestQue(
-        address lendRequest
-    ) external view returns (uint256 position);
-    function getBatchedActiveLendRequestAddresses(
-        uint256 startIndex,
-        uint256 numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory);
-    function getTotalActivePrioritizedLendRequests(
-        uint256 _batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory);
-    function createLendRequest(
-        address[2] calldata _owners,
-        bool _priority
-    ) external;
-}
-
-
-contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
-
-
-    ////////////////
-    /// Errors ///
-    //////////////
-
+contract LimitMarket_v1 is ReentrancyGuard, Ownable {
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
     error UnauthorizedAccess(address caller);
     // new
     error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
@@ -94,22 +36,17 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         uint256 collateral
     );
 
-    /////////////////////////
-    /// Type Declarations ///
-    ///////////////////////
-
-    /////////////////////////
-    /// State variables ///
-    ///////////////////////
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
 
     address private immutable i_Admin;
-    IBorrowRequestFactory i_BorrowRequestFactory;
-    ILendRequestFactory i_LendRequestFactory;
-    address private enforcerContract; //this should be a constant
+    iBorrowRequestFactory BorrowRequestFactory;
+    iLendRequestFactory LendRequestFactory;
 
-    //////////////
-    /// Events ///
-    /////////////
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
 
     event TokensDeposited(
         address indexed user,
@@ -117,56 +54,36 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         uint256 amount
     );
 
-    //////////////////
-    /// Modifiers ////
-    ////////////////
-
-    modifier enforcerContractIsSet() {
-        if (address(enforcerContract) == address(0)) revert(); //prevent function from running if enforcer is not set, move this to a modifier
-        if (address(enforcerContract) != address(enforcerContract)) revert();
-        _;
-    }
-
-    modifier onlyAdmin() {
-        if (msg.sender != address(i_Admin))
-            revert UnauthorizedAccess(msg.sender);
-        _;
-    }
-
-    //////////////////
-    /// Functions ///
-    ////////////////
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
 
     constructor(
-        address BorrowRequestFactory,
-        address LendRequestFactory
+        address borrowRequestFactory,
+        address lendRequestFactory
     ) Ownable(msg.sender) {
-        i_BorrowRequestFactory = IBorrowRequestFactory(BorrowRequestFactory);
-        i_LendRequestFactory = ILendRequestFactory(LendRequestFactory);
-        i_Admin = msg.sender;// no need
+        BorrowRequestFactory = iBorrowRequestFactory(borrowRequestFactory);
+        LendRequestFactory = iLendRequestFactory(lendRequestFactory);
     }
 
-    // receive() external payable {}
-
-    ////////////////////////
-    ///External Functions ///
-    ////////////////////////
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL BORROW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Internal function to create a new BorrowRequest instance
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
     function Borrow(
         uint256[] calldata collateralAmount,
-        uint256 loanAmountRequested,//ensure to check this
+        uint256 loanAmountRequested,
         address[] calldata tokens,
         bool priority
-    ) external payable nonReentrant  {
-       
-        i_BorrowRequestFactory.createRequest(
+    ) external payable nonReentrant {
+        BorrowRequestFactory.createRequest(
             collateralAmount,
             loanAmountRequested,
             tokens,
-            msg.sender, 
+            msg.sender,
             priority
         );
     }
@@ -175,19 +92,42 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
         address borrowRequest,
         address[] calldata tokens,
         uint256[] calldata collateralAmounts,
-        uint256[] calldata _loanAmountRequested
-    ) external  nonReentrant {
-        i_BorrowRequestFactory.addLiquidity(msg.sender, borrowRequest,tokens,collateralAmounts,_loanAmountRequested);
+        uint256 _loanAmountRequested
+    ) external payable nonReentrant {
+        BorrowRequestFactory.addLiquidity(
+            msg.sender,
+            borrowRequest,
+            tokens,
+            collateralAmounts,
+            _loanAmountRequested
+        );
     }
 
-    function Lend(
-        bool _priority
-    ) external payable nonReentrant  {
-       uint256 deposit = msg.value;
-       
-        i_LendRequestFactory.createLendRequest(msg.sender, _priority,deposit);
+    function prioritizeBorrowRequest(
+        address borrowRequest
+    ) external payable nonReentrant {
+        BorrowRequestFactory.prioritizeLoanRequest(msg.sender, borrowRequest);
     }
 
+    function cancelRequest(
+        address borrowRequest
+    ) external payable nonReentrant {
+        BorrowRequestFactory.cancelRequest(msg.sender, borrowRequest);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EXTERNAL LEND FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function Lend(bool _priority) external payable nonReentrant {
+        LendRequestFactory.createRequest(msg.sender, _priority);
+    }
+
+    function prioritizeLendRequest(
+        address lendRequest
+    ) external payable nonReentrant {
+        LendRequestFactory.prioritizeLoanRequest(msg.sender, lendRequest);
+    }
 
     ////////////////////////
     /// Public Functions ///
@@ -205,98 +145,94 @@ contract LimitMarket_v1 is ReentrancyGuard, ButteryRun_v1, Ownable {
     /// External & Public View & Pure Functions ///
     //////////////////////////////////////////////
 
-   
-
     // **** borrow requests functions ****//
-/// move all getters to individual interfaces or limit market interface
-    function getBorrowersPositionOnQue(
-        address borrowRequest
-    ) external view returns (uint256 position) {
-        return
-            i_BorrowRequestFactory.getBorrowRequestPositionOnActiveRequestQue(
-                borrowRequest
-            );
-    }
+    /// move all getters to individual interfaces or limit market interface
+    // function getBorrowersPositionOnQue(
+    //     address borrowRequest
+    // ) external view returns (uint256 position) {
+    //     return
+    //         BorrowRequestFactory.getBorrowRequestPositionOnActiveRequestQue(
+    //             borrowRequest
+    //         );
+    // }
 
     // returns specific number of requests using a start index and a number of requested contracts
-    function getActiveBorrowRequestViaLimit(
-        uint256 _startIndex,
-        uint256 _numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory borrowRequests) {
-        return
-            i_BorrowRequestFactory
-                .getBatchedActiveBorrowRequestContractAddresses(
-                    _startIndex,
-                    _numberOfResponse,
-                    _batchLimit
-                );
-    }
+    // function getActiveBorrowRequestViaLimit(
+    //     uint256 _startIndex,
+    //     uint256 _numberOfResponse,
+    //     uint256 _batchLimit
+    // ) external view returns (address[] memory borrowRequests) {
+    //     return
+    //         BorrowRequestFactory.getBatchedActiveBorrowRequestContractAddresses(
+    //             _startIndex,
+    //             _numberOfResponse,
+    //             _batchLimit
+    //         );
+    // }
 
     // @dev returns the total active borrow requests count.
-    function getTotalActiveBorrowRequestContractCount()
-        external
-        view
-        returns (uint256 numberOfContracts)
-    {
-        return
-            i_BorrowRequestFactory.getTotalActiveBorrowRequestContractCount();
-    }
+    // function getTotalActiveBorrowRequestContractCount()
+    //     external
+    //     view
+    //     returns (uint256 numberOfContracts)
+    // {
+    //     return BorrowRequestFactory.getTotalActiveBorrowRequestContractCount();
+    // }
 
     // @dev returns the total active borrow requests prioritized addresses.
-    function getPrioritizedBorrowRequestAddress(
-        uint256 batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory prioritizedLoans) {
-        return
-            i_BorrowRequestFactory.getTotalActivePrioritizedBorrowRequests(
-                batchLimit,
-                numOfResponse
-            );
-    }
+    // function getPrioritizedBorrowRequestAddress(
+    //     uint256 batchLimit,
+    //     uint256 numOfResponse
+    // ) external view returns (address[] memory prioritizedLoans) {
+    //     return
+    //         BorrowRequestFactory.getTotalActivePrioritizedBorrowRequests(
+    //             batchLimit,
+    //             numOfResponse
+    //         );
+    // }
 
     // **** lend requests functions ****//
 
-     function getLendersPositionOnQue(
-        address lendRequest
-    ) external view returns (uint256 position) {
-        return
-            i_LendRequestFactory.getLendRequestPositionOnActiveRequestQue(
-                lendRequest
-            );
-    }
+    // function getLendersPositionOnQue(
+    //     address lendRequest
+    // ) external view returns (uint256 position) {
+    //     return
+    //         LendRequestFactory.getLendRequestPositionOnActiveRequestQue(
+    //             lendRequest
+    //         );
+    // }
 
-    function getPrioritizedLendRequestAddress(
-        uint256 batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory prioritizedLoans) {
-        return
-            i_LendRequestFactory.getTotalActivePrioritizedLendRequests(
-                batchLimit,
-                numOfResponse
-            );
-    }
+    // function getPrioritizedLendRequestAddress(
+    //     uint256 batchLimit,
+    //     uint256 numOfResponse
+    // ) external view returns (address[] memory prioritizedLoans) {
+    //     return
+    //         LendRequestFactory.getTotalActivePrioritizedLendRequests(
+    //             batchLimit,
+    //             numOfResponse
+    //         );
+    // }
 
     // @dev returns the total active lend requests count.
-    function getTotalActiveLendRequestContractCount()
-        external
-        view
-        returns (uint256 count)
-    {
-        return i_LendRequestFactory.getTotalActiveLendRequestContractCount();
-    }
+    // function getTotalActiveLendRequestContractCount()
+    //     external
+    //     view
+    //     returns (uint256 count)
+    // {
+    //     return LendRequestFactory.getTotalActiveLendRequestContractCount();
+    // }
 
     // returns specific number of requests using a start index and a number of requested contracts
-    function getActiveLendRequestViaLimit(
-        uint256 _startIndex,
-        uint256 _numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory lendRequests) {
-        return
-            i_LendRequestFactory.getBatchedActiveLendRequestAddresses(
-                _startIndex,
-                _numberOfResponse,
-                _batchLimit
-            );
-    }
+    // function getActiveLendRequestViaLimit(
+    //     uint256 _startIndex,
+    //     uint256 _numberOfResponse,
+    //     uint256 _batchLimit
+    // ) external view returns (address[] memory lendRequests) {
+    //     return
+    //         LendRequestFactory.getBatchedActiveLendRequestAddresses(
+    //             _startIndex,
+    //             _numberOfResponse,
+    //             _batchLimit
+    //         );
+    // }
 }

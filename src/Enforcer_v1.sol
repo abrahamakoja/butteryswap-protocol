@@ -1,24 +1,4 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
 
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
@@ -29,7 +9,7 @@ pragma solidity ^0.8.20;
  * @notice This contract handles the execution of loan requests.
  * it gets the arrays of both borrow and lend requests and processes them in batches of 10 request at a time.
  * the batch processing ensures loans are executed in chronological order based of their block.timestamp when created.
- * this contract also implements a "priorioty boost" mechanism that allows users to skip the que and have their loans executed next by paying an extra fee.
+ * this contract also implements a "priority boost" mechanism that allows users to skip the que and have their loans executed next by paying an extra fee.
  * this fee is shared amongst the protocol and the users within the loan requests that eventually seeds the priority loan.
  * this feature is experimental and may or may not be removed.
  */
@@ -37,125 +17,49 @@ pragma solidity ^0.8.20;
 // debug
 import {Script, console} from "forge-std/Script.sol";
 
+   /*//////////////////////////////////////////////////////////////
+                                IMPORTS
+    //////////////////////////////////////////////////////////////*/
 
-////////////////
-/// Imports ///
-//////////////
-
-
-import {ButteryRun_v1} from "./ButteryRun_v1.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {activeLoan} from "./activeLoan.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {iBorrowRequest} from "./interfaces/iBorrowRequest.sol";
+import {iLendRequest_v1} from "./interfaces/iLendRequest_v1.sol";
+import {iActiveLoan} from "./interfaces/iActiveLoan.sol";
+import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
+import {iLimitMarket} from "./interfaces/iLimitMarket.sol";
 
-////////////////////
-/// Interfaces ///
-/////////////////
 
-// LimitMarket contract interface
-interface ILimitMarket_v1 {
+contract Enforcer_v1 is Script, ReentrancyGuard, Ownable  {
 
-    function getPrioritizedBorrowRequestAddress(
-        uint256 batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory prioritizedLoans);
-    function getTotalActiveBorrowRequestContractCount() external view returns(uint256);
+     /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
 
-     function getActiveBorrowRequestViaLimit(
-        uint256 _startIndex,
-        uint256 _numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory borrowRequests);
-
-    function getPrioritizedLendRequestAddress(
-        uint256 batchLimit,
-        uint256 numOfResponse
-    ) external view returns (address[] memory prioritizedLoans);
-    function getTotalActiveLendRequestContractCount() external view returns (uint256);
-
-    function getActiveLendRequestViaLimit(
-        uint256 _startIndex,
-        uint256 _numberOfResponse,
-        uint256 _batchLimit
-    ) external view returns (address[] memory lendRequests);
-}
-
-// Borrow request interface
-interface IBorrowRequest_v1 {
-    function i_borrower() external view returns (address);
-
-    function Owners(uint256 index) external view returns (address);
-    
-    function acceptLoan(address) external;
-
-    function getBorrowRequestDetails()
-        external
-        view
-        returns (
-            address memeCoin,
-            uint256 collateral,
-            address[2] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
-            LoanConfigLibrary.RequestState state
-        );
-}
-     
-// Lend request contract interface
-interface ILendRequest_v1 {
-    function i_lender() external view returns (address);
-
-    function offerLoan(address) external;
-
-    function getLendRequestDetails()
-        external
-        view
-        returns (
-            uint256 amountLended,
-            address[2] memory owners,
-            uint256 balanceMinusFee,
-            uint256 feeEarned,
-            LoanConfigLibrary.RequestState state
-        );
-}
-
-// Enforcer_v1 Contract Definition
-contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
-
-    ///////////////
-    /// Errors ///
-    /////////////   
-    
     error Enforcer_v1_insufficientLiquidity(/*uint256 availableLiquidity*/);/// @dev add total available liquidity later
     error Enforcer_v1_loanProcessingInProgress();
      
-
-    //////////////////////////
-    /// Type Declarations ///
-    ////////////////////////
-
-    ///////////////
-    /**  Enums **/
-    /////////////
+     /*//////////////////////////////////////////////////////////////
+                                 ENUMS
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice used in tracking state of the executeLoanRequests() function, when active state is set to PROCESSING and IDLE when it is not being called.
     enum executionState{
-        PROCESSING,
-        IDLE
+        IDLE,
+        PROCESSING
     }
+   /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
 
-    /////////////////////////
-    /// State variables ////
-    ///////////////////////
-
-    IBorrowRequest_v1 BorrowRequest ;
-    ILendRequest_v1 LendRequest ;
+    iBorrowRequest BorrowRequest ;
+    iLendRequest_v1 LendRequest ;
     executionState private currentLoanState;
     uint256 private s_startingBorrowRequestIndex;
     uint256 private s_startingLendRequestIndex;
     address private s_limitMarketAddress;
-    ILimitMarket_v1 limitMarket;
+    iLimitMarket limitMarket;
     /// @dev keeps count on the number of times a batch was processed by the executeLoanRequests() function.
     uint256 private s_batchCount;
     uint256 private s_priorityBorrowCount;
@@ -167,64 +71,28 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     mapping(address borrowRequest => uint256 index) private s_settledLendRequest; // 
     uint256 private constant BATCH_LIMIT = 10;
     uint256 private constant NUMBER_OF_RESPONSE = 1;
-    
-    //  address[]  borrowRequests;
-        /// @dev gets and store the lend requests in a fixed number less than or equal to the batch limit
-    //  address[]  lendRequests;
-    // uint256 totalBorrowRequests;
-    // uint256 totalLendRequests;
-    // address[] prioritizedBorrowRequest;
-    // address[] prioritizedLendRequest ;
+
 
    
-    ///////////////
-    /// Events ///
-    /////////////
+       /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
 
     event loanOfferExecuted(address indexed activeLoan);
 
-    ///////////////////
-    /// Modifiers ////
-    /////////////////
+     /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+    
 
-    modifier onlyWhenIdle{
-       if (currentLoanState == executionState.PROCESSING) revert Enforcer_v1_loanProcessingInProgress();
-        _;
-    }
-
-    //////////////////
-    /// Functions ///
-    ////////////////
-
-    /// @dev contract constructor.
+ 
     constructor() Ownable(msg.sender) {
-        s_startingBorrowRequestIndex = 0; // initialize s_startingBorrowRequestIndex as 0
-        s_startingLendRequestIndex = 0; // initialize s_startingLendRequestIndex as 0
-        s_batchCount = 0; // initialize batch count to 0
-        currentLoanState = executionState.IDLE;
     }
 
-    receive() external payable {}
-
-    //////////////////////////
-    ///External Functions ///
-    ////////////////////////
-     
-    /// @notice this function updates the LimitMarket contract address
-    /// @dev This function can only be called by an Admin, notUpdating modifier ensures the proper state flow/management when this function is called.
-    /// @param _limitMarketAddress this hold the contract address value passed when calling the function
-    function updateLimitMarketContract(
-        address _limitMarketAddress
-    ) external onlyOwner notUpdating {
-        // add checks
-        if (_limitMarketAddress == address(0)) {
-            revert();
-        }
-        _setUpdating(UpdateState.UPDATING);
-        s_limitMarketAddress = _limitMarketAddress;
-        limitMarket = ILimitMarket_v1(s_limitMarketAddress);
-        _setUpdating(UpdateState.NOTUPDATING);
-    }
+     /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    
 
     function _getLoanRequestDetails() internal view returns( uint256 _totalBorrowRequests,uint256 _totalLendRequests,address[] memory _prioritizedBorrowRequest,address[] memory  _prioritizedLendRequest,address[] memory  _borrowRequests,  address[] memory  _lendRequests){
            _totalBorrowRequests = limitMarket.getTotalActiveBorrowRequestContractCount();
@@ -245,7 +113,7 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
      * transfer requested ETH from lend request to the borrower address
      * transfer meme coin to the newly created multi sig address
      */
-    function executeLoanRequests() external nonReentrant onlyOwner onlyWhenIdle {
+    function executeLoanRequests() external nonReentrant onlyOwner  {
 
      _executionState(executionState.PROCESSING);
 
@@ -284,9 +152,9 @@ contract Enforcer_v1 is Script, ButteryRun_v1, ReentrancyGuard, Ownable  {
     }
     
 
-    /////////////////////////////////////////////////
-    ///  internal & private view & pure functions ///
-    ////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
+                           PRIVATE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
 
 /// @dev This function allows users to pay a priority fee that allows their loan to be processed quicker,

@@ -10,12 +10,12 @@ import {Script, console} from "forge-std/Script.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 
-contract LendRequest_v1 {
+contract LendRequest {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error LendRequest_v1__UnauthorizedAccess();
+    error LendRequest__UnauthorizedAccess();
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -41,13 +41,13 @@ contract LendRequest_v1 {
 
     modifier onlyEnforcer() {
         if (msg.sender != address(protocolManager.Enforcer()))
-            revert LendRequest_v1__UnauthorizedAccess();
+            revert LendRequest__UnauthorizedAccess();
         _;
     }
 
     modifier onlyFactory() {
         if (msg.sender != protocolManager.LendRequestFactory())
-            revert LendRequest_v1__UnauthorizedAccess();
+            revert LendRequest__UnauthorizedAccess();
         _;
     }
 
@@ -68,7 +68,7 @@ contract LendRequest_v1 {
     /** RECEIVE FUNCTION */
     receive() external payable {
         if (msg.sender != protocolManager.LendRequestFactory())
-            revert LendRequest_v1__UnauthorizedAccess();
+            revert LendRequest__UnauthorizedAccess();
     }
 
     /*//////////////////////////////////////////////////////////////

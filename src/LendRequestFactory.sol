@@ -8,7 +8,7 @@ import {Script, console} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 
-import {LendRequest_v1} from "./LendRequest_v1.sol";
+import {LendRequest} from "./LendRequest.sol";
 import {iProtocolManager} from "./interfaces/iProtocolManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
@@ -47,7 +47,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    //  LendRequest_v1 lendRequest_v1;
+    //  LendRequest LendRequest;
     iProtocolManager private immutable protocolManager;
     mapping(address loanRequest => bool prioritized)
         private s_loanIsPrioritized;
@@ -56,10 +56,10 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     mapping(address prioritizedLendRequest => address lender)
         private prioritizedLendRequestToLender;
     mapping(address lendRequest => address lender) private lendRequestToLender;
-    mapping(address => address[]) private userToPrioritizedLendRequestAddresses;
+    mapping(address => address[]) private userToPrioritizedLendRequestAddresses; //@audit create for non prioritized
     mapping(address => bool) private s_isValidContract;
-    LendRequest_v1[] private s_totalUnPrioritizedLendRequest;
-    LendRequest_v1[] private s_prioritizedLendRequests;
+    LendRequest[] private s_totalUnPrioritizedLendRequest;
+    LendRequest[] private s_prioritizedLendRequests;
     mapping(address lender => uint256 totalAmountRequested)
         private lenderToTotalAmountDeposited;
     mapping(address prioritizedLendRequest => uint256 position)
@@ -137,7 +137,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         address lender,
         address payable lendRequest
     ) external payable onlyLimitMarket nonReentrant {
-          // check enough fee is sent
+        // check enough fee is sent
         if (
             msg.value <
             protocolManager.calculate_PriorityFee(lendRequest.balance)
@@ -145,6 +145,10 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
 
         if (msg.value == 0)
             revert LendRequestFactory__insufficientPriorityFee();
+        if (
+            msg.value !=
+            protocolManager.calculate_PriorityFee(lendRequest.balance)
+        ) revert();
         // check if loan request is valid
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
@@ -157,20 +161,20 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             LoanConfigLibrary.RequestState _state,
 
         ) = _getRequestDetails(lendRequest);
-      
+
         // check if loan is open
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
 
         _state = LoanConfigLibrary.RequestState.PRIORITIZING;
         // update state
-        LendRequest_v1((lendRequest)).updateRequestState(_state);
+        LendRequest((lendRequest)).updateRequestState(_state);
 
         // check if lender is authorized to interact with loan
         if (
             lendRequestToLender[lendRequest] != address(_lender) ||
-            prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
-            address(lender) != address(_lender)
+            (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
+                address(lender) != address(_lender))
         ) revert LendRequestFactory__notOwner();
 
         _rawPrioritizeLoanRequest(lendRequest, lender);
@@ -203,7 +207,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         LoanConfigLibrary.RequestState state = LoanConfigLibrary
             .RequestState
             .ADDING_LIQUIDITY;
-        LendRequest_v1(lendRequest).updateRequestState(state);
+        LendRequest(lendRequest).updateRequestState(state);
 
         // check if lender is authorized to interact with loan
         if (
@@ -232,7 +236,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
         _state = LoanConfigLibrary.RequestState.CANCELLING;
-        LendRequest_v1(lendRequest).updateRequestState(_state);
+        LendRequest(lendRequest).updateRequestState(_state);
 
         // check if lender is authorized to interact with loan
         if (
@@ -240,8 +244,9 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
                 address(lender) != address(_lender))
         ) revert LendRequestFactory__notOwner();
+         uint256 contractBalance = lendRequest.balance;
 
-        _rawCancelRequest(lender, lendRequest);
+        _rawCancelRequest(lender, lendRequest,contractBalance);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -260,10 +265,10 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     //     uint256 counter = 0;
 
     //     for (uint256 i = 0; i < limit; i++) {
-    //         LendRequest_v1 lendRequest_v1 = LendRequest_v1(
+    //         LendRequest LendRequest = LendRequest(
     //             payable(address(s_prioritizedLendRequests[i]))
     //         );
-    //         uint8 status = _getLendRequestDetails(address(lendRequest_v1));
+    //         uint8 status = _getLendRequestDetails(address(LendRequest));
     //         if (status != 0) {
     //             continue;
     //         }
@@ -379,14 +384,14 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             depositMinusFee = msg.value - originationFee;
         }
         /** DEPLOY NEW LEND REQUEST CONTRACT */
-        LendRequest_v1 lendRequest;
+        LendRequest lendRequest;
         try
-            new LendRequest_v1{value: depositMinusFee}(
+            new LendRequest{value: depositMinusFee}(
                 _lender,
                 block.timestamp,
                 address(protocolManager)
             )
-        returns (LendRequest_v1 _lendRequest) {
+        returns (LendRequest _lendRequest) {
             lendRequest = _lendRequest;
             if (_priority == true) {
                 s_loanIsPrioritized[address(lendRequest)] = true;
@@ -454,8 +459,8 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     ) private {
         uint256 precision = protocolManager.INDEX_PRECISION();
         // change mapping
-        lendRequestToLender[_lendRequest] = address(0);
-        delete userToLendRequestAddresses[_lender];
+        lendRequestToLender[_lendRequest] = address(0); //@audit try delete
+        // delete userToLendRequestAddresses[_lender];
         delete s_totalUnPrioritizedLendRequest[
             lendRequestToPositionOnNonPrioritizedList[_lendRequest]
         ];
@@ -464,7 +469,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         // set prioritized mappings
         s_loanIsPrioritized[address(_lendRequest)] = true;
         prioritizedLendRequestToLender[_lendRequest] = address(_lender);
-        s_prioritizedLendRequests.push(LendRequest_v1(_lendRequest));
+        s_prioritizedLendRequests.push(LendRequest(_lendRequest));
         userToPrioritizedLendRequestAddresses[_lender].push(
             address(_lendRequest)
         );
@@ -484,7 +489,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         if (!priorityFeePaid)
             revert LendRequestFactory__PriorityFeePaymentFailed();
 
-        LendRequest_v1(_lendRequest).updateRequestState(state);
+        LendRequest(_lendRequest).updateRequestState(state);
     }
 
     function _rawAddLiquidity(
@@ -525,18 +530,18 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         if (!feePaid) revert LendRequestFactory__OriginationFeePaymentFailed();
 
         /** UPDATE LEND REQUEST STATE */
-        LendRequest_v1(_lendRequest).updateRequestState(_state);
+        LendRequest(_lendRequest).updateRequestState(_state);
     }
 
     function _rawCancelRequest(
         address _lender,
-        address payable _lendRequest
+        address payable _lendRequest,uint256 contractBalance
     ) private {
         /** EFFECTS */
         uint256 cancellationFee = protocolManager.calculateCancellationFee(
             _lendRequest.balance
         );
-        uint256 contractBalance = address(_lendRequest).balance;
+       
         uint256 amountMinusFee = contractBalance - cancellationFee;
 
         /** UPDATE MAPPINGS */
@@ -568,7 +573,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
                 address(_lendRequest).balance
             );
         /** RESET STATE */
-        LendRequest_v1(_lendRequest).resetRequestDetails();
+        LendRequest(_lendRequest).resetRequestDetails();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -586,7 +591,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     //     uint256 counter = 0;
 
     //     for (uint256 i = 0; i < s_totalUnPrioritizedLendRequest.length; i++) {
-    //         LendRequest_v1 lendRequest_v1 = LendRequest_v1(
+    //         LendRequest LendRequest = LendRequest(
     //             payable(address(s_totalUnPrioritizedLendRequest[i]))
     //         );
     //        (
@@ -594,7 +599,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     //         address _lender,
     //         LoanConfigLibrary.RequestState _state,
 
-    //     ) = _getLendRequestDetails(address(lendRequest_v1));
+    //     ) = _getLendRequestDetails(address(LendRequest));
     //        if (_state != LoanConfigLibrary.RequestState.OPEN)
     //         revert LendRequestFactory__RequestNotOpen();
     //         lendRequest[counter] = address(s_totalUnPrioritizedLendRequest[i]);
@@ -620,7 +625,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             uint256 timeCreated
         )
     {
-        (lender, state, timeCreated) = LendRequest_v1(lendRequest)
+        (lender, state, timeCreated) = LendRequest(lendRequest)
             .getRequestDetails();
 
         return (lender, state, timeCreated);
