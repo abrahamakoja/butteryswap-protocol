@@ -78,11 +78,11 @@ contract LendRequest {
     function offerLoan(address borrower,uint256 amount) external onlyEnforcer {
         // transfer eth to an address and transfer tokens to an address
         emit LoanOffered(address(borrower), amount);
-        LoanConfigLibrary.offerLoan(
-            s_lendRequest,
-            address(borrower),
-            amount
-        );
+        // LoanConfigLibrary.offerLoan(
+        //     s_lendRequest,
+        //     address(borrower),
+        //     amount
+        // );
     }
 
     function updateRequestState(

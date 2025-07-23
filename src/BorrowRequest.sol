@@ -106,7 +106,7 @@ contract BorrowRequest {
 
     function acceptLoan(address vault) external onlyEnforcer  {
         // emit LoanAccepted(vault);
-        s_borrowRequest.acceptLoan( address(vault));
+        // s_borrowRequest.acceptLoan( address(vault));
 
         // request.state = RequestState.SETTLED;
         // for (uint256 index = 0; index < request.tokens.length; index++) {

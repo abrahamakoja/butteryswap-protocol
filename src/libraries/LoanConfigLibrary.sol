@@ -25,12 +25,13 @@ library LoanConfigLibrary {
     }
 
     struct ActiveLoanVault {
-        uint256 collateral;
-        uint256 amountToPayBack;
-        address[3] owners;
-        address memeCoin;
         address borrower;
         address lender;
+        uint256[] collateralAmount;
+        address[] tokens;
+        uint256 loanAmountRequested;
+        uint256 loanOffered;
+        uint256 timeCreated;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -45,7 +46,6 @@ library LoanConfigLibrary {
         PRIORITIZING,
         CANCELLING
     }
-
 
     /*//////////////////////////////////////////////////////////////
                    BORROW REQUEST INTERNAL FUNCTIONS
@@ -92,21 +92,6 @@ library LoanConfigLibrary {
         delete request.state;
     }
 
-    function acceptLoan(
-        BorrowRequest storage request,
-        address activeLoanAddress
-    ) internal {
-        request.state = RequestState.SETTLED;
-        for (uint256 index = 0; index < request.tokens.length; index++) {
-            // erc20TokenLibrary.transferTokens(
-            //     address(request.tokens[index]),
-            //     address(activeLoanAddress),
-            //     request.collateralAmountMinusFee
-            // );
-        }
-        // erc20TokenLibrary.transferTokens(address(request.memeCoin), address(multisigAddress), 10);
-    }
-
     // Function to get the details of a BorrowRequest
     function getBorrowRequestDetails(
         BorrowRequest storage request
@@ -136,44 +121,48 @@ library LoanConfigLibrary {
 
     // Public functions for active loan
     function createActiveLoan(
-        address[3] memory _owners,
-        uint256 _collateral,
-        address memcoinAddress,
-        uint256 _amountToPayBack,
         address _borrower,
-        address _lender
+        address _lender,
+        uint256[] memory _collateralAmount,
+        address[] memory _tokens,
+        uint256 _loanAmountRequested,
+        uint256 _loanOffered,
+        uint256 _timeCreated
     ) internal pure returns (ActiveLoanVault memory) {
         return
             ActiveLoanVault({
-                memeCoin: memcoinAddress,
-                collateral: _collateral,
-                owners: _owners,
-                amountToPayBack: _amountToPayBack,
                 borrower: _borrower,
-                lender: _lender
+                lender: _lender,
+                collateralAmount: _collateralAmount,
+                tokens: _tokens,
+                loanAmountRequested: _loanAmountRequested,
+                loanOffered: _loanOffered,
+                timeCreated: _timeCreated
             });
     }
 
-    function getActiveLoanContractDetails(
+    function getActiveLoanDetails(
         ActiveLoanVault storage request
     )
         internal
         view
         returns (
-            uint256 collateral,
-            uint256 amountToPayBack,
-            address[3] memory owners,
-            address memeCoin,
-            address borrower,
-            address lender
+            address _borrower,
+            address _lender,
+            uint256[] memory _collateralAmount,
+            address[] memory _tokens,
+            uint256 _loanAmountRequested,
+            uint256 _loanOffered,
+            uint256 _timeCreated
         )
     {
-        collateral = request.collateral;
-        owners = request.owners;
-        amountToPayBack = request.amountToPayBack;
-        memeCoin = request.memeCoin;
-        lender = request.lender;
-        borrower = request.borrower;
+        _borrower = request.borrower;
+        _lender = request.lender;
+        _collateralAmount = request.collateralAmount;
+        _tokens = request.tokens;
+        _loanAmountRequested = request.loanAmountRequested;
+        _loanOffered = request.loanOffered;
+        _timeCreated = request.timeCreated;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -215,21 +204,5 @@ library LoanConfigLibrary {
         lender = request.lender;
         state = request.state;
         timeCreated = request.timeCreated;
-    }
-
-    function offerLoan(
-        LendRequest storage request,
-        address borrowerAddress,
-        uint256 loanAmountRequested
-    ) internal {
-        request.state = RequestState.SETTLED;
-        // (bool success, ) = borrowerAddress.call{
-        //     value: loanAmountRequested
-        // }("");
-        // if (!success)
-        //     revert LoanLogicImplementationLibrary__InsufficientFunds(
-        //         address(this).balance,
-        //         request.amountLendedMinusFee
-        //     );
     }
 }

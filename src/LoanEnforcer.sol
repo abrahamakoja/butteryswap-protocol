@@ -137,20 +137,21 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
 
                 ) = ILendRequest(selectedLendRequest).getRequestDetails();
 
+                if (
+                    borrowRequestState != LoanConfigLibrary.RequestState.OPEN &&
+                    lendRequestState != LoanConfigLibrary.RequestState.OPEN
+                ) revert();
+
                 uint256 availableLiquidity = selectedLendRequest.balance;
 
-                uint256 loanOffered = loanAmountRequested < availableLiquidity
+                uint256 loanOffered = loanAmountRequested <= availableLiquidity
                     ? loanAmountRequested
                     : availableLiquidity;
 
-                address[3] memory owners = [
+                ActiveLoan activeLoan = new ActiveLoan(
                     borrower,
                     lender,
-                    address(protocolManager.Executor())
-                ];
-
-                ActiveLoan activeLoan = new ActiveLoan(
-                    owners,
+                    address(protocolManager),
                     collateralAmount,
                     tokens,
                     loanAmountRequested,
@@ -196,3 +197,15 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
 // emit loanOfferExecuted(address(_activeLoan));
 
 // /// *** interactions *** ///
+
+/// *** effects *** ///
+// s_settledBorrowRequest[address(_activeBorrowRequestAddress)] = index;
+// s_settledLendRequest[address(_activeLendRequestAddress)] = index;
+// // update mapping of borrower address to active active loan
+// userToActiveLoanContract[address(activeBorrower)].push( address(_activeLoan));
+// // update mapping of lender address to active active loan
+// userToActiveLoanContract[address(activeLender)].push(address(_activeLoan));
+// // update s_activeBorrowRequestAddress
+// s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
+// // update s_activeLendRequestAddress
+// s_activeLendRequestAddress = _activeLendRequestAddress;
