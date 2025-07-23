@@ -59,12 +59,12 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     //@audit check all mapping
+    IProtocolManager private immutable protocolManager;
 
     BorrowRequest[] private totalBorrowRequests;
 
     BorrowRequest[] private s_prioritizedBorrowRequests;
 
-    IProtocolManager private immutable protocolManager;
 
     mapping(address borrower => address[] borrowRequestAddresses)
         private userToBorrowRequestAddresses;

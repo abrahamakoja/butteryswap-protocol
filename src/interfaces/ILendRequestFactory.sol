@@ -15,6 +15,16 @@ interface ILendRequestFactory {
         address lendRequest
     ) external;
 
+     function addLiquidity(
+        address lender,
+        address lendRequest
+    ) external;
+
+      function cancelRequest(
+        address lender,
+        address  lendRequest
+    ) external;
+
     function getNonPrioritizedRequestViaIndex(
         uint256 index
     ) external returns (address);

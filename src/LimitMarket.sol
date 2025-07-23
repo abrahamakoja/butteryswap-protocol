@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 /**
- * @title LimitMarket_v1
+ * @title LimitMarket
  * @author ButterySwap Protocol
  * @notice
  */
@@ -20,29 +20,24 @@ import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 
-contract LimitMarket_v1 is ReentrancyGuard, Ownable {
+contract LimitMarket is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
     error UnauthorizedAccess(address caller);
     // new
-    error LimitMarket_v1_InvalidTokenCount(uint256 tokenCount);
-    error LimitMarket_v1_NoCollateralSent(uint256 collateralAmount);
-    error LimitMarket_v1_EnforcerNotInitialized();
-    error LimitMarket_v1_NoAmountSent(uint256 balance, uint256 amountSent);
-    error LimitMarket_v1_InvalidAmount(uint256 balance, uint256 amountSent);
-    error LimitMarket_v1_InsufficientBalance(
-        uint256 balance,
-        uint256 collateral
-    );
+    error LimitMarket_InvalidTokenCount(uint256 tokenCount);
+    error LimitMarket_NoCollateralSent(uint256 collateralAmount);
+    error LimitMarket_EnforcerNotInitialized();
+    error LimitMarket_NoAmountSent(uint256 balance, uint256 amountSent);
+    error LimitMarket_InvalidAmount(uint256 balance, uint256 amountSent);
+    error LimitMarket_InsufficientBalance(uint256 balance, uint256 collateral);
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    address private immutable i_Admin;
-    IBorrowRequestFactory BorrowRequestFactory;
-    ILendRequestFactory LendRequestFactory;
+    IProtocolManager private immutable protocolManager;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -58,12 +53,8 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address borrowRequestFactory,
-        address lendRequestFactory
-    ) Ownable(msg.sender) {
-        BorrowRequestFactory = IBorrowRequestFactory(borrowRequestFactory);
-        LendRequestFactory = ILendRequestFactory(lendRequestFactory);
+    constructor(address _protocolManager) Ownable(msg.sender) {
+        protocolManager = IProtocolManager(_protocolManager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -79,13 +70,14 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
         address[] calldata tokens,
         bool priority
     ) external payable nonReentrant {
-        BorrowRequestFactory.createRequest(
-            collateralAmount,
-            loanAmountRequested,
-            tokens,
-            msg.sender,
-            priority
-        );
+        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+            .createRequest(
+                collateralAmount,
+                loanAmountRequested,
+                tokens,
+                msg.sender,
+                priority
+            );
     }
 
     function addLiquidityToBorrowRequest(
@@ -94,25 +86,28 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
         uint256[] calldata collateralAmounts,
         uint256 _loanAmountRequested
     ) external payable nonReentrant {
-        BorrowRequestFactory.addLiquidity(
-            msg.sender,
-            borrowRequest,
-            tokens,
-            collateralAmounts,
-            _loanAmountRequested
-        );
+        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+            .addLiquidity(
+                msg.sender,
+                borrowRequest,
+                tokens,
+                collateralAmounts,
+                _loanAmountRequested
+            );
     }
 
     function prioritizeBorrowRequest(
         address borrowRequest
     ) external payable nonReentrant {
-        BorrowRequestFactory.prioritizeLoanRequest(msg.sender, borrowRequest);
+        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+            .prioritizeLoanRequest(msg.sender, borrowRequest);
     }
 
-    function cancelRequest(
+    function cancelBorrowRequest(
         address borrowRequest
     ) external payable nonReentrant {
-        BorrowRequestFactory.cancelRequest(msg.sender, borrowRequest);
+        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+            .cancelRequest(msg.sender, borrowRequest);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -120,13 +115,33 @@ contract LimitMarket_v1 is ReentrancyGuard, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     function Lend(bool _priority) external payable nonReentrant {
-        LendRequestFactory.createRequest(msg.sender, _priority);
+        ILendRequestFactory(protocolManager.LendRequestFactory()).createRequest(
+            msg.sender,
+            _priority
+        );
     }
 
     function prioritizeLendRequest(
         address lendRequest
     ) external payable nonReentrant {
-        LendRequestFactory.prioritizeLoanRequest(msg.sender, lendRequest);
+        ILendRequestFactory(protocolManager.LendRequestFactory())
+            .prioritizeLoanRequest(msg.sender, lendRequest);
+    }
+    function addLiquidityToLendRequest(
+        address lendRequest
+    ) external payable nonReentrant {
+        ILendRequestFactory(protocolManager.LendRequestFactory()).addLiquidity(
+            msg.sender,
+            lendRequest
+        );
+    }
+    function cancelLendRequest(
+        address lendRequest
+    ) external payable nonReentrant {
+        ILendRequestFactory(protocolManager.LendRequestFactory()).cancelRequest(
+            msg.sender,
+            lendRequest
+        );
     }
 
     ////////////////////////

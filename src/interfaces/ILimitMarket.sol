@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-interface iLimitMarket {
+interface ILimitMarket {
     function getPrioritizedBorrowRequestAddress(
         uint256 batchLimit,
         uint256 numOfResponse
