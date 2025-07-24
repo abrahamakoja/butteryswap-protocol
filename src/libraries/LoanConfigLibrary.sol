@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 /// @notice Explain to an end user what this does
 /// @dev Explain to a developer any extra details
@@ -116,6 +116,47 @@ library LoanConfigLibrary {
     }
 
     /*//////////////////////////////////////////////////////////////
+                    LEND REQUEST INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function createLendRequest(
+        address _lender,
+        uint256 _timeCreated
+    ) internal pure returns (LendRequest memory) {
+        return
+            LendRequest({
+                lender: _lender,
+                state: RequestState.OPEN,
+                timeCreated: _timeCreated
+            });
+    }
+
+    function updateLendRequestState(
+        LendRequest storage request,
+        LoanConfigLibrary.RequestState _state
+    ) internal {
+        request.state = _state;
+    }
+
+    function resetLendRequestDetails(LendRequest storage request) internal {
+        delete request.state;
+        // delete request.deposit;
+    }
+
+    // Function to get the details of a lendRequest details
+    function getLendRequestDetails(
+        LendRequest storage request
+    )
+        internal
+        view
+        returns (address lender, RequestState state, uint256 timeCreated)
+    {
+        lender = request.lender;
+        state = request.state;
+        timeCreated = request.timeCreated;
+    }
+
+    /*//////////////////////////////////////////////////////////////
                   ACTIVE LOAN VAULT INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -165,44 +206,5 @@ library LoanConfigLibrary {
         _timeCreated = request.timeCreated;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                    LEND REQUEST INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    function createLendRequest(
-        address _lender,
-        uint256 _timeCreated
-    ) internal pure returns (LendRequest memory) {
-        return
-            LendRequest({
-                lender: _lender,
-                state: RequestState.OPEN,
-                timeCreated: _timeCreated
-            });
-    }
-
-    function updateLendRequestState(
-        LendRequest storage request,
-        LoanConfigLibrary.RequestState _state
-    ) internal {
-        request.state = _state;
-    }
-
-    function resetLendRequestDetails(LendRequest storage request) internal {
-        delete request.state;
-        // delete request.deposit;
-    }
-
-    // Function to get the details of a lendRequest details
-    function getLendRequestDetails(
-        LendRequest storage request
-    )
-        internal
-        view
-        returns (address lender, RequestState state, uint256 timeCreated)
-    {
-        lender = request.lender;
-        state = request.state;
-        timeCreated = request.timeCreated;
-    }
+    
 }

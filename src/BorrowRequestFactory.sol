@@ -65,7 +65,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
     BorrowRequest[] private s_prioritizedBorrowRequests;
 
-
+    
     mapping(address borrower => address[] borrowRequestAddresses)
         private userToBorrowRequestAddresses;
 

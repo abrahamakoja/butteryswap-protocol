@@ -18,6 +18,7 @@ pragma solidity ^0.8.20;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 
 contract TokenManager is ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
@@ -25,9 +26,9 @@ contract TokenManager is ReentrancyGuard, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     error SupportedTokens__CallerNotAdmin(address caller);
-    error SupportedTokens__TokenIsListed();
-    error SupportedTokens__TokenAlreadyRequested();
-    error SupportedTokens__InvalidTokenAddress();
+    error SupportedTokens__isTokenListed();
+    error TokenManager__TokenAlreadyRequested();
+    error TokenManager__InvalidTokenAddress();
     error SupportedTokens__invalidAddress();
     error SupportedTokens__TransferFailed(
         uint256 amountSent,
@@ -74,7 +75,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    uint256 public constant MAX_OWNERS_LIMIT = 2;
+    IProtocolManager private immutable protocolManager;
     /// @dev Array of addresses storing a list of listed tokens.
     address[] public s_listed;
     /// @dev Array of addresses awaiting approval.
@@ -109,12 +110,12 @@ contract TokenManager is ReentrancyGuard, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     modifier isValidAddress(address val) {
-        if (val == address(0)) revert SupportedTokens__invalidAddress();
+        if (val == address(0)) revert TokenManager__InvalidTokenAddress();
         _;
     }
 
-    /// @dev tokenIsActive modifier ensures token state is active else it reverts with the error invalidToken
-    modifier tokenIsActive(address token) {
+    /// @dev isTokenActive modifier ensures token state is active else it reverts with the error invalidToken
+    modifier isTokenActive(address token) {
         if (
             s_tokenDetails[token]._tokenOperationalState ==
             tokenOperationalState.ACTIVE
@@ -124,20 +125,31 @@ contract TokenManager is ReentrancyGuard, Ownable {
         _;
     }
 
-    /// @dev tokenIsListed modifier ensures token is listed else it reverts with the error SupportedTokens_TokenAlreadyListed
-    modifier tokenIsListed(address token) {
+    /// @dev isTokenListed modifier ensures token is listed else it reverts with the error SupportedTokens_TokenAlreadyListed
+    modifier isTokenListed(address token) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
             s_isListed[token]
         ) {
-            revert SupportedTokens__TokenIsListed();
+            revert SupportedTokens__isTokenListed();
+        }
+        _;
+    }
+    modifier isTokenRequested(address token) {
+        if (
+            s_tokenDetails[token]._tokenListingState ==
+            tokenListingState.PENDING
+        ) {
+            revert TokenManager__TokenAlreadyRequested();
         }
         _;
     }
 
     /// @notice contract constructor.
-    constructor() Ownable(msg.sender) {}
+    constructor(address _protocolManager) Ownable(msg.sender) {
+        protocolManager = IProtocolManager(_protocolManager);
+    }
 
     /// @notice receive function enables contract to receive ETH.
     receive() external payable {}
@@ -146,36 +158,35 @@ contract TokenManager is ReentrancyGuard, Ownable {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    ///  @param ERC20TokenAddress  The ERC20 token address of the caller wishes to get listed.
+    ///  @param token  The ERC20 token address of the caller wishes to get listed.
     ///  @notice This function allows caller to add an ERC20 token to the list of supported tokens on the Butteryswap protocol.
     ///  @dev this function is payable and requires caller to pay ETH when calling, the amount of ETH to be sent is stored in the private variable "s_listingFee".
     function requestTokenListing(
-        address ERC20TokenAddress
+        address token
     )
         external
         payable
+        isValidAddress(token)
+        isTokenListed(token)
+        isTokenRequested(token)
         nonReentrant
-        isValidAddress(ERC20TokenAddress)
-        tokenIsListed(ERC20TokenAddress)
     {
         /// checks
 
-        // check address isn't already requested
         if (
-            s_tokenDetails[ERC20TokenAddress]._tokenListingState ==
-            tokenListingState.PENDING
+            s_tokenDetails[token]._tokenListingState !=
+            tokenListingState.NOT_LISTED
         ) {
-            //   console.log(  s_tokenDetails[ERC20TokenAddress]  );
-            revert SupportedTokens__TokenAlreadyRequested();
+            revert TokenManager__TokenAlreadyRequested();
         }
 
         /// effects
         /// @notice updates the s_pendingTokenRequests array
-        s_pendingTokenRequests.push(ERC20TokenAddress);
+        s_pendingTokenRequests.push(token);
 
         /// @notice update tokenDetails struct.
         tokenDetails memory _tokenDetails = tokenDetails({
-            tokenAddress: ERC20TokenAddress,
+            tokenAddress: token,
             marketOwner: msg.sender,
             feeAddress: msg.sender,
             timeListed: block.timestamp,
@@ -184,17 +195,17 @@ contract TokenManager is ReentrancyGuard, Ownable {
         });
 
         ///  @dev update the details mapping
-        s_tokenDetails[address(ERC20TokenAddress)] = _tokenDetails;
+        s_tokenDetails[address(token)] = _tokenDetails;
         /// @dev maps the token address to it's index on the que
-        s_pendingTokenIndex[address(ERC20TokenAddress)] = s_pendingTokenRequests
+        s_pendingTokenIndex[address(token)] = s_pendingTokenRequests
             .length;
         s_pendingTokenIndexToAddress[s_pendingTokenRequests.length] = address(
-            ERC20TokenAddress
+            token
         );
         /// emit events
         emit SupportedTokens_tokenListingRequestCreated(
             _tokenDetails,
-            s_pendingTokenIndex[address(ERC20TokenAddress)]
+            s_pendingTokenIndex[address(token)]
         );
 
         //interactions
@@ -263,7 +274,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
     /// @dev onlyAdmin can call this function.
     function emergencyDeListToken(
         address token
-    ) external onlyOwner tokenIsListed(token) {
+    ) external onlyOwner isTokenListed(token) {
         s_isListed[token] = false;
         s_tokenDetails[token]._tokenListingState = tokenListingState.NOT_LISTED;
         s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
@@ -306,12 +317,12 @@ contract TokenManager is ReentrancyGuard, Ownable {
 
     /// @notice this function returns the struct details of a token.
     function getTokenDetails(
-        address ERC20TokenAddress
+        address token
     ) external view returns (tokenDetails memory _tokenDetails) {
-        return s_tokenDetails[ERC20TokenAddress];
+        return s_tokenDetails[token];
     }
 
-    function checkTokenIsListed(
+    function checkisTokenListed(
         address token
     ) external view isValidAddress(token) returns (bool isListed) {
         if (

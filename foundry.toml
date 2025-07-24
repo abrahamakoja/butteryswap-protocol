@@ -9,6 +9,9 @@ cache_path = 'cache'
 broadcast = 'broadcast'
 remappings = ['@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/','@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/','@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/','@uniswap/v4-core/=lib/v4-core/','solmate/=lib/v4-core/lib/solmate/','@uniswap/v4-periphery/=lib/v4-periphery/']
 
+[profile.solx]
+solc_version = "/home/hacker/.local/bin/solx"
+
 
 [fuzz]
 runs = 1000
