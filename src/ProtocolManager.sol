@@ -24,6 +24,8 @@ contract ProtocolManager is Ownable {
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public  minimumDeposit;
+     /// @dev listing fee to be paid by caller when creating a listing request.
+    uint256 public constant  LISTING_FEE = 1 ether;
     address public constant FEE_CONTRACT =
         0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
     uint256 public constant ORIGINATION_FEE = 6;

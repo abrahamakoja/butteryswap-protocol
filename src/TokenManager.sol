@@ -30,9 +30,9 @@ contract TokenManager is ReentrancyGuard, Ownable {
     error TokenManager__TokenAlreadyRequested();
     error TokenManager__InvalidTokenAddress();
     error SupportedTokens__invalidAddress();
-    error SupportedTokens__TransferFailed(
-        uint256 amountSent,
-        uint256 expectedFee
+    error TokenManager__invalidAmount();
+    error TokenManager__TokenListingFailed(
+        uint256 amountSent
     );
     error SupportedTokens__approveFailed();
     error SupportedTokens__approveLimitExceeded(uint256 numOfRequest);
@@ -80,8 +80,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
     address[] public s_listed;
     /// @dev Array of addresses awaiting approval.
     address[] public s_pendingTokenRequests;
-    /// @dev listing fee to be paid by caller when creating a listing request.
-    uint256 constant LISTING_FEE = 1 ether;
+   
     /// @dev Mapping of a specific token address to it's token details data.
     mapping(address tokenAddress => tokenDetails _tokenDetails)
         private s_tokenDetails;
@@ -97,7 +96,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event SupportedTokens_tokenListingRequestCreated(
+    event tokenListingRequestCreated(
         tokenDetails _tokenDetails,
         uint256 tokenIndex
     );
@@ -171,14 +170,9 @@ contract TokenManager is ReentrancyGuard, Ownable {
         isTokenRequested(token)
         nonReentrant
     {
-        /// checks
 
-        if (
-            s_tokenDetails[token]._tokenListingState !=
-            tokenListingState.NOT_LISTED
-        ) {
-            revert TokenManager__TokenAlreadyRequested();
-        }
+        if (msg.value == 0) revert TokenManager__invalidAmount();
+        if (msg.value != protocolManager.LISTING_FEE()) revert TokenManager__invalidAmount();
 
         /// effects
         /// @notice updates the s_pendingTokenRequests array
@@ -203,16 +197,16 @@ contract TokenManager is ReentrancyGuard, Ownable {
             token
         );
         /// emit events
-        emit SupportedTokens_tokenListingRequestCreated(
+        emit tokenListingRequestCreated(
             _tokenDetails,
             s_pendingTokenIndex[address(token)]
         );
 
         //interactions
         /// @dev initiate the fee payment
-        (bool success, ) = payable(msg.sender).call{value: LISTING_FEE}("");
+        (bool success, ) = payable(msg.sender).call{value: msg.value}("");
         if (!success)
-            revert SupportedTokens__TransferFailed(msg.value, LISTING_FEE);
+            revert TokenManager__TokenListingFailed(msg.value);
     }
 
     /// @param index: The index position of the token request to approve.

@@ -13,6 +13,7 @@ interface IProtocolManager {
         uint256
     ) external returns (uint256);
     function BATCH_LIMIT() external returns (uint256);
+    function LISTING_FEE() external returns (uint256);
     function PRIORITIZED_BATCH_LIMIT() external returns (uint256);
     function calculateCancellationFee(uint256) external returns (uint256);
     function calculate_OriginationFee(uint256) external returns (uint256);

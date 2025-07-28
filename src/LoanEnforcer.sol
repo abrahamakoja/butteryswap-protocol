@@ -121,6 +121,7 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
                     ).getNonPrioritizedRequestViaIndex(index);
                 }
 
+
                 (
                     address[] memory tokens,
                     uint256[] memory collateralAmount,
