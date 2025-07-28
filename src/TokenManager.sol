@@ -25,20 +25,17 @@ contract TokenManager is ReentrancyGuard, AccessControl {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error SupportedTokens__CallerNotAdmin(address caller);
     error TokenManager__TokenIsListed();
     error TokenManager__TokenNotListed();
     error TokenManager__TokenAlreadyRequested();
     error TokenManager__InvalidTokenAddress();
-    error SupportedTokens__invalidAddress();
     error TokenManager__unauthorizedAccess();
     error TokenManager__invalidAmount();
+    error TokenManager__TokenNotMarkedForUnListing();
     error TokenManager__noRequestAvailable();
     error TokenManager__TokenListingFailed(uint256 amountSent);
-    error SupportedTokens__approveFailed();
     error TokenManager__LimitExceeded();
-    error SupportedTokens__invalidToken(address token);
-    error SupportedTokens__inActiveToken(address token);
+    error TokenManager__tokenNotOperational(address token);
 
     /*//////////////////////////////////////////////////////////////
                                  ENUMS
@@ -76,12 +73,14 @@ contract TokenManager is ReentrancyGuard, AccessControl {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant TOKENMANAGER_ADMIN =
-        keccak256("TOKENMANAGER_ADMIN");
+    bytes32 public constant TOKEN_MANAGER_ADMIN =
+        keccak256("TOKEN_MANAGER_ADMIN");//@audit move to manager
 
     IProtocolManager private immutable protocolManager;
     uint256 private totalRequestedTokens;
     uint256 private totalListedTokens;
+    uint256 private totalTokensToUnList;
+    uint256 private totalUnListedTokens;
     /// @dev Array of addresses storing a list of listed tokens.
     address[] public s_listed;
     /// @dev Array of addresses awaiting approval.
@@ -93,14 +92,19 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     /// @dev Maps a token address to it's index in the pending list .
     // mapping(address tokenAddress => uint256 index) public s_pendingTokenIndex;
     /// @dev Maps a token index to it's address in the pending list .
-    mapping(uint256 index => address tokenAddress)
-        private s_pendingTokenIndexToAddress;
     /// @dev Mapping of token address to a boolean, checks if a token has been listed and returns a boolean corresponding with the state , true if yes, false if no.
     mapping(address tokenAddress => bool listed) private s_isListed;
+    mapping(uint256 index => address tokenAddress)
+        private s_requestedTokenIndexToAddress;
     mapping(address tokenAddress => uint index) private s_requestedTokenToIndex;
     mapping(address tokenAddress => uint index) private s_listedTokenToIndex;
-     mapping(uint256 index => address tokenAddress)
+    mapping(uint256 index => address tokenAddress)
         private s_listedTokenIndexToAddress;
+    mapping(uint256 index => address tokenAddress)
+        private s_tokenToUnListIndexToAddress;
+    mapping(address tokenAddress => uint256 index)
+        private s_tokenToUnListAddressToIndex;
+    mapping(address tokenAddress => bool listed) private s_toUnList;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -110,30 +114,37 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         tokenDetails indexed _tokenDetails,
         uint256 indexed tokenIndex
     );
-    event tokenListingRequestApproved(address indexed approvedTokenAddress);
+    event tokenListed(address indexed listedTokenAddress);
+    event tokenUnListingRequested(address indexed deListedTokenAddress);
+    event tokenUnListed(address indexed deListedTokenAddress);
+    event tokenFeeAddressUpdated(
+        address indexed token,
+        address indexed oldFeeAddress,
+        address indexed newFeeAddress
+    );
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
     modifier onlyTokenManagerAdmin() {
-        if (!hasRole(TOKENMANAGER_ADMIN, msg.sender))
+        if (!hasRole(TOKEN_MANAGER_ADMIN, msg.sender))
             revert TokenManager__unauthorizedAccess();
         _;
     }
 
-    modifier isValidAddress(address val) {
-        if (val == address(0)) revert TokenManager__InvalidTokenAddress();
+    modifier isValidAddress(address token) {
+        if (token == address(0)) revert TokenManager__InvalidTokenAddress();
         _;
     }
 
-    /// @dev isTokenActive modifier ensures token state is active else it reverts with the error invalidToken
-    modifier isTokenActive(address token) {
+    /// @dev isTokenOperational modifier ensures token state is active else it reverts with the error invalidToken
+    modifier isTokenOperational(address token) {
         if (
             s_tokenDetails[token]._tokenOperationalState ==
             tokenOperationalState.ACTIVE
         ) {
-            revert SupportedTokens__inActiveToken(token);
+            revert TokenManager__tokenNotOperational(token);
         }
         _;
     }
@@ -143,7 +154,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
-            s_isListed[token]
+            !(s_isListed[token])
         ) {
             revert TokenManager__TokenIsListed();
         }
@@ -163,14 +174,14 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
         bool success = _grantRole(
-            TOKENMANAGER_ADMIN,
-            IProtocolManager(_protocolManager).TOKENMANAGER_ADMIN()
+            TOKEN_MANAGER_ADMIN,
+            IProtocolManager(_protocolManager).TOKEN_MANAGER_ADMIN()
         );
         if (!success) revert();
     }
 
     /// @notice receive function enables contract to receive ETH.
-    receive() external payable {}
+    // receive() external payable {}
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
@@ -190,11 +201,15 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         nonReentrant
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
-        if (msg.value != protocolManager.LISTING_FEE())
-            revert TokenManager__invalidAmount();
+        if (
+            msg.value !=
+            protocolManager.calculateTokenListingFee(address(token))
+        ) revert TokenManager__invalidAmount();
 
         /// effects
         uint256 _totalRequestedTokens = totalRequestedTokens;
+        uint256 index = _totalRequestedTokens +
+            protocolManager.INDEX_PRECISION();
         /// @notice update tokenDetails struct.
         tokenDetails memory _tokenDetails = tokenDetails({
             tokenAddress: token,
@@ -208,8 +223,8 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         ///  @dev update the details mapping
         s_tokenDetails[address(token)] = _tokenDetails;
         /// @dev maps the token address to it's index on the que
-        s_requestedTokenToIndex[address(token)] = _totalRequestedTokens;
-        s_pendingTokenIndexToAddress[_totalRequestedTokens] = address(token);
+        s_requestedTokenToIndex[address(token)] = index;
+        s_requestedTokenIndexToAddress[index] = address(token);
         s_isListed[address(token)] = false;
         totalRequestedTokens++;
         /// emit events
@@ -220,7 +235,42 @@ contract TokenManager is ReentrancyGuard, AccessControl {
 
         //interactions
         /// @dev initiate the fee payment
-        (bool success, ) = protocolManager.FEE_CONTRACT().call{value: msg.value}("");
+        (bool success, ) = protocolManager.FEE_CONTRACT().call{
+            value: msg.value
+        }("");
+        if (!success) revert TokenManager__TokenListingFailed(msg.value);
+    }
+
+    function updateTokenFeeAddress(
+        address token,
+        address newFeeAddress
+    )
+        external
+        payable
+        isValidAddress(token)
+        isValidAddress(newFeeAddress)
+        isTokenListed(token)
+        isTokenOperational(token)
+    {
+        if (msg.value == 0) revert TokenManager__invalidAmount();
+        if (
+            msg.value !=
+            protocolManager.calculateTokenFeeAddressUpdateFee(token)
+        ) revert TokenManager__invalidAmount();
+        if (s_tokenDetails[address(token)].marketOwner != address(msg.sender))
+            revert TokenManager__unauthorizedAccess();
+        address oldFeeAddress = s_tokenDetails[address(token)].feeAddress;
+        s_tokenDetails[address(token)].feeAddress = newFeeAddress;
+
+        emit tokenFeeAddressUpdated(
+            address(token),
+            address(oldFeeAddress),
+            address(newFeeAddress)
+        );
+        /// @dev initiate the fee payment
+        (bool success, ) = protocolManager.FEE_CONTRACT().call{
+            value: msg.value
+        }("");
         if (!success) revert TokenManager__TokenListingFailed(msg.value);
     }
 
@@ -239,7 +289,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
 
         /// Effects
         /// @dev get the address of the token attached to the inputted index
-        address token = s_pendingTokenIndexToAddress[index];
+        address token = s_requestedTokenIndexToAddress[index];
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -248,30 +298,40 @@ contract TokenManager is ReentrancyGuard, AccessControl {
             revert TokenManager__TokenIsListed();
         }
         uint256 _totalListedTokens = totalListedTokens;
+        uint256 newIndex = _totalListedTokens +
+            protocolManager.INDEX_PRECISION();
 
         /// @dev update token listing detail
         s_tokenDetails[token]._tokenListingState = tokenListingState.LISTED;
         /// @dev update token operational detail
         s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
             .ACTIVE;
-            s_listedTokenToIndex[token] = _totalListedTokens;
-            s_listedTokenIndexToAddress[_totalListedTokens] = address(token);
+        s_listedTokenToIndex[token] = newIndex;
+        s_listedTokenIndexToAddress[newIndex] = address(token);
         /// @dev update s_isListed mapping to true
         s_isListed[token] = true;
 
-        delete s_pendingTokenIndexToAddress[index];
+        delete s_requestedTokenIndexToAddress[index];
         delete s_requestedTokenToIndex[token];
         totalRequestedTokens--;
         totalListedTokens++;
 
-
         // emit
-        emit tokenListingRequestApproved(address(token));
+        emit tokenListed(address(token));
     }
 
-    function delistToken(
+    function unListToken(
         address token
-    ) external isValidAddress(token) onlyTokenManagerAdmin {
+    )
+        external
+        payable
+        isValidAddress(token)
+        isTokenListed(token)
+        isTokenOperational(token)
+    {
+        if (msg.value == 0) revert TokenManager__invalidAmount();
+        if (msg.value != protocolManager.calculateTokenUnListingFee(token))
+            revert TokenManager__invalidAmount();
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.NOT_LISTED &&
@@ -281,16 +341,49 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         ) {
             revert TokenManager__TokenNotListed();
         }
-        uint256 index = s_listedTokenToIndex[token];
+        uint256 _totalTokensToUnList = totalTokensToUnList;
+        uint256 index = _totalTokensToUnList +
+            protocolManager.INDEX_PRECISION();
+        s_tokenToUnListIndexToAddress[index] = address(token);
+        s_tokenToUnListAddressToIndex[address(token)] = index;
+        s_toUnList[address(token)] = true;
+        totalTokensToUnList++;
+
+        //  add to list pending review
+        emit tokenUnListingRequested(address(token));
+
+        // pay fee
+        (bool success, ) = protocolManager.FEE_CONTRACT().call{
+            value: msg.value
+        }("");
+        if (!success) revert TokenManager__TokenListingFailed(msg.value);
+    }
+    function emergencyUnListToken(
+        address token
+    ) external isValidAddress(token) onlyTokenManagerAdmin {
+        if (
+            s_tokenDetails[token]._tokenListingState ==
+            tokenListingState.NOT_LISTED &&
+            s_tokenDetails[token]._tokenOperationalState ==
+            tokenOperationalState.NOT_ACTIVE &&
+            !s_isListed[token]
+        ) revert TokenManager__TokenNotListed();
+        if (s_toUnList[address(token)] != true)
+            revert TokenManager__TokenNotMarkedForUnListing();
+        uint256 index = s_tokenToUnListAddressToIndex[token];
 
         s_isListed[token] = false;
-      delete  s_tokenDetails[token];
-     delete s_listedTokenToIndex[token];
-    delete s_listedTokenIndexToAddress[index];
-    totalListedTokens--;
-    }
+        delete s_tokenDetails[token];
+        delete s_listedTokenToIndex[token];
+        delete s_listedTokenIndexToAddress[index];
+        delete s_tokenToUnListIndexToAddress[index];
+        delete s_tokenToUnListAddressToIndex[address(token)];
+        totalListedTokens--;
+        totalTokensToUnList--;
+        totalUnListedTokens++;
 
-   
+        emit tokenUnListed(address(token));
+    }
 
     ////////////////////////////////////////////////
     /// External & Public View & Pure Functions ///
@@ -302,28 +395,39 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         view
         returns (address[] memory)
     {
-        uint256 activeTokens;
-        address[] memory Tokenaddresses = new address[](s_listed.length);
-        for (uint256 index = 0; index < s_listed.length; index++) {
+        uint256 activeTokenCount;
+        address[] memory token = new address[](totalListedTokens);
+        for (uint256 index = 0; index < totalListedTokens; index++) {
             if (
                 s_tokenDetails[s_listed[index]]._tokenOperationalState ==
                 tokenOperationalState.ACTIVE
             ) {
-                Tokenaddresses[activeTokens] = address(s_listed[index]);
-                activeTokens++;
+                token[activeTokenCount] = address(
+                    s_listedTokenIndexToAddress[index]
+                );
+                activeTokenCount++;
             }
             continue;
         }
-        address[] memory activeTokenaddresses = new address[](activeTokens);
-        for (uint256 index = 0; index < activeTokens; index++) {
-            activeTokenaddresses[index] = Tokenaddresses[index];
+
+        address[] memory activeTokens = new address[](activeTokenCount);
+        for (uint256 index = 0; index < activeTokenCount; index++) {
+            activeTokens[index] = token[index];
         }
-        return activeTokenaddresses;
+        return activeTokens;
     }
 
     /// @notice This function returns the array of pending token requests addresses.
-    function getPendingTokens() external view returns (address[] memory) {
-        return s_pendingTokenRequests;
+    function getRequestedTokens()
+        external
+        view
+        returns (address[] memory requestedTokens)
+    {
+        requestedTokens = new address[](totalRequestedTokens);
+        for (uint256 index = 0; index < totalRequestedTokens; index++) {
+            requestedTokens[index] = s_requestedTokenIndexToAddress[index];
+        }
+        return requestedTokens;
     }
 
     /// @notice this function returns the struct details of a token.
@@ -333,7 +437,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         return s_tokenDetails[token];
     }
 
-    function checkisTokenListed(
+    function checkIsTokenListed(
         address token
     ) external view isValidAddress(token) returns (bool isListed) {
         if (
@@ -342,7 +446,21 @@ contract TokenManager is ReentrancyGuard, AccessControl {
             s_isListed[token]
         ) {
             return isListed = true;
+        } else {
+            return isListed = false;
         }
-        return isListed = false;
+    }
+
+    function checkIsTokenOperational(
+        address token
+    ) external view isValidAddress(token) returns (bool operational) {
+        if (
+            s_tokenDetails[token]._tokenOperationalState ==
+            tokenOperationalState.ACTIVE
+        ) {
+            return operational = true;
+        } else {
+            return operational = false;
+        }
     }
 }
