@@ -9,7 +9,7 @@ import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 contract DeployBorrowRequestFactory is Script {
     address mostRecentlyDeployedProtocolManager;
 
-    function run() external returns (BorrowRequestFactory) {
+    function run() external returns (address _BorrowRequestFactory) {
         mostRecentlyDeployedProtocolManager = DevOpsTools
             .get_most_recent_deployment("ProtocolManager", block.chainid);
         vm.startBroadcast();
@@ -17,6 +17,7 @@ contract DeployBorrowRequestFactory is Script {
             mostRecentlyDeployedProtocolManager
         );
         vm.stopBroadcast();
-        return borrowRequestFactory;
+        _BorrowRequestFactory = address(borrowRequestFactory);
+        return _BorrowRequestFactory;
     }
 }

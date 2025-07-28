@@ -5,10 +5,11 @@ import {Script, console} from "forge-std/Script.sol";
 import {ProtocolManager} from "../src/ProtocolManager.sol";
 
 contract DeployProtocolManager is Script {
-    function run() external returns (ProtocolManager) {
+    function run() external returns (address _ProtocolManager) {
         vm.startBroadcast();
         ProtocolManager protocolManager = new ProtocolManager();
         vm.stopBroadcast();
-        return protocolManager;
+        _ProtocolManager =  address(protocolManager);
+        return _ProtocolManager;
     }
 }

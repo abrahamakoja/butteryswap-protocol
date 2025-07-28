@@ -47,16 +47,16 @@ remap: && _timer
 # Builds
 build: && _timer
 	forge clean
-	forge build --names --sizes
+	FOUNDRY_PROFILE=solx forge build --names --sizes
 
 format: && _timer
 	forge fmt
 
 test-all: && _timer
-	forge test -v
+	FOUNDRY_PROFILE=solx forge test -v
 
 test-gas: && _timer
-    forge test --gas-report
+   FOUNDRY_PROFILE=solx forge test --gas-report
 
 coverage-all: && _timer
 	forge coverage --report lcov --allow-failure --no-match-coverage "(script|test)"
@@ -66,68 +66,9 @@ docs: && _timer
 	forge doc --build
 
 mt test: && _timer
-	forge test -vvvvvv --match-test {{test}}
+	FOUNDRY_PROFILE=solx forge test -vvvvvv --match-test {{test}}
 
 mp verbosity path: && _timer
-	forge test -{{verbosity}} --match-path test/{{path}}
-
-# Deploy jUSD Genesis oracle
-deploy-genesisOracle:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying jUSD Genesis Oracle to $CHAIN..."
-	eval "forge script DeployGenesisOracle --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\" --broadcast"
-
-# Deploy Mocks
-deploy-mocks:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying mock to $CHAIN..."
-	eval "forge script DeployMocks --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\" --broadcast"
-
-# Deploy Manager Contract
-deploy-manager:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying Manager to $CHAIN..."
-	eval "forge script DeployManager --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
-
-# Deploy ManagerContainer Contract	
-deploy-managerContainer: && _timer
-	#!/usr/bin/env bash
-	echo "Deploying ManagerContainer to $CHAIN..."
-	eval "forge script DeployManagerContainer --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
-
-# Deploy jUSD Contract
-deploy-jUSD:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying jUSD to $CHAIN..."
-	eval "forge script DeployJUSD --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\" --broadcast"
-
-# Deploy HoldingManager, LiquidationManager, StablesManager, StrategyManager & SwapManager Contracts
-deploy-managers:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying Managers to $CHAIN..."
-	eval "forge script DeployManagers --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
-
-# Deploy ReceiptTokenFactory & ReceiptToken Contracts
-deploy-receipt:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying Receipt Token to $CHAIN..."
-	eval "forge script DeployReceiptToken --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
-	
-# Deploy PythOracleFactory & PythOracleImpl
-deploy-chronicleOracle:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying ChronicleOracleFactory to $CHAIN..."
-	eval "forge script DeployChronicleOracleFactory --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
-
-# Deploy SharesRegistry Contracts for each configured token (a.k.a. collateral)
-deploy-registries:  && _timer
-	#!/usr/bin/env bash
-	echo "Deploying Registries to $CHAIN..."
-	eval "forge script DeployRegistries --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"
+	FOUNDRY_PROFILE=solx forge test -{{verbosity}} --match-path test/{{path}}
 
 
-# Deploy UniswapV3Oracle
-deploy-uniswapV3Oracle: && _timer
-	#!/usr/bin/env bash
-	echo "Deploying UniswapV3Oracle to $CHAIN..."
-	eval "forge script DeployUniswapV3Oracle --rpc-url \"\${${CHAIN}_RPC_URL}\" --slow -vvvv --etherscan-api-key \"\${${CHAIN}_ETHERSCAN_API_KEY}\"  --broadcast"

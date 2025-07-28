@@ -1,7 +1,7 @@
 -include .env
 
 # build
-build:; forge build
+build:; FOUNDRY_PROFILE=solx forge build
 
 # deploy
 

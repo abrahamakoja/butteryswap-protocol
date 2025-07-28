@@ -17,25 +17,26 @@ pragma solidity ^0.8.20;
     //////////////////////////////////////////////////////////////*/
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 
-contract TokenManager is ReentrancyGuard, Ownable {
+contract TokenManager is ReentrancyGuard, AccessControl {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
     error SupportedTokens__CallerNotAdmin(address caller);
-    error SupportedTokens__isTokenListed();
+    error TokenManager__TokenIsListed();
+    error TokenManager__TokenNotListed();
     error TokenManager__TokenAlreadyRequested();
     error TokenManager__InvalidTokenAddress();
     error SupportedTokens__invalidAddress();
+    error TokenManager__unauthorizedAccess();
     error TokenManager__invalidAmount();
-    error TokenManager__TokenListingFailed(
-        uint256 amountSent
-    );
+    error TokenManager__noRequestAvailable();
+    error TokenManager__TokenListingFailed(uint256 amountSent);
     error SupportedTokens__approveFailed();
-    error SupportedTokens__approveLimitExceeded(uint256 numOfRequest);
+    error TokenManager__LimitExceeded();
     error SupportedTokens__invalidToken(address token);
     error SupportedTokens__inActiveToken(address token);
 
@@ -75,38 +76,51 @@ contract TokenManager is ReentrancyGuard, Ownable {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    bytes32 public constant TOKENMANAGER_ADMIN =
+        keccak256("TOKENMANAGER_ADMIN");
+
     IProtocolManager private immutable protocolManager;
+    uint256 private totalRequestedTokens;
+    uint256 private totalListedTokens;
     /// @dev Array of addresses storing a list of listed tokens.
     address[] public s_listed;
     /// @dev Array of addresses awaiting approval.
-    address[] public s_pendingTokenRequests;
-   
+    // address[] public s_pendingTokenRequests;
+
     /// @dev Mapping of a specific token address to it's token details data.
     mapping(address tokenAddress => tokenDetails _tokenDetails)
         private s_tokenDetails;
     /// @dev Maps a token address to it's index in the pending list .
-    mapping(address tokenAddress => uint256 index) public s_pendingTokenIndex;
+    // mapping(address tokenAddress => uint256 index) public s_pendingTokenIndex;
     /// @dev Maps a token index to it's address in the pending list .
     mapping(uint256 index => address tokenAddress)
-        public s_pendingTokenIndexToAddress;
+        private s_pendingTokenIndexToAddress;
     /// @dev Mapping of token address to a boolean, checks if a token has been listed and returns a boolean corresponding with the state , true if yes, false if no.
-    mapping(address tokenAddress => bool listed) public s_isListed;
+    mapping(address tokenAddress => bool listed) private s_isListed;
+    mapping(address tokenAddress => uint index) private s_requestedTokenToIndex;
+    mapping(address tokenAddress => uint index) private s_listedTokenToIndex;
+     mapping(uint256 index => address tokenAddress)
+        private s_listedTokenIndexToAddress;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
     event tokenListingRequestCreated(
-        tokenDetails _tokenDetails,
-        uint256 tokenIndex
+        tokenDetails indexed _tokenDetails,
+        uint256 indexed tokenIndex
     );
-    event SupportedTokens_tokenListingRequestApproved(
-        address approvedTokenAddress
-    );
+    event tokenListingRequestApproved(address indexed approvedTokenAddress);
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
+
+    modifier onlyTokenManagerAdmin() {
+        if (!hasRole(TOKENMANAGER_ADMIN, msg.sender))
+            revert TokenManager__unauthorizedAccess();
+        _;
+    }
 
     modifier isValidAddress(address val) {
         if (val == address(0)) revert TokenManager__InvalidTokenAddress();
@@ -131,7 +145,7 @@ contract TokenManager is ReentrancyGuard, Ownable {
             tokenListingState.LISTED &&
             s_isListed[token]
         ) {
-            revert SupportedTokens__isTokenListed();
+            revert TokenManager__TokenIsListed();
         }
         _;
     }
@@ -146,8 +160,13 @@ contract TokenManager is ReentrancyGuard, Ownable {
     }
 
     /// @notice contract constructor.
-    constructor(address _protocolManager) Ownable(msg.sender) {
+    constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
+        bool success = _grantRole(
+            TOKENMANAGER_ADMIN,
+            IProtocolManager(_protocolManager).TOKENMANAGER_ADMIN()
+        );
+        if (!success) revert();
     }
 
     /// @notice receive function enables contract to receive ETH.
@@ -170,14 +189,12 @@ contract TokenManager is ReentrancyGuard, Ownable {
         isTokenRequested(token)
         nonReentrant
     {
-
         if (msg.value == 0) revert TokenManager__invalidAmount();
-        if (msg.value != protocolManager.LISTING_FEE()) revert TokenManager__invalidAmount();
+        if (msg.value != protocolManager.LISTING_FEE())
+            revert TokenManager__invalidAmount();
 
         /// effects
-        /// @notice updates the s_pendingTokenRequests array
-        s_pendingTokenRequests.push(token);
-
+        uint256 _totalRequestedTokens = totalRequestedTokens;
         /// @notice update tokenDetails struct.
         tokenDetails memory _tokenDetails = tokenDetails({
             tokenAddress: token,
@@ -191,89 +208,89 @@ contract TokenManager is ReentrancyGuard, Ownable {
         ///  @dev update the details mapping
         s_tokenDetails[address(token)] = _tokenDetails;
         /// @dev maps the token address to it's index on the que
-        s_pendingTokenIndex[address(token)] = s_pendingTokenRequests
-            .length;
-        s_pendingTokenIndexToAddress[s_pendingTokenRequests.length] = address(
-            token
-        );
+        s_requestedTokenToIndex[address(token)] = _totalRequestedTokens;
+        s_pendingTokenIndexToAddress[_totalRequestedTokens] = address(token);
+        s_isListed[address(token)] = false;
+        totalRequestedTokens++;
         /// emit events
         emit tokenListingRequestCreated(
             _tokenDetails,
-            s_pendingTokenIndex[address(token)]
+            s_requestedTokenToIndex[address(token)]
         );
 
         //interactions
         /// @dev initiate the fee payment
-        (bool success, ) = payable(msg.sender).call{value: msg.value}("");
-        if (!success)
-            revert TokenManager__TokenListingFailed(msg.value);
+        (bool success, ) = protocolManager.FEE_CONTRACT().call{value: msg.value}("");
+        if (!success) revert TokenManager__TokenListingFailed(msg.value);
     }
 
     /// @param index: The index position of the token request to approve.
     /// @notice This function allows an admin to approve specific token requests and adds the approved token address to the s_listed array.
     /// @dev onlyAdmin can call this function
-    function approveTokenRequest(uint256 index) external onlyOwner {
+    function approveTokenRequest(uint256 index) external onlyTokenManagerAdmin {
         /// checks
 
-        if (index > s_pendingTokenRequests.length) {
-            revert SupportedTokens__approveLimitExceeded(
-                s_pendingTokenRequests.length
-            );
+        if (totalRequestedTokens == 0) {
+            revert TokenManager__noRequestAvailable();
         }
-        if (s_pendingTokenRequests.length <= 0) {
-            revert SupportedTokens__approveFailed();
+        if (index > totalRequestedTokens) {
+            revert TokenManager__LimitExceeded();
         }
 
         /// Effects
         /// @dev get the address of the token attached to the inputted index
-        address token = s_pendingTokenRequests[index];
+        address token = s_pendingTokenIndexToAddress[index];
+        if (
+            s_tokenDetails[token]._tokenListingState ==
+            tokenListingState.LISTED &&
+            s_isListed[token]
+        ) {
+            revert TokenManager__TokenIsListed();
+        }
+        uint256 _totalListedTokens = totalListedTokens;
+
         /// @dev update token listing detail
         s_tokenDetails[token]._tokenListingState = tokenListingState.LISTED;
         /// @dev update token operational detail
         s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
             .ACTIVE;
+            s_listedTokenToIndex[token] = _totalListedTokens;
+            s_listedTokenIndexToAddress[_totalListedTokens] = address(token);
         /// @dev update s_isListed mapping to true
         s_isListed[token] = true;
-        /// @dev update s_listed array
-        s_listed.push(token);
 
-        /// @notice remove token from s_pendingTokenRequests array
+        delete s_pendingTokenIndexToAddress[index];
+        delete s_requestedTokenToIndex[token];
+        totalRequestedTokens--;
+        totalListedTokens++;
 
-        /// @dev get the total count of request
-        uint256 requestCount = s_pendingTokenRequests.length;
-        /// @dev get the previous index of the token to be removed from the s_pendingTokenRequests array
-        uint256 previousIndex = s_pendingTokenIndex[token] - 1;
-        /// @dev get the last requested token in the s_pendingTokenRequests array
-        address lastRequestedToken = s_pendingTokenRequests[requestCount - 1];
-
-        /// @dev swaps the previous index position to that of the last requested token
-        s_pendingTokenRequests[previousIndex] = lastRequestedToken;
-        /// @dev replace the current index position mapping of the token with the last requested token in the s_pendingTokenRequests array
-        s_pendingTokenIndex[lastRequestedToken] = previousIndex + 1;
 
         // emit
-        emit SupportedTokens_tokenListingRequestApproved(address(token));
-
-        // interactions
-
-        // delete s_pendingTokenRequests[index];
-        delete s_pendingTokenIndex[token];
-        s_pendingTokenRequests.pop();
+        emit tokenListingRequestApproved(address(token));
     }
 
-    function delistToken() external {}
-
-    /// @param token: The ERC20 token address of the caller wishes to remove.
-    /// @notice This function allows admin to remove an ERC20 token from the list of supported tokens on the Butteryswap protocol.
-    /// @dev onlyAdmin can call this function.
-    function emergencyDeListToken(
+    function delistToken(
         address token
-    ) external onlyOwner isTokenListed(token) {
+    ) external isValidAddress(token) onlyTokenManagerAdmin {
+        if (
+            s_tokenDetails[token]._tokenListingState ==
+            tokenListingState.NOT_LISTED &&
+            s_tokenDetails[token]._tokenOperationalState ==
+            tokenOperationalState.NOT_ACTIVE &&
+            !s_isListed[token]
+        ) {
+            revert TokenManager__TokenNotListed();
+        }
+        uint256 index = s_listedTokenToIndex[token];
+
         s_isListed[token] = false;
-        s_tokenDetails[token]._tokenListingState = tokenListingState.NOT_LISTED;
-        s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
-            .NOT_ACTIVE;
+      delete  s_tokenDetails[token];
+     delete s_listedTokenToIndex[token];
+    delete s_listedTokenIndexToAddress[index];
+    totalListedTokens--;
     }
+
+   
 
     ////////////////////////////////////////////////
     /// External & Public View & Pure Functions ///
