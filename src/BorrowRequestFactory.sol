@@ -510,7 +510,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 // check each token is listed
                 if (
                     !ITokenManager(protocolManager.TokenManager())
-                        .checkTokenIsListed(_tokens[index])
+                        .checkIsTokenListed(address(_tokens[index]))
                 ) revert BorrowRequestFactory__unSupportedToken(_tokens[index]);
 
                 if (_collateralAmount[index] == 0)
@@ -727,7 +727,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         for (uint256 index = 0; index > _tokens.length; index++) {
             if (
                 ITokenManager(protocolManager.TokenManager())
-                    .checkTokenIsListed(_tokens[index])
+                    .checkIsTokenListed(address(_tokens[index]))
             ) {
                 revert BorrowRequestFactory__unSupportedToken(
                     address(_tokens[index])

@@ -18,10 +18,6 @@ _timer:
 
 clean-all: && _timer
 	forge clean
-	rm -rf coverage_report
-	rm -rf lcov.info
-	rm -rf typechain-types
-	rm -rf artifacts
 	rm -rf out
 
 remove-modules: && _timer
@@ -49,6 +45,13 @@ build: && _timer
 	forge clean
 	FOUNDRY_PROFILE=solx forge build --names --sizes
 
+# deploy scripts
+deploy_tokenManager:  && _timer
+	#!/usr/bin/env bash
+	echo "Deploying tokenManager to $CHAIN..."
+	eval "FOUNDRY_PROFILE=solx forge script DeployTokenManager --rpc-url \"\${${CHAIN}_RPC_URL}\" --account DevKey01  --broadcast -vvvv"
+	
+
 format: && _timer
 	forge fmt
 
@@ -66,7 +69,7 @@ docs: && _timer
 	forge doc --build
 
 mt test: && _timer
-	FOUNDRY_PROFILE=solx forge test -vvvvvv --match-test {{test}}
+	FOUNDRY_PROFILE=solx forge test -vvvvv --match-test {{test}}
 
 mp verbosity path: && _timer
 	FOUNDRY_PROFILE=solx forge test -{{verbosity}} --match-path test/{{path}}

@@ -22,5 +22,5 @@
 # config contract
 # remove all console logs before production
 # ensure all enums have default state
-
+# add env.example
 

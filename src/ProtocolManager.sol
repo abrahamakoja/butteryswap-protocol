@@ -24,6 +24,7 @@ contract ProtocolManager is Ownable {
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public  minimumDeposit;
+    address public TOKEN_MANAGER_ADMIN = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
      /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public constant  LISTING_FEE = 1 ether;
     address public constant FEE_CONTRACT =
@@ -31,6 +32,7 @@ contract ProtocolManager is Ownable {
     uint256 public constant ORIGINATION_FEE = 6;
     uint256 public constant CANCELLATION_FEE = 10;
     uint256 public constant SETTLEMENT_FEE = 6;
+    uint256 public constant INDEX_PRECISION = 1;
 
     constructor() Ownable(msg.sender) {}
 

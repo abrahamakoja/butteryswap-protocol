@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 /**
  * @title TokenManager
@@ -74,24 +74,18 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     bytes32 public constant TOKEN_MANAGER_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN");//@audit move to manager
+        keccak256("TOKEN_MANAGER_ADMIN"); //@audit move to manager
 
     IProtocolManager private immutable protocolManager;
     uint256 private totalRequestedTokens;
     uint256 private totalListedTokens;
     uint256 private totalTokensToUnList;
     uint256 private totalUnListedTokens;
-    /// @dev Array of addresses storing a list of listed tokens.
-    address[] public s_listed;
-    /// @dev Array of addresses awaiting approval.
-    // address[] public s_pendingTokenRequests;
 
     /// @dev Mapping of a specific token address to it's token details data.
     mapping(address tokenAddress => tokenDetails _tokenDetails)
         private s_tokenDetails;
-    /// @dev Maps a token address to it's index in the pending list .
-    // mapping(address tokenAddress => uint256 index) public s_pendingTokenIndex;
-    /// @dev Maps a token index to it's address in the pending list .
+    
     /// @dev Mapping of token address to a boolean, checks if a token has been listed and returns a boolean corresponding with the state , true if yes, false if no.
     mapping(address tokenAddress => bool listed) private s_isListed;
     mapping(uint256 index => address tokenAddress)
@@ -111,7 +105,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     event tokenListingRequestCreated(
-        tokenDetails indexed _tokenDetails,
+        address indexed tokenAddress,
         uint256 indexed tokenIndex
     );
     event tokenListed(address indexed listedTokenAddress);
@@ -126,12 +120,6 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
-
-    modifier onlyTokenManagerAdmin() {
-        if (!hasRole(TOKEN_MANAGER_ADMIN, msg.sender))
-            revert TokenManager__unauthorizedAccess();
-        _;
-    }
 
     modifier isValidAddress(address token) {
         if (token == address(0)) revert TokenManager__InvalidTokenAddress();
@@ -180,9 +168,6 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         if (!success) revert();
     }
 
-    /// @notice receive function enables contract to receive ETH.
-    // receive() external payable {}
-
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -229,7 +214,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         totalRequestedTokens++;
         /// emit events
         emit tokenListingRequestCreated(
-            _tokenDetails,
+            address(token),
             s_requestedTokenToIndex[address(token)]
         );
 
@@ -257,6 +242,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
             msg.value !=
             protocolManager.calculateTokenFeeAddressUpdateFee(token)
         ) revert TokenManager__invalidAmount();
+
         if (s_tokenDetails[address(token)].marketOwner != address(msg.sender))
             revert TokenManager__unauthorizedAccess();
         address oldFeeAddress = s_tokenDetails[address(token)].feeAddress;
@@ -277,7 +263,9 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     /// @param index: The index position of the token request to approve.
     /// @notice This function allows an admin to approve specific token requests and adds the approved token address to the s_listed array.
     /// @dev onlyAdmin can call this function
-    function approveTokenRequest(uint256 index) external onlyTokenManagerAdmin {
+    function approveTokenRequest(
+        uint256 index
+    ) external onlyRole(TOKEN_MANAGER_ADMIN) {
         /// checks
 
         if (totalRequestedTokens == 0) {
@@ -332,6 +320,8 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         if (msg.value == 0) revert TokenManager__invalidAmount();
         if (msg.value != protocolManager.calculateTokenUnListingFee(token))
             revert TokenManager__invalidAmount();
+        if (s_tokenDetails[address(token)].marketOwner != address(msg.sender))
+            revert TokenManager__unauthorizedAccess();
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.NOT_LISTED &&
@@ -349,7 +339,6 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         s_toUnList[address(token)] = true;
         totalTokensToUnList++;
 
-        //  add to list pending review
         emit tokenUnListingRequested(address(token));
 
         // pay fee
@@ -360,7 +349,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     }
     function emergencyUnListToken(
         address token
-    ) external isValidAddress(token) onlyTokenManagerAdmin {
+    ) external isValidAddress(token) onlyRole(TOKEN_MANAGER_ADMIN) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.NOT_LISTED &&
@@ -393,13 +382,13 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     function getTotalListedActiveTokens()
         external
         view
-        returns (address[] memory)
+        returns (address[] memory activeTokens)
     {
         uint256 activeTokenCount;
         address[] memory token = new address[](totalListedTokens);
         for (uint256 index = 0; index < totalListedTokens; index++) {
             if (
-                s_tokenDetails[s_listed[index]]._tokenOperationalState ==
+                s_tokenDetails[s_listedTokenIndexToAddress[index]]._tokenOperationalState ==
                 tokenOperationalState.ACTIVE
             ) {
                 token[activeTokenCount] = address(
@@ -410,7 +399,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
             continue;
         }
 
-        address[] memory activeTokens = new address[](activeTokenCount);
+        activeTokens = new address[](activeTokenCount);
         for (uint256 index = 0; index < activeTokenCount; index++) {
             activeTokens[index] = token[index];
         }
