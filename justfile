@@ -69,7 +69,7 @@ docs: && _timer
 	forge doc --build
 
 mt test: && _timer
-	FOUNDRY_PROFILE=solx forge test -vvvvv --match-test {{test}}
+	FOUNDRY_PROFILE=solx forge test -vvvvvv --match-test {{test}}
 
 mp verbosity path: && _timer
 	FOUNDRY_PROFILE=solx forge test -{{verbosity}} --match-path test/{{path}}

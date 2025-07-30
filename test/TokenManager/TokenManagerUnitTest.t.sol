@@ -2,36 +2,20 @@
 pragma solidity ^0.8.26;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {TokenManager} from "../../src/TokenManager.sol";
-import {DeployProtocolManager} from "../../script/01_DeployProtocolManager.s.sol";
-import {DeployTokenManager} from "../../script/02_DeployTokenManager.s.sol";
-import {ERC20Mock} from "../mocks/ERC20Mock.sol";
+import {deployContracts} from "../deployContracts.t.sol";
 
-contract TokenManagerUnitTest is Test {
-    DeployProtocolManager deployProtocolManager;
-    DeployTokenManager deployTokenManager;
-    address public protocolManager;
-    address public tokenManager;
-    address public marketOwner;
-    function setUp() public {
-        // deployProtocolManager = new DeployProtocolManager();
-        deployTokenManager = new DeployTokenManager();
-        // protocolManager = deployProtocolManager.run();
-        tokenManager = deployTokenManager.run();
-        console2.log("setup ran");
+contract TokenManagerUnitTest is Test, deployContracts {
+    function setUp() external {
+        init();
     }
 
-    function test_requestTokenListing() public {
-        // marketOwner = address(uint160(uint256(keccak256("marketOwner"))));
-        // ERC20Mock randomToken = new ERC20Mock(
-        //     "randomToken",
-        //     "RAND",
-        //     marketOwner,
-        //     UINT256_MAX
-        // );
+    function test_requestTokenListing() external {
+        // tokenManager = deployTokenManager.run();
+        // console2.log(address(tokenManager));
         // vm.startPrank(msg.sender);
-        // vm.deal(msg.sender, 6 ether);
-        // // TokenManager(tokenManager).requestTokenListing{value: 1 ether}(address(randomToken));
+        // deal(msg.sender, 6 ether);
+        // tokenManager.requestTokenListing{value: 1 ether}(address(randomToken));
+        // console2.log(address(tokenManager));
         // vm.stopPrank();
     }
 }

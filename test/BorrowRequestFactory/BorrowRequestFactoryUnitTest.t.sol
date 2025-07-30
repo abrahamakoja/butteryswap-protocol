@@ -14,7 +14,7 @@ contract BorrowRequestFactoryUnitTest is Test {
     function setUp() public {
         deployProtocolManager = new DeployProtocolManager();
         deployBorrowRequestFactory = new DeployBorrowRequestFactory();
-        protocolManager = deployProtocolManager.run();
-        borrowRequestFactory = deployBorrowRequestFactory.run();
+        // protocolManager = deployProtocolManager.getAddress();
+        // borrowRequestFactory = deployBorrowRequestFactory.run();
     }
 }
