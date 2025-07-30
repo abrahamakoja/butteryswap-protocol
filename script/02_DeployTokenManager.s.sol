@@ -7,11 +7,12 @@ import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 
 contract DeployTokenManager is Script {
     function run() external returns (TokenManager tokenManager) {
-        address mostRecentlyDeployedProtocolManager = DevOpsTools
-            .get_most_recent_deployment("ProtocolManager", block.chainid);
-
         vm.startBroadcast();
-        tokenManager = new TokenManager(mostRecentlyDeployedProtocolManager);
+        // address mostRecentlyDeployedProtocolManager = DevOpsTools
+        //     .get_most_recent_deployment("ProtocolManager", block.chainid);
+
+        // tokenManager = new TokenManager(mostRecentlyDeployedProtocolManager);
+        tokenManager = new TokenManager(address(0x34A1D3fff3958843C43aD80F30b94c510645C316));
         console2.log("Deploy script",address(tokenManager));
         vm.stopBroadcast();
         return tokenManager;

@@ -39,8 +39,6 @@ contract BorrowRequest {
     using LoanConfigLibrary for LoanConfigLibrary.BorrowRequest;
     LoanConfigLibrary.BorrowRequest private s_borrowRequest;
 
-    
-
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -64,7 +62,7 @@ contract BorrowRequest {
         address[] memory token,
         uint256 _timeCreated,
         address _protocolManager
-    )  {
+    ) {
         s_borrowRequest = LoanConfigLibrary.createBorrowRequest(
             borrower,
             collateralAmount,
@@ -96,18 +94,16 @@ contract BorrowRequest {
     function updateRequestState(
         LoanConfigLibrary.RequestState state
     ) external onlyFactory {
-        s_borrowRequest.updateBorrowRequestState( state);
-       
+        s_borrowRequest.updateBorrowRequestState(state);
     }
 
-     function resetRequestDetails() external {
+    function resetRequestDetails() external {
         s_borrowRequest.resetBorrowRequestDetails();
     }
 
-    function acceptLoan(address vault) external onlyEnforcer  {
+    function acceptLoan(address activeLoan) external onlyEnforcer {
         // emit LoanAccepted(vault);
         // s_borrowRequest.acceptLoan( address(vault));
-
         // request.state = RequestState.SETTLED;
         // for (uint256 index = 0; index < request.tokens.length; index++) {
         //     erc20TokenLibrary.transferTokens(
@@ -128,10 +124,26 @@ contract BorrowRequest {
             uint256[] memory collateralAmount,
             uint256 loanAmountRequested,
             address borrower,
-            LoanConfigLibrary.RequestState state,
+            uint8 state,
             uint256 timeCreated
         )
     {
-        return s_borrowRequest.getBorrowRequestDetails();
+        (
+            address[] memory _tokens,
+            uint256[] memory _collateralAmount,
+            uint256 _loanAmountRequested,
+            address _borrower,
+            LoanConfigLibrary.RequestState _state,
+            uint256 _timeCreated
+        ) = s_borrowRequest.getBorrowRequestDetails();
+
+        return (
+            _tokens,
+            _collateralAmount,
+            _loanAmountRequested,
+            _borrower,
+            uint8(_state),
+            _timeCreated
+        );
     }
 }

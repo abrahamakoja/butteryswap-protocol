@@ -10,7 +10,7 @@ pragma solidity ^0.8.26;
 
 // debug
 /// @audit remove before production
-// import {Script, console} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
@@ -19,62 +19,61 @@ pragma solidity ^0.8.26;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
-import {ITokenManager} from "./interfaces/ITokenManager.sol";
 
-contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
+contract TokenManager is ReentrancyGuard, AccessControl {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    // error TokenManager__TokenIsListed();
-    // error TokenManager__TokenNotListed();
-    // error TokenManager__TokenAlreadyRequested();
-    // error TokenManager__InvalidTokenAddress();
-    // error TokenManager__unauthorizedAccess();
-    // error TokenManager__invalidAmount();
-    // error TokenManager__TokenNotMarkedForUnListing();
-    // error TokenManager__noRequestAvailable();
-    // error TokenManager__TokenListingFailed(uint256 amountSent);
-    // error TokenManager__LimitExceeded();
-    // error TokenManager__tokenNotOperational(address token);
+    error TokenManager__TokenIsListed();
+    error TokenManager__TokenNotListed();
+    error TokenManager__TokenAlreadyRequested();
+    error TokenManager__InvalidTokenAddress();
+    error TokenManager__unauthorizedAccess();
+    error TokenManager__invalidAmount();
+    error TokenManager__TokenNotMarkedForUnListing();
+    error TokenManager__noRequestAvailable();
+    error TokenManager__TokenListingFailed(uint256 amountSent);
+    error TokenManager__LimitExceeded();
+    error TokenManager__tokenNotOperational(address token);
 
     /*//////////////////////////////////////////////////////////////
                                  ENUMS
     //////////////////////////////////////////////////////////////*/
 
     /// @dev this holds the different states of token listing status on the protocol.
-    // enum tokenListingState {
-    //     NOT_LISTED,
-    //     PENDING,
-    //     LISTED
-    // }
-    // /// @dev this  holds the different state of listed tokens operational within the protocol.
-    // enum tokenOperationalState {
-    //     NOT_ACTIVE,
-    //     ACTIVE
-    // }
+    enum tokenListingState {
+        NOT_LISTED,
+        PENDING,
+        LISTED
+    }
+    /// @dev this  holds the different state of listed tokens operational within the protocol.
+    enum tokenOperationalState {
+        NOT_ACTIVE,
+        ACTIVE
+    }
 
-    // /// @notice This struct stores the token request details data.
-    // /// @dev This is only updated when the "requestTokenListing" function is called.
-    // /// @param tokenAddress stores the address of token to be listed.
-    // /// @param marketOwner stores the address of user listing the token.
-    // /// @param feeAddress stores the whitelisted address to receive fees on the listed token.
-    // /// @param timeListed stores the block.timestamp of the token when it was listed.
-    // /// @param _tokenOperationalState stores the state of the operational state of the token.
-    // struct tokenDetails {
-    //     address tokenAddress;
-    //     address marketOwner;
-    //     address feeAddress;
-    //     uint256 timeListed;
-    //     tokenListingState _tokenListingState;
-    //     tokenOperationalState _tokenOperationalState;
-    // }
+    /// @notice This struct stores the token request details data.
+    /// @dev This is only updated when the "requestTokenListing" function is called.
+    /// @param tokenAddress stores the address of token to be listed.
+    /// @param marketOwner stores the address of user listing the token.
+    /// @param feeAddress stores the whitelisted address to receive fees on the listed token.
+    /// @param timeListed stores the block.timestamp of the token when it was listed.
+    /// @param _tokenOperationalState stores the state of the operational state of the token.
+    struct tokenDetails {
+        address tokenAddress;
+        address marketOwner;
+        address feeAddress;
+        uint256 timeListed;
+        tokenListingState _tokenListingState;
+        tokenOperationalState _tokenOperationalState;
+    }
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 private constant TOKEN_MANAGER_ADMIN =
+    bytes32 public constant TOKEN_MANAGER_ADMIN =
         keccak256("TOKEN_MANAGER_ADMIN"); //@audit move to manager
 
     IProtocolManager private immutable protocolManager;
@@ -105,18 +104,18 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    // event tokenListingRequestCreated(
-    //     address indexed tokenAddress,
-    //     uint256 indexed tokenIndex
-    // );
-    // event tokenListed(address indexed listedTokenAddress);
-    // event tokenUnListingRequested(address indexed deListedTokenAddress);
-    // event tokenUnListed(address indexed deListedTokenAddress);
-    // event tokenFeeAddressUpdated(
-    //     address indexed token,
-    //     address indexed oldFeeAddress,
-    //     address indexed newFeeAddress
-    // );
+    event tokenListingRequestCreated(
+        address indexed tokenAddress,
+        uint256 indexed tokenIndex
+    );
+    event tokenListed(address indexed listedTokenAddress);
+    event tokenUnListingRequested(address indexed deListedTokenAddress);
+    event tokenUnListed(address indexed deListedTokenAddress);
+    event tokenFeeAddressUpdated(
+        address indexed token,
+        address indexed oldFeeAddress,
+        address indexed newFeeAddress
+    );
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -162,12 +161,14 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     /// @notice contract constructor.
     constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
-
-        bool success = _grantRole(
+        
+        bool roleGranted = _grantRole(
             TOKEN_MANAGER_ADMIN,
             IProtocolManager(_protocolManager).TOKEN_MANAGER_ADMIN()
         );
-        if (!success) revert();
+        if (!roleGranted) revert();
+        console2.log(address(protocolManager));
+        console2.log(address(_protocolManager));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -182,17 +183,16 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     )
         external
         payable
-        override
         isValidAddress(token)
         isTokenListed(token)
         isTokenRequested(token)
         nonReentrant
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
-        // if (
-        //     msg.value !=
-        //     protocolManager.calculateTokenListingFee(address(token))
-        // ) revert TokenManager__invalidAmount();
+        if (
+            msg.value !=
+            protocolManager.calculateTokenListingFee(address(token))
+        ) revert TokenManager__invalidAmount();
 
         /// effects
         uint256 _totalRequestedTokens = totalRequestedTokens;
@@ -235,7 +235,6 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     )
         external
         payable
-        override
         isValidAddress(token)
         isValidAddress(newFeeAddress)
         isTokenListed(token)
@@ -269,7 +268,7 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     /// @dev onlyAdmin can call this function
     function approveTokenRequest(
         uint256 index
-    ) external override onlyRole(TOKEN_MANAGER_ADMIN) {
+    ) external onlyRole(TOKEN_MANAGER_ADMIN) {
         /// checks
 
         if (totalRequestedTokens == 0) {
@@ -317,7 +316,6 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     )
         external
         payable
-        override
         isValidAddress(token)
         isTokenListed(token)
         isTokenOperational(token)
@@ -354,7 +352,7 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     }
     function emergencyUnListToken(
         address token
-    ) external override isValidAddress(token) onlyRole(TOKEN_MANAGER_ADMIN) {
+    ) external isValidAddress(token) onlyRole(TOKEN_MANAGER_ADMIN) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.NOT_LISTED &&
@@ -387,7 +385,6 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     function getTotalListedActiveTokens()
         external
         view
-        override
         returns (address[] memory activeTokens)
     {
         uint256 activeTokenCount;
@@ -416,7 +413,6 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     function getRequestedTokens()
         external
         view
-        override
         returns (address[] memory requestedTokens)
     {
         requestedTokens = new address[](totalRequestedTokens);
@@ -429,12 +425,7 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
     /// @notice this function returns the struct details of a token.
     function getTokenDetails(
         address token
-    )
-        external
-        view
-        override
-        returns (address, address, address, uint256, uint8, uint8)
-    {
+    ) external view returns (address, address, address, uint256, uint8, uint8) {
         tokenDetails memory _tokenDetails = s_tokenDetails[token];
 
         return (
@@ -449,7 +440,7 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
 
     function checkIsTokenListed(
         address token
-    ) external view override isValidAddress(token) returns (bool isListed) {
+    ) external view isValidAddress(token) returns (bool isListed) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -461,9 +452,13 @@ contract TokenManager is ITokenManager, ReentrancyGuard, AccessControl {
         }
     }
 
+    function getTotalRequestedTokens() external view returns (uint256 ) {
+        return totalRequestedTokens;
+    }
+
     function checkIsTokenOperational(
         address token
-    ) external view override isValidAddress(token) returns (bool operational) {
+    ) external view isValidAddress(token) returns (bool operational) {
         if (
             s_tokenDetails[token]._tokenOperationalState ==
             tokenOperationalState.ACTIVE

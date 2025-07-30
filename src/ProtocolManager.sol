@@ -7,6 +7,10 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+// debug
+/// @audit remove before production
+import {Script, console2} from "forge-std/Script.sol";
+
 contract ProtocolManager is Ownable {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -34,7 +38,10 @@ contract ProtocolManager is Ownable {
     uint256 public constant SETTLEMENT_FEE = 6;
     uint256 public constant INDEX_PRECISION = 1;
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {
+         console2.log("main",address(address(this)));
+        // console2.log(address(_protocolManager));
+    }
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -53,6 +60,9 @@ contract ProtocolManager is Ownable {
     function updateEnforcerContract(
         address _address
     ) external addressValidated(_address) onlyOwner {}
+    function calculateTokenListingFee(address token)  external pure returns (uint256 fee) {
+        return 1 ether;
+    }
     function updateLimitMarketContract(
         address _address
     ) external addressValidated(_address) onlyOwner {}

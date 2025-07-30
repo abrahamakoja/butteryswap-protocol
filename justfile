@@ -46,6 +46,11 @@ build: && _timer
 	FOUNDRY_PROFILE=solx forge build --names --sizes
 
 # deploy scripts
+deploy_protocolManager:  && _timer
+	#!/usr/bin/env bash
+	echo "Deploying tokenManager to $CHAIN..."
+	eval "FOUNDRY_PROFILE=solx forge script DeployProtocolManager --rpc-url \"\${${CHAIN}_RPC_URL}\" --account DevKey01  --broadcast -vvvv"
+
 deploy_tokenManager:  && _timer
 	#!/usr/bin/env bash
 	echo "Deploying tokenManager to $CHAIN..."
