@@ -20,7 +20,7 @@ library LoanConfigLibrary {
 
     struct LendRequest {
         address lender;
-        RequestState state;
+        uint8 state;
         uint256 timeCreated;
     }
 
@@ -71,9 +71,9 @@ library LoanConfigLibrary {
 
     function updateBorrowRequestState(
         BorrowRequest storage request,
-        LoanConfigLibrary.RequestState _state
+        uint8 _state
     ) internal {
-        request.state = _state;
+        request.state = LoanConfigLibrary.RequestState(_state);
     }
 
     function updateBorrowRequest(
@@ -88,9 +88,9 @@ library LoanConfigLibrary {
         request.tokens[index] = (address(_token));
     }
 
-    function resetBorrowRequestDetails(BorrowRequest storage request) internal {
-        delete request.state;
-    }
+    // function resetBorrowRequestDetails(BorrowRequest storage request) internal {
+    //     delete request.state;
+    // }
 
     // Function to get the details of a BorrowRequest
     function getBorrowRequestDetails(
@@ -126,16 +126,19 @@ library LoanConfigLibrary {
         return
             LendRequest({
                 lender: _lender,
-                state: RequestState.OPEN,
+                state: uint8(RequestState.OPEN),
                 timeCreated: _timeCreated
             });
     }
 
     function updateLendRequestState(
         LendRequest storage request,
-        LoanConfigLibrary.RequestState _state
+        uint8 state
     ) internal {
-        request.state = _state;
+        if (state > uint8(RequestState.CANCELLING)) {
+            revert("Invalid state");
+        }
+        request.state = state;
     }
 
     function resetLendRequestDetails(LendRequest storage request) internal {
@@ -152,7 +155,7 @@ library LoanConfigLibrary {
         returns (address lender, RequestState state, uint256 timeCreated)
     {
         lender = request.lender;
-        state = request.state;
+        state = RequestState(request.state);
         timeCreated = request.timeCreated;
     }
 
@@ -205,6 +208,4 @@ library LoanConfigLibrary {
         _loanOffered = request.loanOffered;
         _timeCreated = request.timeCreated;
     }
-
-    
 }

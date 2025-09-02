@@ -6,7 +6,8 @@ interface IProtocolManager {
     function FEE_CONTRACT() external returns (address);
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
-    function TOKEN_MANAGER_ADMIN() external returns (address);
+    function TOKEN_MANAGER_CONTRACT() external returns (address);
+    function LIMIT_MARKET_CONTRACT() external returns (address);
     function LendRequestFactory() external returns (address);
     function Enforcer() external returns (address);
     function LimitMarket() external returns (address);

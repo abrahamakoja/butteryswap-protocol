@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 // debug
 import {Script, console} from "forge-std/Script.sol";
 
@@ -21,7 +21,6 @@ contract LendRequest {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    address public immutable i_lender;
     IProtocolManager private immutable protocolManager;
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -61,7 +60,7 @@ contract LendRequest {
             lender,
             _timeCreated
         );
-        i_lender = lender;
+       
         protocolManager = IProtocolManager(_protocolManager);
     }
 
@@ -86,7 +85,7 @@ contract LendRequest {
     }
 
     function updateRequestState(
-        LoanConfigLibrary.RequestState state
+        uint8 state
     ) external onlyFactory {
         s_lendRequest.updateLendRequestState( state);
        
@@ -94,7 +93,6 @@ contract LendRequest {
 
     function resetRequestDetails() external onlyFactory {
         s_lendRequest.resetLendRequestDetails();
-        //  delete s_lendRequest;
     }
 
     function getRequestDetails()

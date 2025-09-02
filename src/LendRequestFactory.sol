@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 //  debug @audit
 import {Script, console} from "forge-std/Script.sol";
@@ -8,13 +8,13 @@ import {Script, console} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 
-import {LendRequest} from "./LendRequest.sol"; 
+import {LendRequest} from "./LendRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract LendRequestFactory is Ownable, ReentrancyGuard {
+contract LendRequestFactory is AccessControl, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -29,7 +29,6 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         uint256 balance,
         uint256 amountDeposited
     );
-    error BorrowRequestFactory__UnAuthorized();
     error LendRequestFactory__BelowMinimumDeposit();
     error LendRequestFactory__RequestNotOpen();
     error LendRequestFactory__inValidRequest();
@@ -47,6 +46,9 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
+
+    bytes32 public constant LIMIT_MARKET_ADMIN =
+        keccak256("TOKEN_MANAGER_ADMIN");
 
     IProtocolManager private immutable protocolManager;
 
@@ -80,17 +82,6 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         private lendRequestToPositionOnNonPrioritizedList;
 
     /*//////////////////////////////////////////////////////////////
-                               MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-
-    modifier onlyLimitMarket() {
-        if (msg.sender != protocolManager.LimitMarket()) {
-            revert BorrowRequestFactory__UnAuthorized();
-        }
-        _;
-    }
-
-    /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -117,15 +108,24 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     );
 
     /** CONSTRUCTOR */
-    constructor(address _protocolManager) Ownable(msg.sender) {
+    constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
+
+        bool roleGranted = _grantRole(
+            LIMIT_MARKET_ADMIN,
+            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+        );
+        if (!roleGranted) revert();
     }
 
-
-    function getNonPrioritizedRequestViaIndex(uint256 index) external view returns(address request){
+    function getNonPrioritizedRequestViaIndex(
+        uint256 index
+    ) external view returns (address request) {
         return address(s_totalNonPrioritizedLendRequest[index]);
     }
-    function getPrioritizedRequestViaIndex(uint256 index) external view returns(address request){
+    function getPrioritizedRequestViaIndex(
+        uint256 index
+    ) external view returns (address request) {
         return address(s_prioritizedLendRequests[index]);
     }
 
@@ -136,7 +136,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     function createRequest(
         address lender,
         bool priority
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         /** CHECKS */
 
         if (msg.value == 0) revert LendRequestFactory__NoAmountSent();
@@ -156,7 +156,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
     function prioritizeLoanRequest(
         address lender,
         address payable lendRequest
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         // check enough fee is sent
         if (
             msg.value <
@@ -188,22 +188,24 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
 
         _state = LoanConfigLibrary.RequestState.PRIORITIZING;
         // update state
-        LendRequest((lendRequest)).updateRequestState(_state);
+        LendRequest((lendRequest)).updateRequestState(uint8(_state));
 
         // check if lender is authorized to interact with loan
         if (
             lendRequestToLender[lendRequest] != address(_lender) ||
             (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
                 address(lender) != address(_lender))
-        ) revert LendRequestFactory__notOwner();
-
-        _rawPrioritizeLoanRequest(lendRequest, lender);
+        ) {
+            revert LendRequestFactory__notOwner();
+        } else {
+            _rawPrioritizeLoanRequest(lendRequest, lender);
+        }
     }
 
     function addLiquidity(
         address lender,
         address payable lendRequest
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         if (msg.value == 0)
             revert LendRequestFactory__InsufficientLiquidityProvided();
         if (msg.value > lender.balance)
@@ -221,31 +223,32 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             LoanConfigLibrary.RequestState _state,
 
         ) = _getRequestDetails(lendRequest);
-        // check if loan is open
+        // check if loan is open @audit change to modifier
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
-        LoanConfigLibrary.RequestState state = LoanConfigLibrary
-            .RequestState
-            .ADDING_LIQUIDITY;
-        LendRequest(lendRequest).updateRequestState(state);
+        _state = LoanConfigLibrary.RequestState.ADDING_LIQUIDITY;
+        LendRequest(lendRequest).updateRequestState(uint8(_state));
 
         // check if lender is authorized to interact with loan
         if (
             lendRequestToLender[lendRequest] != address(lender) ||
             prioritizedLendRequestToLender[lendRequest] != address(lender) ||
             address(lender) != address(_lender)
-        ) revert LendRequestFactory__notOwner();
-
-        _rawAddLiquidity(lender, lendRequest);
+        ) {
+            revert LendRequestFactory__notOwner();
+        } else {
+            _rawAddLiquidity(lender, lendRequest);
+        }
     }
 
     function cancelRequest(
         address lender,
         address payable lendRequest
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         // check if loan request is valid'
         if (s_isValidContract[lendRequest] == false)
             revert LendRequestFactory__inValidRequest();
+        uint256 contractBalance;
         //get loan details
         (
             address _lender,
@@ -255,18 +258,20 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         // check if loan is open
         if (_state != LoanConfigLibrary.RequestState.OPEN)
             revert LendRequestFactory__RequestNotOpen();
-        _state = LoanConfigLibrary.RequestState.CANCELLING;
-        LendRequest(lendRequest).updateRequestState(_state);
 
         // check if lender is authorized to interact with loan
         if (
             lendRequestToLender[lendRequest] != address(_lender) ||
             (prioritizedLendRequestToLender[lendRequest] != address(_lender) &&
                 address(lender) != address(_lender))
-        ) revert LendRequestFactory__notOwner();
-        uint256 contractBalance = lendRequest.balance;
-
-        _rawCancelRequest(lender, lendRequest, contractBalance);
+        ) {
+            revert LendRequestFactory__notOwner();
+        } else {
+            contractBalance = lendRequest.balance;
+            _state = LoanConfigLibrary.RequestState.CANCELLING;
+            LendRequest(lendRequest).updateRequestState(uint8(_state));
+            _rawCancelRequest(lender, lendRequest, contractBalance);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -480,14 +485,17 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         address _lender
     ) private {
         uint256 precision = protocolManager.INDEX_PRECISION();
-        // change mapping
+
+        // nullify mapping
 
         delete userToNonPrioritizedLendRequestAddresses[_lender][
             lendRequestToPositionOnNonPrioritizedList[_lendRequest]
-        ];
+        ]; //@audit array check
         delete s_totalNonPrioritizedLendRequest[
             lendRequestToPositionOnNonPrioritizedList[_lendRequest]
         ];
+
+        // delete mapping
         delete lendRequestToPositionOnNonPrioritizedList[_lendRequest];
 
         // set prioritized mappings
@@ -513,7 +521,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         if (!priorityFeePaid)
             revert LendRequestFactory__PriorityFeePaymentFailed();
 
-        LendRequest(_lendRequest).updateRequestState(state);
+        LendRequest(_lendRequest).updateRequestState(uint8(state));
     }
 
     function _rawAddLiquidity(
@@ -527,9 +535,7 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
         uint256 depositMinusFee = msg.value - originationFee;
         if (depositMinusFee + originationFee != msg.value) revert();
 
-        LoanConfigLibrary.RequestState _state = LoanConfigLibrary
-            .RequestState
-            .OPEN;
+        uint8 _state = uint8(LoanConfigLibrary.RequestState.OPEN);
 
         /** UPDATE MAPPING */
         lenderToTotalAmountDeposited[_lender] += msg.value;
@@ -613,7 +619,10 @@ contract LendRequestFactory is Ownable, ReentrancyGuard {
             uint256 totalPrioritizedLendRequest
         )
     {
-        return (s_totalNonPrioritizedLendRequest.length, s_prioritizedLendRequests.length);
+        return (
+            s_totalNonPrioritizedLendRequest.length,
+            s_prioritizedLendRequests.length
+        );
     }
 
     /*//////////////////////////////////////////////////////////////

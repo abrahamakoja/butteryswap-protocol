@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 /**
  * @title BorrowRequest v1
  * @author ButterySwap
- * @notice This contract handles the management of a borrow requests before it is processed by the Enforcer_v1 contract or cancelled by the user.
+ * @notice This contract handles the management of a borrow requests before it is processed by the loanEnforcer contract or cancelled by the user.
  * users can top up their loans by adding liquidity to the borrow request but cannot remove the added liquidity unless they decide to cancel the request entirely,
  * by cancelling the request, the user's liquidity is returned to their wallet after a cancellation fee is removed.
  */
@@ -91,15 +91,13 @@ contract BorrowRequest {
         );
     }
 
-    function updateRequestState(
-        LoanConfigLibrary.RequestState state
-    ) external onlyFactory {
+    function updateRequestState(uint8 state) external onlyFactory {
         s_borrowRequest.updateBorrowRequestState(state);
     }
 
-    function resetRequestDetails() external {
-        s_borrowRequest.resetBorrowRequestDetails();
-    }
+    // function resetRequestDetails() internal {
+    //     s_borrowRequest.resetBorrowRequestDetails();
+    // }
 
     function acceptLoan(address activeLoan) external onlyEnforcer {
         // emit LoanAccepted(vault);
@@ -116,7 +114,7 @@ contract BorrowRequest {
     }
 
     // Function to get the borrow request details
-    function getBorrowRequestDetails()
+    function getRequestDetails()
         external
         view
         returns (

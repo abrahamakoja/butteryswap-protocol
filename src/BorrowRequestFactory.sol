@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 /// @title BorrowRequestFactory
 /// @author ButterySwap Protocol
@@ -18,12 +18,11 @@ import {erc20TokenLibrary} from "./libraries/erc20TokenLibrary.sol";
 import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract BorrowRequestFactory is Ownable, ReentrancyGuard {
-    //@audit ensure states are updated after updates creation and deletion and always emit after state change
+contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -31,10 +30,8 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     error BorrowRequestFactory__InvalidTokenCount(uint256 tokenCount);
     error BorrowRequestFactory__unSupportedToken(address token);
     error BorrowRequestFactory__NoCollateralSent(uint256 collateralAmount);
-    error BorrowRequestFactory__inValidContractAddress();
     error BorrowRequestFactory__InvalidRequest();
     error BorrowRequestFactory__insufficientPriorityFee();
-    error BorrowRequestFactory__TransferFailed();
     error BorrowRequestFactory__collateralAssetMaxLimitReached();
     error BorrowRequestFactory__providedAssetsOutOfRange(
         uint256 MAX_ASSET_LIMIT,
@@ -42,12 +39,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     );
     error BorrowRequestFactory__rangeDataMisMatch();
     error BorrowRequestFactory__notOwner();
-    error BorrowRequestFactory__InsufficientFunds(
-        uint256 borrowRequestBalance,
-        uint256 collateralAmount
-    );
     error BorrowRequestFactory__RequestNotOpen();
-    error BorrowRequestFactory__UnAuthorized();
     error BorrowRequestFactory__BorrowRequestFailed();
     error BorrowRequestFactory__PriorityFeePaymentFailed();
     error BorrowRequestFactory__OriginationFeePaymentFailed();
@@ -59,10 +51,12 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    //@audit check all mapping
-    IProtocolManager private immutable protocolManager;
+    bytes32 public constant LIMIT_MARKET_ADMIN =
+        keccak256("TOKEN_MANAGER_ADMIN");
 
-    BorrowRequest[] private totalBorrowRequests;
+    IProtocolManager private immutable s_protocolManager;
+
+    BorrowRequest[] private s_totalNonPrioritizedBorrowRequest;
 
     BorrowRequest[] private s_prioritizedBorrowRequests;
 
@@ -88,17 +82,6 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
     mapping(address borrower => uint256 totalAmountRequested)
         private borrowerToTotalAmountRequested;
-
-    /*//////////////////////////////////////////////////////////////
-                               MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-
-    modifier onlyLimitMarket() {
-        if (msg.sender != protocolManager.LimitMarket()) {
-            revert BorrowRequestFactory__UnAuthorized();
-        }
-        _;
-    }
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -127,8 +110,14 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     );
 
     /** CONSTRUCTOR */
-    constructor(address _protocolManager) Ownable(msg.sender) {
-        protocolManager = IProtocolManager(_protocolManager);
+    constructor(address _protocolManager) {
+        s_protocolManager = IProtocolManager(_protocolManager);
+
+        bool roleGranted = _grantRole(
+            LIMIT_MARKET_ADMIN,
+            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+        );
+        if (!roleGranted) revert();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -146,7 +135,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         // @note check health factor of each token
         // @audit if value of tokens match requested collateral amount based of ltv
 
@@ -158,7 +147,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
 
         if (
             tokens.length == 0 ||
-            tokens.length > protocolManager.MAX_ASSET_LIMIT()
+            tokens.length > s_protocolManager.MAX_ASSET_LIMIT()
         ) revert BorrowRequestFactory__InvalidTokenCount(tokens.length);
 
         _rawCreateRequest(
@@ -173,17 +162,17 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     function prioritizeLoanRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         if (
             msg.value <
-            protocolManager.calculate_PriorityFee(borrowRequest.balance)
+            s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
         ) revert();
 
         if (msg.value == 0)
             revert BorrowRequestFactory__insufficientPriorityFee();
         if (
             msg.value !=
-            protocolManager.calculate_PriorityFee(borrowRequest.balance)
+            s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
         ) revert();
 
         if (s_isValidContract[borrowRequest] == false)
@@ -193,14 +182,9 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             revert BorrowRequestFactory__RequestIsPrioritized();
 
         /** GET LOAN DETAILS */
-        (
-            ,
-            ,
-            ,
-            address _borrower,
-            uint8 _state,
-
-        ) = _getRequestDetails(borrowRequest);
+        (, , , address _borrower, uint8 _state, ) = _getRequestDetails(
+            borrowRequest
+        );
 
         if (_state != uint8(LoanConfigLibrary.RequestState.OPEN))
             revert BorrowRequestFactory__RequestNotOpen();
@@ -226,7 +210,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         address[] calldata tokens,
         uint256[] calldata collateralAmounts,
         uint256 loanAmountRequested
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         // @audit if value of tokens match requested collateral amount based of ltv
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -260,16 +244,17 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         ) revert BorrowRequestFactory__notOwner();
 
         //   check already deposited tokens count is below or equal to max asset limit allowed
-        if (!(_tokens.length <= protocolManager.MAX_ASSET_LIMIT())) {
+        if (!(_tokens.length <= s_protocolManager.MAX_ASSET_LIMIT())) {
             revert BorrowRequestFactory__collateralAssetMaxLimitReached();
         }
 
         // check if new token length exceeds available slot
         if (
-            tokens.length > (protocolManager.MAX_ASSET_LIMIT() - _tokens.length)
+            tokens.length >
+            (s_protocolManager.MAX_ASSET_LIMIT() - _tokens.length)
         ) {
             revert BorrowRequestFactory__providedAssetsOutOfRange(
-                protocolManager.MAX_ASSET_LIMIT(),
+                s_protocolManager.MAX_ASSET_LIMIT(),
                 tokens.length
             );
         }
@@ -287,7 +272,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
     function cancelRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyLimitMarket nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
         if (s_isValidContract[borrowRequest] == false)
             revert BorrowRequestFactory__InvalidRequest();
         /** GET LOAN DETAILS */
@@ -296,7 +281,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             uint256[] memory _collateralAmount,
             ,
             address _borrower,
-           uint8 _state,
+            uint8 _state,
 
         ) = _getRequestDetails(borrowRequest);
 
@@ -332,147 +317,31 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
 
-    // Function to retrieve all borrow request contracts for a user // legacy
-    // function getUserToBorrowRequestAddresses(
-    //     address user
-    // )
-    //     external
-    //     view
-    //     returns (
-    //         address[] memory borrowRequestAddresses,
-    //         address[] memory prioritizedBorrowRequestAddresses
-    //     )
-    // {
-    //     return (
-    //         userToBorrowRequestAddresses[user],
-    //         userToPrioritizedBorrowRequestAddresses[user]
-    //     );
-    // }
+    function getTotalRequests()
+        external
+        view
+        returns (
+            uint256 totalNonPrioritizedBorrowRequests,
+            uint256 totalPrioritizedBorrowRequest
+        )
+    {
+        return (
+            s_totalNonPrioritizedBorrowRequest.length,
+            s_prioritizedBorrowRequests.length
+        );
+    }
 
-    // function getTotalActivePrioritizedBorrowRequests(
-    //     uint256 _batchLimit,
-    //     uint256 numOfResponse
-    // ) external view returns (address[] memory) {
-    //     uint256 total = s_prioritizedBorrowRequests.length;
-    //     uint256 limit = total > _batchLimit ? _batchLimit : total;
-    //     address[] memory borrowRequest = new address[](
-    //         s_prioritizedBorrowRequests.length
-    //     );
-    //     uint256 counter = 0;
+    function getNonPrioritizedRequestViaIndex(
+        uint256 index
+    ) external view returns (address request) {
+        return address(s_totalNonPrioritizedBorrowRequest[index]);
+    }
 
-    //     for (uint256 i = 0; i < limit; i++) {
-    //         BorrowRequest BorrowRequest = BorrowRequest(
-    //             payable(address(s_prioritizedBorrowRequests[i]))
-    //         );
-    //         uint8 status = uint8(BorrowRequest.getRequestState());
-    //         if (status != 0) {
-    //             continue;
-    //         }
-    //         borrowRequest[counter] = address(s_prioritizedBorrowRequests[i]);
-    //         if (borrowRequest.length == numOfResponse) {
-    //             break;
-    //         }
-    //         counter++;
-    //     }
-
-    //     address[] memory activePrioritizedBorrowRequests = new address[](
-    //         counter
-    //     );
-    //     for (uint256 i = 0; i < counter; i++) {
-    //         activePrioritizedBorrowRequests[i] = borrowRequest[i];
-    //     }
-    //     return activePrioritizedBorrowRequests;
-    // }
-
-    // function getBatchedActiveBorrowRequestContractAddresses(
-    //     uint256 startIndex,
-    //     uint256 numberOfResponse,
-    //     uint256 _batchLimit
-    // ) external view returns (address[] memory) {
-    //     uint256 total = _getTotalActiveBorrowRequestContractAddresses().length;
-    //     uint256 _startIndex = startIndex > total ? 0 : startIndex;
-    //     uint256 limit = total > _batchLimit ? _batchLimit : total;
-    //     uint256 _numberOfResponse = numberOfResponse > limit
-    //         ? limit
-    //         : numberOfResponse;
-    //     address[]
-    //         memory activeBorrowRequests = _getTotalActiveBorrowRequestContractAddresses();
-    //     address[] memory batchedBorrowRequests = new address[](
-    //         _numberOfResponse
-    //     );
-
-    //     for (uint256 i = _startIndex; i < _numberOfResponse; i++) {
-    //         if (i < startIndex) {
-    //             continue;
-    //         }
-    //         batchedBorrowRequests[i] = activeBorrowRequests[i];
-
-    //         if (i > limit) {
-    //             break;
-    //         }
-    //     }
-    //     return batchedBorrowRequests;
-    // }
-
-    // function getTotalActiveBorrowRequestContractCount()
-    //     external
-    //     view
-    //     returns (uint256 numberOfContracts)
-    // {
-    //     return _getTotalActiveBorrowRequestContractAddresses().length;
-    // }
-
-    // @dev returns the total active borrow requests addresses.
-    // function _getTotalActiveBorrowRequestContractAddresses()
-    //     private
-    //     view
-    //     returns (address[] memory)
-    // {
-    //     address[] memory borrowRequest = new address[](
-    //         totalBorrowRequests.length
-    //     );
-    //     uint256 counter = 0;
-
-    //     for (uint256 i = 0; i < totalBorrowRequests.length; i++) {
-    //         BorrowRequest BorrowRequest = BorrowRequest(
-    //             payable(address(totalBorrowRequests[i]))
-    //         );
-    //         uint8 status = uint8(BorrowRequest.getRequestState());
-    //         if (status != 0) {
-    //             continue;
-    //         }
-    //         borrowRequest[counter] = address(totalBorrowRequests[i]);
-    //         counter++;
-    //     }
-
-    //     address[] memory activeBorrowRequest = new address[](counter);
-    //     for (uint256 i = 0; i < counter; i++) {
-    //         activeBorrowRequest[i] = borrowRequest[i];
-    //     }
-    //     return activeBorrowRequest;
-    // }
-
-    /// @dev returns the specific index of an active borrow requests within the array of active borrow request.
-    // function getBorrowRequestPositionOnActiveRequestQue(
-    //     address _borrowRequest
-    // ) external view returns (uint256 position) {
-    //     if (s_isValidContract[_borrowRequest] == false)
-    //         revert BorrowRequestFactory__inValidContractAddress();
-    //     address[]
-    //         memory borrowRequests = _getTotalActiveBorrowRequestContractAddresses();
-    //     for (uint256 i = 0; i < borrowRequests.length; i++) {
-    //         if (borrowRequests[i] == address(_borrowRequest)) {
-    //             position = i + 1;
-    //         }
-    //     }
-    //     return position;
-    // }
-
-    // function getPrioritizedBorrowRequest(
-    //     address BorrowRequestContractAddress
-    // ) external view returns (bool isPrioritized) {
-    //     return s_loanIsPrioritized[BorrowRequestContractAddress];
-    // }
+    function getPrioritizedRequestViaIndex(
+        uint256 index
+    ) external view returns (address request) {
+        return address(s_prioritizedBorrowRequests[index]);
+    }
 
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
@@ -502,14 +371,14 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 _loanAmountRequested,
                 _tokens,
                 block.timestamp,
-                address(protocolManager)
+                address(s_protocolManager)
             )
         returns (BorrowRequest _BorrowRequest) {
             borrowRequest = _BorrowRequest;
             for (uint256 index = 0; index < _tokens.length; index++) {
                 // check each token is listed
                 if (
-                    !ITokenManager(protocolManager.TokenManager())
+                    !ITokenManager(s_protocolManager.TokenManager())
                         .checkIsTokenListed(address(_tokens[index]))
                 ) revert BorrowRequestFactory__unSupportedToken(_tokens[index]);
 
@@ -517,7 +386,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                     revert BorrowRequestFactory__NoCollateralSent(
                         _collateralAmount[index]
                     );
-                totalCollateralValue += protocolManager
+                totalCollateralValue += s_protocolManager
                     .calculate_CollateralValue(_collateralAmount[index]);
 
                 collateralToValue[address(borrowRequest)][
@@ -545,7 +414,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                     address(borrowRequest)
                 );
             } else {
-                totalBorrowRequests.push(borrowRequest);
+                s_totalNonPrioritizedBorrowRequest.push(borrowRequest);
 
                 borrowRequestToBorrower[address(borrowRequest)] = address(
                     _borrower
@@ -562,11 +431,11 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         if (_loanAmountRequested < totalCollateralValue)
             revert BorrowRequestFactory__collateralValueMismatch(); //@audit change to ltv check
 
-        priorityFee = protocolManager.calculate_PriorityFee(
+        priorityFee = s_protocolManager.calculate_PriorityFee(
             totalCollateralValue
         );
 
-        originationFee = protocolManager.calculate_OriginationFee(
+        originationFee = s_protocolManager.calculate_OriginationFee(
             totalCollateralValue
         );
         if (msg.value == 0) revert LendRequestFactory__insufficientFeeAmount();
@@ -593,14 +462,14 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         if (_priority == true) {
             /** SUM BOTH PRIORITY AND ORIGINATION FEES TOGETHER */
             uint256 fee = priorityFee + originationFee;
-            (bool priorityFeePaid, ) = protocolManager.FEE_CONTRACT().call{
+            (bool priorityFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
                 value: fee
             }("");
             if (!priorityFeePaid)
                 revert BorrowRequestFactory__PriorityFeePaymentFailed();
         } else {
             /** COLLECT ORIGINATION FEE */
-            (bool originationFeePaid, ) = protocolManager.FEE_CONTRACT().call{
+            (bool originationFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
                 value: originationFee
             }("");
             if (!originationFeePaid)
@@ -641,9 +510,8 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         emit BorrowRequestPrioritized(_borrowRequest, msg.value);
 
         /** COLLECT PRIORITY FEE */
-        (bool priorityFeePaid, ) = address(protocolManager.FEE_CONTRACT()).call{
-            value: msg.value
-        }("");
+        (bool priorityFeePaid, ) = address(s_protocolManager.FEE_CONTRACT())
+            .call{value: msg.value}("");
         if (!priorityFeePaid)
             revert BorrowRequestFactory__PriorityFeePaymentFailed();
 
@@ -665,7 +533,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         for (uint256 index = 0; index < _collateralAmount.length; index++) {
             totalCollateralValue += _collateralAmount[index];
         }
-        cancellationFee = protocolManager.calculateCancellationFee(
+        cancellationFee = s_protocolManager.calculateCancellationFee(
             totalCollateralValue
         );
         _state = uint8(LoanConfigLibrary.RequestState.CANCELLED);
@@ -700,7 +568,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         }
 
         /** COLLECT CANCELLATION FEE */
-        (bool success, ) = protocolManager.FEE_CONTRACT().call{
+        (bool success, ) = s_protocolManager.FEE_CONTRACT().call{
             value: cancellationFee
         }("");
         if (!success) {
@@ -726,7 +594,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         // check if asset is supported by protocol / approve and execute transfer within the same loop
         for (uint256 index = 0; index > _tokens.length; index++) {
             if (
-                ITokenManager(protocolManager.TokenManager())
+                ITokenManager(s_protocolManager.TokenManager())
                     .checkIsTokenListed(address(_tokens[index]))
             ) {
                 revert BorrowRequestFactory__unSupportedToken(
@@ -734,7 +602,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
                 );
             }
 
-            totalCollateralValue += protocolManager.calculate_CollateralValue(
+            totalCollateralValue += s_protocolManager.calculate_CollateralValue(
                 _collateralAmounts[index]
             );
 
@@ -783,24 +651,22 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
         );
 
         /** COLLECT ORIGINATION FEE */
-        originationFee = protocolManager.calculate_OriginationFee(
+        originationFee = s_protocolManager.calculate_OriginationFee(
             totalCollateralValue
         );
 
-         _state = uint8(LoanConfigLibrary.RequestState.OPEN);
+        _state = uint8(LoanConfigLibrary.RequestState.OPEN);
         IBorrowRequest(address(_borrowRequest)).updateRequestState(
             uint8(_state)
         );
 
         if (msg.value != totalCollateralValue) revert();
-        (bool originationFeePaid, ) = protocolManager.FEE_CONTRACT().call{
+        (bool originationFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
             value: originationFee
         }("");
 
         if (!originationFeePaid)
             revert BorrowRequestFactory__OriginationFeePaymentFailed();
-
-       
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -827,7 +693,7 @@ contract BorrowRequestFactory is Ownable, ReentrancyGuard {
             borrower,
             state,
             timeCreated
-        ) = IBorrowRequest(borrowRequest).getBorrowRequestDetails();
+        ) = IBorrowRequest(borrowRequest).getRequestDetails();
 
         return (
             tokens,

@@ -121,26 +121,24 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
                     ).getNonPrioritizedRequestViaIndex(index);
                 }
 
-
                 (
                     address[] memory tokens,
                     uint256[] memory collateralAmount,
                     uint256 loanAmountRequested,
                     address borrower,
-                    LoanConfigLibrary.RequestState borrowRequestState,
+                    uint8 borrowRequestState,
 
-                ) = IBorrowRequest(selectedBorrowRequest)
-                        .getBorrowRequestDetails();
+                ) = IBorrowRequest(selectedBorrowRequest).getRequestDetails();
 
-                (
-                    address lender,
-                    LoanConfigLibrary.RequestState lendRequestState,
-
-                ) = ILendRequest(selectedLendRequest).getRequestDetails();
+                (address lender, uint8 lendRequestState, ) = ILendRequest(
+                    selectedLendRequest
+                ).getRequestDetails();
 
                 if (
-                    borrowRequestState != LoanConfigLibrary.RequestState.OPEN &&
-                    lendRequestState != LoanConfigLibrary.RequestState.OPEN
+                    borrowRequestState !=
+                    uint8(LoanConfigLibrary.RequestState.OPEN) &&
+                    lendRequestState !=
+                    uint8(LoanConfigLibrary.RequestState.OPEN)
                 ) revert();
 
                 uint256 availableLiquidity = selectedLendRequest.balance;

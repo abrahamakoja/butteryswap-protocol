@@ -74,7 +74,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     bytes32 public constant TOKEN_MANAGER_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN"); //@audit move to manager
+        keccak256("TOKEN_MANAGER_ADMIN"); 
 
     IProtocolManager private immutable protocolManager;
     uint256 private totalRequestedTokens;
@@ -161,14 +161,12 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     /// @notice contract constructor.
     constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
-        
+
         bool roleGranted = _grantRole(
             TOKEN_MANAGER_ADMIN,
-            IProtocolManager(_protocolManager).TOKEN_MANAGER_ADMIN()
+            IProtocolManager(_protocolManager).TOKEN_MANAGER_CONTRACT()
         );
         if (!roleGranted) revert();
-        console2.log(address(protocolManager));
-        console2.log(address(_protocolManager));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -452,7 +450,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         }
     }
 
-    function getTotalRequestedTokens() external view returns (uint256 ) {
+    function getTotalRequestedTokens() external view returns (uint256) {
         return totalRequestedTokens;
     }
 

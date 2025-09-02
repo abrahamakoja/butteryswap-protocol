@@ -27,10 +27,11 @@ contract ProtocolManager is Ownable {
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
-    uint256 public  minimumDeposit;
-    address public TOKEN_MANAGER_ADMIN = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-     /// @dev listing fee to be paid by caller when creating a listing request.
-    uint256 public constant  LISTING_FEE = 1 ether;
+    uint256 public minimumDeposit;
+    address public TOKEN_MANAGER_ADMIN =
+        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    /// @dev listing fee to be paid by caller when creating a listing request.
+    uint256 public constant LISTING_FEE = 1 ether;
     address public constant FEE_CONTRACT =
         0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
     uint256 public constant ORIGINATION_FEE = 6;
@@ -39,7 +40,7 @@ contract ProtocolManager is Ownable {
     uint256 public constant INDEX_PRECISION = 1;
 
     constructor() Ownable(msg.sender) {
-         console2.log("main",address(address(this)));
+        console2.log("main", address(address(this)));
         // console2.log(address(_protocolManager));
     }
 
@@ -60,7 +61,9 @@ contract ProtocolManager is Ownable {
     function updateEnforcerContract(
         address _address
     ) external addressValidated(_address) onlyOwner {}
-    function calculateTokenListingFee(address token)  external pure returns (uint256 fee) {
+    function calculateTokenListingFee(
+        address token
+    ) external pure returns (uint256 fee) {
         return 1 ether;
     }
     function updateLimitMarketContract(

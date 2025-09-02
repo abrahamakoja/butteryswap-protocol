@@ -20,7 +20,7 @@ remappings = [
 
 
 [profile.solx]
-solc_version = "/home/hacker/.local/bin/solx"
+solc_version = "/home/oxAkoja/.local/bin/solx"
 
 
 [fuzz]

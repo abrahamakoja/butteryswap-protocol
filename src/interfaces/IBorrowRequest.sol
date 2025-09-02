@@ -13,7 +13,7 @@ interface IBorrowRequest {
 
     function acceptLoan(address activeLoan) external;
 
-    function getBorrowRequestDetails()
+    function getRequestDetails()
         external
         view
         returns (
