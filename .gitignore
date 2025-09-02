@@ -2,25 +2,27 @@
 cache/
 out/
 
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/**/dry-run/
+# Broadcast logs
+/broadcast/
 
-# Docs
-docs/
-
-#   Dotenv file
-.env 
-notes.md
-reports.md
-broadcast/
-lib/
-.github/
-.vscode/
-.gitignore
-.gitmodules
+# Wake build artifacts
+/wake
 .wake/
 
+# Dependencies
+/lib
 
-src/protocol.code-workspace
+# Environment
+.env 
+
+# Documentation and notes
+notes.md
+reports.md
+folderstructure.md
+
+# IDE & configs
+.github/
+.vscode/
+protocol.code-workspace
+
+
