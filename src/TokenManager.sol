@@ -8,7 +8,7 @@ pragma solidity ^0.8.26;
  * this contract handles the logic for adding new tokens, deleting listed tokens,validating and managing the healthFactor of all ERC20 tokens interacting with the Butteryswap protocol.
  */
 
-// debug
+// debug this
 /// @audit remove before production
 import {Script, console2} from "forge-std/Script.sol";
 
@@ -74,7 +74,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     bytes32 public constant TOKEN_MANAGER_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN"); 
+        keccak256("TOKEN_MANAGER_ADMIN");
 
     IProtocolManager private immutable protocolManager;
     uint256 private totalRequestedTokens;
