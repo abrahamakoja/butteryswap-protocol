@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 interface IProtocolManager {
     function TokenManager() external returns (address);
@@ -7,6 +7,7 @@ interface IProtocolManager {
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
     function TOKEN_MANAGER_CONTRACT() external returns (address);
+    function DEPLOYER() external returns (address);
     function LIMIT_MARKET_CONTRACT() external returns (address);
     function LendRequestFactory() external returns (address);
     function Enforcer() external returns (address);
@@ -21,7 +22,9 @@ interface IProtocolManager {
     function calculateCancellationFee(uint256) external returns (uint256);
     function calculateTokenListingFee(address) external returns (uint256);
     function calculateTokenUnListingFee(address) external returns (uint256);
-    function calculateTokenFeeAddressUpdateFee(address) external returns (uint256);
+    function calculateTokenFeeAddressUpdateFee(
+        address
+    ) external returns (uint256);
     function calculate_OriginationFee(uint256) external returns (uint256);
     function calculate_CollateralValue(uint256) external returns (uint256);
     function calculate_PriorityFee(uint256) external returns (uint256);

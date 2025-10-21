@@ -5,11 +5,11 @@ build:; FOUNDRY_PROFILE=solx forge build
 
 # deploy
 
-deployLimitMarket:; forge script script/DeployLimitMarket.s.sol:DeployLimitMarket --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
+deployLimitMarket:; forge script script/04_DeployLimitMarket.s.sol:DeployLimitMarket --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployEnforcer:; forge script script/DeployEnforcer_v1.s.sol:DeployEnforcer_v1 --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployTokenManager:;FOUNDRY_PROFILE=solx forge script script/02_DeployTokenManager.s.sol:DeployTokenManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployProtocolManager:;FOUNDRY_PROFILE=solx forge script script/01_DeployProtocolManager.s.sol:DeployProtocolManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
-deployBorrowRequestFactory:; forge script script/DeployBorrowRequestFactory.s.sol:DeployBorrowRequestFactory --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvvv
+deployBorrowRequestFactory:; forge script script/05_DeployBorrowRequestFactory.s.sol:DeployBorrowRequestFactory --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvvv
 deployLendRequestFactory:; forge script script/DeployLendRequestFactory.s.sol:DeployLendRequestFactory --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 
 

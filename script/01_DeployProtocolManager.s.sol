@@ -7,8 +7,8 @@ import {ProtocolManager} from "../src/ProtocolManager.sol";
 contract DeployProtocolManager is Script {
     function run() external returns (ProtocolManager protocolManager) {
         vm.startBroadcast();
-         protocolManager = new ProtocolManager();
-          console2.log("deployer",address(protocolManager));
+        protocolManager = new ProtocolManager();
+        console2.log("deployer", address(protocolManager));
         vm.stopBroadcast();
         return protocolManager;
     }

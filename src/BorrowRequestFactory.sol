@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 /// @title BorrowRequestFactory
 /// @author ButterySwap Protocol
 /// @notice Explain to an end user what this does
 /// @dev Explain to a developer any extra details
 
-//  debug
+//  debug @audit
 import {Script, console} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
@@ -51,8 +51,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant LIMIT_MARKET_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN");
+    bytes32 public constant LIMIT_MARKET = keccak256("LIMIT_MARKET");
 
     IProtocolManager private immutable s_protocolManager;
 
@@ -112,12 +111,16 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     /** CONSTRUCTOR */
     constructor(address _protocolManager) {
         s_protocolManager = IProtocolManager(_protocolManager);
+        _grantRole(DEFAULT_ADMIN_ROLE, s_protocolManager.DEPLOYER());
 
         bool roleGranted = _grantRole(
-            LIMIT_MARKET_ADMIN,
-            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+            LIMIT_MARKET,
+            s_protocolManager.LIMIT_MARKET_CONTRACT()
         );
-        if (!roleGranted) revert();
+        require(roleGranted, "wrong");
+        if (roleGranted) {
+            console.log("roleGranted is true");
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -135,9 +138,10 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         // @note check health factor of each token
         // @audit if value of tokens match requested collateral amount based of ltv
+        // @audit integrate enumerable sets
 
         /** CHECKS */
         // uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
@@ -162,7 +166,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     function prioritizeLoanRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         if (
             msg.value <
             s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
@@ -210,7 +214,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata tokens,
         uint256[] calldata collateralAmounts,
         uint256 loanAmountRequested
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         // @audit if value of tokens match requested collateral amount based of ltv
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -272,7 +276,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     function cancelRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         if (s_isValidContract[borrowRequest] == false)
             revert BorrowRequestFactory__InvalidRequest();
         /** GET LOAN DETAILS */

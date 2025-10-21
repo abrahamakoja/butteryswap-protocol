@@ -28,7 +28,10 @@ contract ProtocolManager is Ownable {
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public minimumDeposit;
-    address public TOKEN_MANAGER_ADMIN =
+    address public immutable DEPLOYER;
+    address public TOKEN_MANAGER_CONTRACT =
+        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    address public LIMIT_MARKET_CONTRACT =
         0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
     /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public constant LISTING_FEE = 1 ether;
@@ -40,7 +43,8 @@ contract ProtocolManager is Ownable {
     uint256 public constant INDEX_PRECISION = 1;
 
     constructor() Ownable(msg.sender) {
-        console2.log("main", address(address(this)));
+        console2.log("main", (address(this)));
+        DEPLOYER = msg.sender;
         // console2.log(address(_protocolManager));
     }
 

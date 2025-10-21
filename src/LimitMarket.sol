@@ -55,6 +55,7 @@ contract LimitMarket is ReentrancyGuard, Ownable {
 
     constructor(address _protocolManager) Ownable(msg.sender) {
         protocolManager = IProtocolManager(_protocolManager);
+        // @audit set the address of this contract within protocol manager initialize function
     }
 
     /*//////////////////////////////////////////////////////////////
