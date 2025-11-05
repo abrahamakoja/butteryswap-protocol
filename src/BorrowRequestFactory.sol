@@ -7,7 +7,7 @@ pragma solidity ^0.8.28;
 /// @dev Explain to a developer any extra details
 
 //  debug @audit
-import {Script, console} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
@@ -31,6 +31,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     error BorrowRequestFactory__unSupportedToken(address token);
     error BorrowRequestFactory__NoCollateralSent(uint256 collateralAmount);
     error BorrowRequestFactory__InvalidRequest();
+    error BorrowRequestFactory__InvalidAddress();
     error BorrowRequestFactory__insufficientPriorityFee();
     error BorrowRequestFactory__collateralAssetMaxLimitReached();
     error BorrowRequestFactory__providedAssetsOutOfRange(
@@ -108,19 +109,30 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         uint256 indexed priorityFee
     );
 
+    modifier addressIsValid(address _address) {
+        require(
+            (_address != address(0)),
+            BorrowRequestFactory__InvalidAddress()
+        );
+        _;
+    }
+
     /** CONSTRUCTOR */
     constructor(address _protocolManager) {
         s_protocolManager = IProtocolManager(_protocolManager);
-        _grantRole(DEFAULT_ADMIN_ROLE, s_protocolManager.DEPLOYER());
-
-        bool roleGranted = _grantRole(
-            LIMIT_MARKET,
-            s_protocolManager.LIMIT_MARKET_CONTRACT()
+        bool defaultAdminSet = _grantRole(
+            DEFAULT_ADMIN_ROLE,
+            s_protocolManager.DEPLOYER()
         );
-        require(roleGranted, "wrong");
-        if (roleGranted) {
-            console.log("roleGranted is true");
-        }
+
+        bool limitMarketRoleSet = _grantRole(
+            LIMIT_MARKET,
+            s_protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+        require(
+            limitMarketRoleSet && defaultAdminSet,
+            "Roles allocation Failed"
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -138,23 +150,38 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+    )
+        external
+        payable
+        addressIsValid(borrower)
+        onlyRole(LIMIT_MARKET)
+        nonReentrant
+        returns (address borrowRequest)
+    {
         // @note check health factor of each token
+        // @audit return the created request address
         // @audit if value of tokens match requested collateral amount based of ltv
         // @audit integrate enumerable sets
+        // @audit loanAmountRequested should be checked based off the ltv of supplied tokens
+        // @audit implement proxy clones
 
         /** CHECKS */
         // uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
+        // @audit value at creation time would always differ by completion,
+        // do not depend on collateral value for accounting but protocol interest rates at creation
+        // interest should be fetched from limit market before passed to factory.
 
-        if (collateralAmount.length != tokens.length)
-            revert BorrowRequestFactory__rangeDataMisMatch();
+        require(
+            (collateralAmount.length == tokens.length),
+            BorrowRequestFactory__rangeDataMisMatch()
+        );
 
         if (
             tokens.length == 0 ||
             tokens.length > s_protocolManager.MAX_ASSET_LIMIT()
         ) revert BorrowRequestFactory__InvalidTokenCount(tokens.length);
 
-        _rawCreateRequest(
+        borrowRequest = _rawCreateRequest(
             collateralAmount,
             loanAmountRequested,
             tokens,
@@ -167,6 +194,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address borrower,
         address borrowRequest
     ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+        //@audit merge all three priority fee check using ||
         if (
             msg.value <
             s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
@@ -179,19 +207,25 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
             s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
         ) revert();
 
-        if (s_isValidContract[borrowRequest] == false)
-            revert BorrowRequestFactory__InvalidRequest();
+        require(
+            (s_isValidContract[borrowRequest] == true),
+            BorrowRequestFactory__InvalidRequest()
+        );
 
-        if (s_loanIsPrioritized[borrowRequest] == true)
-            revert BorrowRequestFactory__RequestIsPrioritized();
+        require(
+            (s_loanIsPrioritized[borrowRequest] == false),
+            BorrowRequestFactory__RequestIsPrioritized()
+        );
 
         /** GET LOAN DETAILS */
         (, , , address _borrower, uint8 _state, ) = _getRequestDetails(
             borrowRequest
         );
 
-        if (_state != uint8(LoanConfigLibrary.RequestState.OPEN))
-            revert BorrowRequestFactory__RequestNotOpen();
+        require(
+            (_state == uint8(LoanConfigLibrary.RequestState.OPEN)),
+            BorrowRequestFactory__RequestNotOpen()
+        );
 
         _state = uint8(LoanConfigLibrary.RequestState.PRIORITIZING);
 
@@ -362,12 +396,13 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata _tokens,
         address _borrower,
         bool _priority
-    ) private {
+    ) private returns (address _borrowRequest) {
         /** EFFECTS */
         uint256 totalCollateralValue;
         uint256 originationFee;
         uint256 priorityFee;
         BorrowRequest borrowRequest;
+
         try
             new BorrowRequest(
                 _borrower,
@@ -377,8 +412,8 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                 block.timestamp,
                 address(s_protocolManager)
             )
-        returns (BorrowRequest _BorrowRequest) {
-            borrowRequest = _BorrowRequest;
+        returns (BorrowRequest request) {
+            borrowRequest = request;
             for (uint256 index = 0; index < _tokens.length; index++) {
                 // check each token is listed
                 if (
@@ -390,9 +425,9 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                     revert BorrowRequestFactory__NoCollateralSent(
                         _collateralAmount[index]
                     );
-                totalCollateralValue += s_protocolManager
-                    .calculate_CollateralValue(_collateralAmount[index]);
 
+                totalCollateralValue += s_protocolManager
+                    .calculate_CollateralValue(_collateralAmount[index]); //@audit token manager handles collateral value
                 collateralToValue[address(borrowRequest)][
                     _tokens[index]
                 ] += _collateralAmount[index];
@@ -489,6 +524,9 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                 _collateralAmount[index]
             );
         }
+
+        // return borrow request address
+        _borrowRequest = address(borrowRequest);
     }
 
     function _rawPrioritizeLoanRequest(

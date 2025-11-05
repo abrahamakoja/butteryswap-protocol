@@ -2,16 +2,17 @@
 pragma solidity ^0.8.28;
 
 interface IProtocolManager {
+    function setLimitMarketContractAddress(address _address) external;
     function TokenManager() external returns (address);
     function FEE_CONTRACT() external returns (address);
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
     function TOKEN_MANAGER_CONTRACT() external returns (address);
     function DEPLOYER() external returns (address);
-    function LIMIT_MARKET_CONTRACT() external returns (address);
+    function LIMIT_MARKET_CONTRACT_ADDRESS() external returns (address);
     function LendRequestFactory() external returns (address);
     function Enforcer() external returns (address);
-    function LimitMarket() external returns (address);
+    // function LimitMarket() external returns (address);
     function calculateCollateralAmountMinusFee(
         uint256
     ) external returns (uint256);

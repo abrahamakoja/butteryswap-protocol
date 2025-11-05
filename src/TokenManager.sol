@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 /**
  * @title TokenManager
@@ -122,7 +122,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     modifier isValidAddress(address token) {
-        if (token == address(0)) revert TokenManager__InvalidTokenAddress();
+        require((token != address(0)), TokenManager__InvalidTokenAddress());
         _;
     }
 

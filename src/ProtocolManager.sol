@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORTS
     //////////////////////////////////////////////////////////////*/
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 
 // debug
 /// @audit remove before production
@@ -23,7 +25,7 @@ contract ProtocolManager is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     address public Enforcer;
-    address public LimitMarket;
+    // address public limitMarketContractAddress;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
@@ -31,12 +33,12 @@ contract ProtocolManager is Ownable {
     address public immutable DEPLOYER;
     address public TOKEN_MANAGER_CONTRACT =
         0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-    address public LIMIT_MARKET_CONTRACT =
-        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    address public LIMIT_MARKET_CONTRACT_ADDRESS;
     /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public constant LISTING_FEE = 1 ether;
     address public constant FEE_CONTRACT =
         0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
+    uint256 public constant MAX_ASSET_LIMIT = 6;
     uint256 public constant ORIGINATION_FEE = 6;
     uint256 public constant CANCELLATION_FEE = 10;
     uint256 public constant SETTLEMENT_FEE = 6;
@@ -70,9 +72,12 @@ contract ProtocolManager is Ownable {
     ) external pure returns (uint256 fee) {
         return 1 ether;
     }
-    function updateLimitMarketContract(
+    function setLimitMarketContractAddress(
         address _address
-    ) external addressValidated(_address) onlyOwner {}
+    ) external addressValidated(_address) {
+        require(msg.sender == address(this));
+        LIMIT_MARKET_CONTRACT_ADDRESS = _address;
+    }
     function updateBorrowRequestFactoryContract(
         address _address
     ) external addressValidated(_address) onlyOwner {}

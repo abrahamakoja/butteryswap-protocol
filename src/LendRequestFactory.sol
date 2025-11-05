@@ -113,7 +113,7 @@ contract LendRequestFactory is AccessControl, ReentrancyGuard {
 
         bool roleGranted = _grantRole(
             LIMIT_MARKET_ADMIN,
-            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT_ADDRESS()
         );
         if (!roleGranted) revert();
     }

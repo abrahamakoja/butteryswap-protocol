@@ -20,7 +20,7 @@ import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 
-contract LimitMarket is ReentrancyGuard, Ownable {
+contract LimitMarket is ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -53,14 +53,18 @@ contract LimitMarket is ReentrancyGuard, Ownable {
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _protocolManager) Ownable(msg.sender) {
+    constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
-        // @audit set the address of this contract within protocol manager initialize function
+        _initialize();
     }
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL BORROW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _initialize() private nonReentrant {
+        protocolManager.setLimitMarketContractAddress(address(this));
+    }
 
     /// @notice Internal function to create a new BorrowRequest instance
     /// @param collateralAmount The amount of collateral to be locked
@@ -70,9 +74,10 @@ contract LimitMarket is ReentrancyGuard, Ownable {
         uint256 loanAmountRequested,
         address[] calldata tokens,
         bool priority
-    ) external payable nonReentrant {
-        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-            .createRequest(
+    ) external payable nonReentrant returns (address borrowRequest) {
+        borrowRequest = IBorrowRequestFactory(
+            protocolManager.BorrowRequestFactory()
+        ).createRequest(
                 collateralAmount,
                 loanAmountRequested,
                 tokens,

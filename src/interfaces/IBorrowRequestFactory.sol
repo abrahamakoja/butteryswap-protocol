@@ -8,7 +8,7 @@ interface IBorrowRequestFactory {
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable;
+    ) external payable returns (address borrowRequest);
 
     function prioritizeLoanRequest(
         address borrower,
