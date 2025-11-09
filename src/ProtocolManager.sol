@@ -16,7 +16,15 @@ import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 /// @audit remove before production
 import {Script, console2} from "forge-std/Script.sol";
 
-contract ProtocolManager is Ownable {
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+
+contract ProtocolManager is
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -28,13 +36,15 @@ contract ProtocolManager is Ownable {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    bytes32 public constant MANAGER = keccak256("MANAGER");
+
     address public Enforcer;
     // address public limitMarketContractAddress;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public minimumDeposit;
-    address public immutable DEPLOYER;
+    address public DEPLOYER;
     address public TOKEN_MANAGER_CONTRACT =
         0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
     address public LIMIT_MARKET_CONTRACT_ADDRESS;
@@ -48,11 +58,23 @@ contract ProtocolManager is Ownable {
     uint256 public constant SETTLEMENT_FEE = 6;
     uint256 public constant INDEX_PRECISION = 1;
 
-    constructor() Ownable(msg.sender) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        _grantRole(MANAGER, msg.sender);
         console2.log("main", (address(this)));
         DEPLOYER = msg.sender;
         // console2.log(address(_protocolManager));
     }
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -70,7 +92,7 @@ contract ProtocolManager is Ownable {
 
     function updateEnforcerContract(
         address _address
-    ) external addressValidated(_address) onlyOwner {}
+    ) external addressValidated(_address) onlyRole(MANAGER) {}
     function calculateTokenListingFee(
         address token
     ) external pure returns (uint256 fee) {
@@ -89,15 +111,15 @@ contract ProtocolManager is Ownable {
     }
     function updateBorrowRequestFactoryContract(
         address borrowRequestFactory
-    ) external addressValidated(borrowRequestFactory) onlyOwner {
+    ) external addressValidated(borrowRequestFactory) onlyRole(MANAGER) {
         BorrowRequestFactory = borrowRequestFactory;
     }
     function updateLendRequestFactoryContract(
         address _address
-    ) external addressValidated(_address) onlyOwner {}
+    ) external addressValidated(_address) onlyRole(MANAGER) {}
     function updateTokenManagerContract(
         address _address
-    ) external addressValidated(_address) onlyOwner {}
+    ) external addressValidated(_address) onlyRole(MANAGER) {}
 
     function calculateAmountMinus_OriginationFee(
         uint256 collateraValue

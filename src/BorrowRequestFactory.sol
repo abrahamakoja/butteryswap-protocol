@@ -19,14 +19,9 @@ import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-// import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-// import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-// import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-// import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract BorrowRequestFactory is

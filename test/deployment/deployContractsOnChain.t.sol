@@ -17,18 +17,12 @@ abstract contract deployContractsOnChain is Test {
     ERC20Mock internal randomToken;
 
     function init() public {
-        protocolManager = new ProtocolManager();
-
-        console2.log("test protocolManager", address(protocolManager));
-
-        tokenManager = new TokenManager(address(protocolManager));
-
-        console2.log("test tokenManager", address(tokenManager));
-
-        iTokenManager = ITokenManager(address(tokenManager));
-
-        iProtocolManager = IProtocolManager(address(protocolManager));
-
-        randomToken = new ERC20Mock("random", "RAND", msg.sender, UINT256_MAX);
+        // protocolManager = new ProtocolManager();
+        // console2.log("test protocolManager", address(protocolManager));
+        // tokenManager = new TokenManager(address(protocolManager));
+        // console2.log("test tokenManager", address(tokenManager));
+        // iTokenManager = ITokenManager(address(tokenManager));
+        // iProtocolManager = IProtocolManager(address(protocolManager));
+        // randomToken = new ERC20Mock("random", "RAND", msg.sender, UINT256_MAX);
     }
 }

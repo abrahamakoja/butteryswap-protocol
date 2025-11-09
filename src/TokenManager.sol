@@ -15,12 +15,16 @@ import {Script, console2} from "forge-std/Script.sol";
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
-
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract TokenManager is ReentrancyGuard, AccessControl {
+contract TokenManager is
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -76,7 +80,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     bytes32 public constant TOKEN_MANAGER_ADMIN =
         keccak256("TOKEN_MANAGER_ADMIN");
 
-    IProtocolManager private immutable protocolManager;
+    IProtocolManager private protocolManager;
     uint256 private totalRequestedTokens;
     uint256 private totalListedTokens;
     uint256 private totalTokensToUnList;
@@ -158,8 +162,13 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @notice contract constructor.
-    constructor(address _protocolManager) {
+    function initialize(address _protocolManager) public initializer {
         protocolManager = IProtocolManager(_protocolManager);
 
         bool roleGranted = _grantRole(
@@ -168,7 +177,9 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         );
         if (!roleGranted) revert();
     }
-
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/

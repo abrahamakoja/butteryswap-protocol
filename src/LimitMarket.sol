@@ -14,13 +14,19 @@ import {Script, console2} from "forge-std/Script.sol";
                                 IMPORTS
     //////////////////////////////////////////////////////////////*/
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract LimitMarket is ReentrancyGuard {
+contract LimitMarket is
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -38,7 +44,10 @@ contract LimitMarket is ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    IProtocolManager private immutable protocolManager;
+    IProtocolManager private protocolManager;
+
+    bytes32 public constant LIMIT_MARKET_ADMIN =
+        keccak256("LIMIT_MARKET_ADMIN");
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -54,22 +63,31 @@ contract LimitMarket is ReentrancyGuard {
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _protocolManager) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _protocolManager) public initializer {
         protocolManager = IProtocolManager(_protocolManager);
-        console2.log("constructor caller", msg.sender);
-        console2.log("constructor deployment address", address(this));
-        bytes memory data = abi.encodeWithSelector(
-            IProtocolManager(_protocolManager)
-                .setLimitMarketContractAddress
-                .selector,
-            address(this)
-        );
+        // console2.log("constructor caller", msg.sender);
+        // console2.log("constructor deployment address", address(this));
+        bytes memory data = abi.encodeWithSelector( //@audit is this call safe?
+                IProtocolManager(_protocolManager)
+                    .setLimitMarketContractAddress
+                    .selector,
+                address(this)
+            );
         (bool success, ) = address(IProtocolManager(_protocolManager)).call(
             data
         );
         require(success);
         // _initialize();
     }
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL BORROW FUNCTIONS

@@ -6,6 +6,8 @@ import {ProtocolManager} from "../../src/ProtocolManager.sol";
 import {BorrowRequestFactory} from "../../src/BorrowRequestFactory.sol";
 import {LimitMarket} from "../../src/LimitMarket.sol";
 import {ILimitMarket} from "../../src/interfaces/ILimitMarket.sol";
+import {TokenManager} from "../../src/TokenManager.sol";
+import {ITokenManager} from "../../src/interfaces/ITokenManager.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract BorrowRequestFactoryUnitTest is Test {
@@ -14,28 +16,25 @@ contract BorrowRequestFactoryUnitTest is Test {
     ILimitMarket limitMarket;
     function setUp() public {
         protocolManager = new ProtocolManager();
-        LimitMarket _limitMarket = new LimitMarket(address(protocolManager));
-        limitMarket = ILimitMarket(address(_limitMarket));
+        // LimitMarket _limitMarket = new LimitMarket(address(protocolManager));
+        // limitMarket = ILimitMarket(address(_limitMarket));
         // protocolManager.setLimitMarketContractAddress(address(limitMarket));
-        address proxy = Upgrades.deployUUPSProxy(
+        address BorrowRequestFactoryProxy = Upgrades.deployUUPSProxy(
             "BorrowRequestFactory.sol",
             abi.encodeCall(
                 BorrowRequestFactory.initialize,
                 address(protocolManager)
             )
         );
+        address LimitMarketProxy = Upgrades.deployUUPSProxy(
+            "LimitMarket.sol",
+            abi.encodeCall(LimitMarket.initialize, address(protocolManager))
+        );
+        limitMarket = ILimitMarket(LimitMarketProxy);
         BorrowRequestFactory _borrowRequestFactory = BorrowRequestFactory(
-            proxy
+            BorrowRequestFactoryProxy
         );
         borrowRequestFactory = _borrowRequestFactory;
-        // borrowRequestFactory = new BorrowRequestFactory(
-        //     address(protocolManager)
-        // );
-        console2.log(
-            "test setup protocolmanager limit",
-            protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
-        );
-        console2.log("limit", address(limitMarket));
     }
 
     function testCreateRequest() external {

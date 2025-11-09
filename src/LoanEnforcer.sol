@@ -20,8 +20,8 @@ import {Script, console} from "forge-std/Script.sol";
     //////////////////////////////////////////////////////////////*/
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+// import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+// import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
 import {ILendRequest} from "./interfaces/ILendRequest.sol";
 import {ActiveLoan} from "./ActiveLoan.sol";
@@ -31,7 +31,15 @@ import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 
-contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+
+contract LoanEnforcer is
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -39,7 +47,7 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
     /*//////////////////////////////////////////////////////////////
                                  STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    IProtocolManager private immutable protocolManager;
+    IProtocolManager private protocolManager;
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -51,9 +59,19 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
         }
         _;
     }
-    constructor(address _protocolManager) Ownable(msg.sender) {
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _protocolManager) public initializer {
         protocolManager = IProtocolManager(_protocolManager);
     }
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     function executeLoanDisbursement() external payable onlyExecutor {
         address selectedBorrowRequest;
@@ -172,39 +190,3 @@ contract LoanEnforcer is Script, ReentrancyGuard, Ownable {
         return;
     }
 }
-
-// s_settledBorrowRequest[
-//     address(_activeBorrowRequestAddress)
-// ] = index;
-// s_settledLendRequest[
-//     address(_activeLendRequestAddress)
-// ] = index;
-// // update mapping of borrower address to active active loan
-// userToActiveLoanContract[address(activeBorrower)].push(
-//     address(_activeLoan)
-// );
-// // update mapping of lender address to active active loan
-// userToActiveLoanContract[address(activeLender)].push(
-//     address(_activeLoan)
-// );
-// // update s_activeBorrowRequestAddress
-// s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
-// // update s_activeLendRequestAddress
-// s_activeLendRequestAddress = _activeLendRequestAddress;
-
-// /// *** emits *** ///
-// emit loanOfferExecuted(address(_activeLoan));
-
-// /// *** interactions *** ///
-
-/// *** effects *** ///
-// s_settledBorrowRequest[address(_activeBorrowRequestAddress)] = index;
-// s_settledLendRequest[address(_activeLendRequestAddress)] = index;
-// // update mapping of borrower address to active active loan
-// userToActiveLoanContract[address(activeBorrower)].push( address(_activeLoan));
-// // update mapping of lender address to active active loan
-// userToActiveLoanContract[address(activeLender)].push(address(_activeLoan));
-// // update s_activeBorrowRequestAddress
-// s_activeBorrowRequestAddress = _activeBorrowRequestAddress;
-// // update s_activeLendRequestAddress
-// s_activeLendRequestAddress = _activeLendRequestAddress;

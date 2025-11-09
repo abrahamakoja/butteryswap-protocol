@@ -24,11 +24,7 @@ contract DeployBorrowRequestFactory is Script {
                 mostRecentlyDeployedProtocolManager
             )
         );
-        console2.log("script factory contract", address(proxy));
-        console2.log("script executed", mostRecentlyDeployedProtocolManager);
-        // borrowRequestFactory = new BorrowRequestFactory(
-        //     mostRecentlyDeployedProtocolManager
-        // );
+
         vm.stopBroadcast();
 
         return BorrowRequestFactory(proxy);
