@@ -5,20 +5,16 @@ src = "src"
 out = "out"
 libs = ["lib"]
 ffi = true
-fs_permissions = [{ access = "read", path = "./broadcast" }]
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "out" }]
 cache = true
 cache_path = 'cache'
 broadcast = 'broadcast'
-remappings = [
-    '@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/',
-    '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/',
-    '@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/',
-    '@uniswap/v4-core/=lib/v4-core/',
-    'solmate/=lib/v4-core/lib/solmate/',
-    '@uniswap/v4-periphery/=lib/v4-periphery/',
-]
+# remappings = 'remappings.txt'
 
-
+# remove in production
 [profile.solx]
 solc_version = "/home/oxAkoja/.local/bin/solx"
 

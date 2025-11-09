@@ -8,7 +8,7 @@ pragma solidity ^0.8.26;
  */
 
 // debug
-import {Script, console} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                 IMPORTS
@@ -24,7 +24,8 @@ contract LimitMarket is ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
-    error UnauthorizedAccess(address caller);
+    error LimitMarket_UnauthorizedAccess(address caller);
+    error LimitMarket_BorrowRequestFailed();
     // new
     error LimitMarket_InvalidTokenCount(uint256 tokenCount);
     error LimitMarket_NoCollateralSent(uint256 collateralAmount);
@@ -55,7 +56,19 @@ contract LimitMarket is ReentrancyGuard {
 
     constructor(address _protocolManager) {
         protocolManager = IProtocolManager(_protocolManager);
-        _initialize();
+        console2.log("constructor caller", msg.sender);
+        console2.log("constructor deployment address", address(this));
+        bytes memory data = abi.encodeWithSelector(
+            IProtocolManager(_protocolManager)
+                .setLimitMarketContractAddress
+                .selector,
+            address(this)
+        );
+        (bool success, ) = address(IProtocolManager(_protocolManager)).call(
+            data
+        );
+        require(success);
+        // _initialize();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -63,27 +76,66 @@ contract LimitMarket is ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     function _initialize() private nonReentrant {
-        protocolManager.setLimitMarketContractAddress(address(this));
+        bytes memory data = abi.encodeWithSelector(
+            protocolManager.setLimitMarketContractAddress.selector,
+            address(this)
+        );
+        (bool success, ) = address(protocolManager).staticcall(data);
+        require(success);
+        // protocolManager.setLimitMarketContractAddress(address(this));
     }
 
     /// @notice Internal function to create a new BorrowRequest instance
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
-    function Borrow(
+    function borrow(
         uint256[] calldata collateralAmount,
         uint256 loanAmountRequested,
         address[] calldata tokens,
         bool priority
     ) external payable nonReentrant returns (address borrowRequest) {
-        borrowRequest = IBorrowRequestFactory(
-            protocolManager.BorrowRequestFactory()
-        ).createRequest(
-                collateralAmount,
-                loanAmountRequested,
-                tokens,
-                msg.sender,
-                priority
-            );
+        console2.log("msg.sender limit", msg.sender);
+
+        bytes memory data = abi.encodeWithSelector(
+            IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+                .createRequest
+                .selector,
+            collateralAmount,
+            loanAmountRequested,
+            tokens,
+            msg.sender,
+            priority
+        );
+
+        (bool success, bytes memory result) = protocolManager
+            .BorrowRequestFactory()
+            .call(data);
+
+        require(success, LimitMarket_BorrowRequestFailed());
+
+        return abi.decode(result, (address));
+
+        // (bool success, bytes memory data) = address(
+        //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+        // ).delegatecall(
+        //         abi.encodeWithSignature(
+        //             "createRequest(uint256[] calldata collateralAmount, uint256 loanAmountRequested,address[] calldata tokens,address borrower,bool priority)",
+        //             collateralAmount,
+        //             loanAmountRequested,
+        //             tokens,
+        //             msg.sender,
+        //             priority
+        //         )
+        //     );
+        // borrowRequest = IBorrowRequestFactory(
+        //     protocolManager.BorrowRequestFactory()
+        // ).createRequest(
+        //         collateralAmount,
+        //         loanAmountRequested,
+        //         tokens,
+        //         msg.sender,
+        //         priority
+        //     );
     }
 
     function addLiquidityToBorrowRequest(

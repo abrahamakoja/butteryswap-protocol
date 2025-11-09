@@ -8,7 +8,8 @@ contract DeployProtocolManager is Script {
     function run() external returns (ProtocolManager protocolManager) {
         vm.startBroadcast();
         protocolManager = new ProtocolManager();
-        console2.log("deployer", address(protocolManager));
+        // console2.log("script ProtocolManager contract", address(this));
+        console2.log("deployer script", address(protocolManager));
         vm.stopBroadcast();
         return protocolManager;
     }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// debug
+import {Script, console2} from "forge-std/Script.sol";
+
 /*//////////////////////////////////////////////////////////////
                                  IMPORTS
     //////////////////////////////////////////////////////////////*/
@@ -19,6 +22,7 @@ contract ProtocolManager is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     error ProtocolManager__invalidAddress();
+    error ProtocolManager__unAuthorizedCaller();
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -73,14 +77,21 @@ contract ProtocolManager is Ownable {
         return 1 ether;
     }
     function setLimitMarketContractAddress(
-        address _address
-    ) external addressValidated(_address) {
-        require(msg.sender == address(this));
-        LIMIT_MARKET_CONTRACT_ADDRESS = _address;
+        address limitMarketAddress
+    ) external addressValidated(limitMarketAddress) {
+        require(
+            limitMarketAddress != address(0),
+            ProtocolManager__invalidAddress()
+        );
+        console2.log("protocol manager msg.sender", msg.sender);
+        console2.log("protocol manager deployer", DEPLOYER);
+        LIMIT_MARKET_CONTRACT_ADDRESS = limitMarketAddress;
     }
     function updateBorrowRequestFactoryContract(
-        address _address
-    ) external addressValidated(_address) onlyOwner {}
+        address borrowRequestFactory
+    ) external addressValidated(borrowRequestFactory) onlyOwner {
+        BorrowRequestFactory = borrowRequestFactory;
+    }
     function updateLendRequestFactoryContract(
         address _address
     ) external addressValidated(_address) onlyOwner {}

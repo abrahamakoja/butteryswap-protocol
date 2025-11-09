@@ -2,19 +2,71 @@
 pragma solidity ^0.8.28;
 
 import {Test, console2} from "forge-std/Test.sol";
+import {ProtocolManager} from "../../src/ProtocolManager.sol";
 import {BorrowRequestFactory} from "../../src/BorrowRequestFactory.sol";
-import {DeployProtocolManager} from "../../script/01_DeployProtocolManager.s.sol";
-import {DeployBorrowRequestFactory} from "../../script/05_DeployBorrowRequestFactory.s.sol";
+import {LimitMarket} from "../../src/LimitMarket.sol";
+import {ILimitMarket} from "../../src/interfaces/ILimitMarket.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract BorrowRequestFactoryUnitTest is Test {
-    DeployProtocolManager deployProtocolManager;
-    DeployBorrowRequestFactory deployBorrowRequestFactory;
-    address public protocolManager;
-    address public borrowRequestFactory;
+    ProtocolManager protocolManager;
+    BorrowRequestFactory borrowRequestFactory;
+    ILimitMarket limitMarket;
     function setUp() public {
-        deployProtocolManager = new DeployProtocolManager();
-        deployBorrowRequestFactory = new DeployBorrowRequestFactory();
-        // protocolManager = deployProtocolManager.getAddress();
-        // borrowRequestFactory = deployBorrowRequestFactory.run();
+        protocolManager = new ProtocolManager();
+        LimitMarket _limitMarket = new LimitMarket(address(protocolManager));
+        limitMarket = ILimitMarket(address(_limitMarket));
+        // protocolManager.setLimitMarketContractAddress(address(limitMarket));
+        address proxy = Upgrades.deployUUPSProxy(
+            "BorrowRequestFactory.sol",
+            abi.encodeCall(
+                BorrowRequestFactory.initialize,
+                address(protocolManager)
+            )
+        );
+        BorrowRequestFactory _borrowRequestFactory = BorrowRequestFactory(
+            proxy
+        );
+        borrowRequestFactory = _borrowRequestFactory;
+        // borrowRequestFactory = new BorrowRequestFactory(
+        //     address(protocolManager)
+        // );
+        console2.log(
+            "test setup protocolmanager limit",
+            protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+        console2.log("limit", address(limitMarket));
+    }
+
+    function testCreateRequest() external {
+        //  uint256[] calldata collateralAmount,
+        // uint256 loanAmountRequested,
+        // address[] calldata tokens,
+        // address borrower,
+        // protocolManager.setLimitMarketContractAddress(address(limitMarket));
+        console2.log("test limit", address(limitMarket));
+        console2.log(
+            "test function protocolmanager limit",
+            protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+        protocolManager.updateBorrowRequestFactoryContract(
+            address(borrowRequestFactory)
+        );
+        address borrower = vm.randomAddress();
+        uint256 amount;
+        uint256 loanAmountRequested = 6000;
+        uint256[] memory collateralAmount = new uint256[](6);
+        address[] memory tokens = new address[](6);
+        for (uint i = 0; i < collateralAmount.length; i++) {
+            collateralAmount[i] = amount + 100;
+            tokens[i] = vm.randomAddress();
+            amount += 100;
+        }
+        limitMarket.borrow(
+            collateralAmount,
+            loanAmountRequested,
+            tokens,
+            false
+        );
     }
 }

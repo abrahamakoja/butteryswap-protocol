@@ -7,13 +7,11 @@ import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 
 contract DeployLimitMarket is Script {
     address mostRecentlyDeployedProtocolManager;
-    function run() external returns (LimitMarket) {
+    function run() external returns (LimitMarket limitMarket) {
         mostRecentlyDeployedProtocolManager = DevOpsTools
             .get_most_recent_deployment("ProtocolManager", block.chainid);
         vm.startBroadcast();
-        LimitMarket limitMarket = new LimitMarket(
-            mostRecentlyDeployedProtocolManager
-        );
+        limitMarket = new LimitMarket(mostRecentlyDeployedProtocolManager);
         vm.stopBroadcast();
         return limitMarket;
     }

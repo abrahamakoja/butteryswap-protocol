@@ -19,10 +19,21 @@ import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+// import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+// import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+// import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+// import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+
+contract BorrowRequestFactory is
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -52,9 +63,13 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    EnumerableSet.AddressSet private mySet;
+
     bytes32 public constant LIMIT_MARKET = keccak256("LIMIT_MARKET");
 
-    IProtocolManager private immutable s_protocolManager;
+    IProtocolManager private s_protocolManager;
 
     BorrowRequest[] private s_totalNonPrioritizedBorrowRequest;
 
@@ -117,23 +132,36 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         _;
     }
 
-    /** CONSTRUCTOR */
-    constructor(address _protocolManager) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// internal functions
+
+    // function _checkInitializing() internal view override {}
+
+    function initialize(address _protocolManager) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+
         s_protocolManager = IProtocolManager(_protocolManager);
-        bool defaultAdminSet = _grantRole(
+        _grantRole(
             DEFAULT_ADMIN_ROLE,
-            s_protocolManager.DEPLOYER()
+            IProtocolManager(_protocolManager).DEPLOYER()
         );
 
-        bool limitMarketRoleSet = _grantRole(
+        _grantRole(
             LIMIT_MARKET,
-            s_protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
-        );
-        require(
-            limitMarketRoleSet && defaultAdminSet,
-            "Roles allocation Failed"
+            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT_ADDRESS()
         );
     }
+
+    // function _disableInitializers() internal override {}
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
@@ -144,6 +172,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     /// @param tokens The list of tokens to be used as collateral
     /// @param borrower The address of the enforcer contract
     /// @param priority The address of the enforcer contract
+    /// @return borrowRequest
     function createRequest(
         uint256[] calldata collateralAmount,
         uint256 loanAmountRequested,
@@ -158,6 +187,14 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         nonReentrant
         returns (address borrowRequest)
     {
+        // require(
+        //     msg.sender == s_protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        // );
+        console2.log("factory msg.sender", msg.sender);
+        console2.log(
+            "factory LimitMarket address",
+            s_protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
         // @note check health factor of each token
         // @audit return the created request address
         // @audit if value of tokens match requested collateral amount based of ltv
