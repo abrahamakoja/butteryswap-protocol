@@ -14,6 +14,7 @@ contract BorrowRequestFactoryUnitTest is Test {
     ProtocolManager protocolManager;
     BorrowRequestFactory borrowRequestFactory;
     ILimitMarket limitMarket;
+    ITokenManager tokenManager;
     function setUp() public {
         protocolManager = new ProtocolManager();
         // LimitMarket _limitMarket = new LimitMarket(address(protocolManager));
@@ -26,15 +27,23 @@ contract BorrowRequestFactoryUnitTest is Test {
                 address(protocolManager)
             )
         );
+        BorrowRequestFactory _borrowRequestFactory = BorrowRequestFactory(
+            BorrowRequestFactoryProxy
+        );
+        borrowRequestFactory = _borrowRequestFactory;
+
         address LimitMarketProxy = Upgrades.deployUUPSProxy(
             "LimitMarket.sol",
             abi.encodeCall(LimitMarket.initialize, address(protocolManager))
         );
         limitMarket = ILimitMarket(LimitMarketProxy);
-        BorrowRequestFactory _borrowRequestFactory = BorrowRequestFactory(
-            BorrowRequestFactoryProxy
+
+        address TokenManagerProxy = Upgrades.deployUUPSProxy(
+            "TokenManager.sol",
+            abi.encodeCall(TokenManager.initialize, address(protocolManager))
         );
-        borrowRequestFactory = _borrowRequestFactory;
+
+        tokenManager = ITokenManager(TokenManagerProxy);
     }
 
     function testCreateRequest() external {
