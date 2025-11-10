@@ -36,27 +36,23 @@ contract ProtocolManager is
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant MANAGER = keccak256("MANAGER");
-
+    bytes32 public MANAGER;
     address public Enforcer;
-    // address public limitMarketContractAddress;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public minimumDeposit;
     address public DEPLOYER;
-    address public TOKEN_MANAGER_CONTRACT =
-        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    address public TOKEN_MANAGER_CONTRACT;
     address public LIMIT_MARKET_CONTRACT_ADDRESS;
     /// @dev listing fee to be paid by caller when creating a listing request.
-    uint256 public constant LISTING_FEE = 1 ether;
-    address public constant FEE_CONTRACT =
-        0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
-    uint256 public constant MAX_ASSET_LIMIT = 6;
-    uint256 public constant ORIGINATION_FEE = 6;
-    uint256 public constant CANCELLATION_FEE = 10;
-    uint256 public constant SETTLEMENT_FEE = 6;
-    uint256 public constant INDEX_PRECISION = 1;
+    uint256 public LISTING_FEE;
+    address public FEE_CONTRACT;
+    uint256 public MAX_ASSET_LIMIT;
+    uint256 public ORIGINATION_FEE;
+    uint256 public CANCELLATION_FEE;
+    uint256 public SETTLEMENT_FEE;
+    uint256 public INDEX_PRECISION;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -64,12 +60,23 @@ contract ProtocolManager is
     }
 
     function initialize() public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
+        MANAGER = keccak256("MANAGER");
         _grantRole(MANAGER, msg.sender);
-        console2.log("main", (address(this)));
+
+        //    assign storage values
         DEPLOYER = msg.sender;
-        // console2.log(address(_protocolManager));
+        LISTING_FEE = 1 ether;
+        FEE_CONTRACT = 0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
+        MAX_ASSET_LIMIT = 6;
+        ORIGINATION_FEE = 6;
+        CANCELLATION_FEE = 10;
+        SETTLEMENT_FEE = 6;
+        INDEX_PRECISION = 1;
     }
 
     function _authorizeUpgrade(
@@ -96,6 +103,8 @@ contract ProtocolManager is
     function calculateTokenListingFee(
         address token
     ) external pure returns (uint256 fee) {
+        require(token != address(0));
+        //@audit unused variable
         return 1 ether;
     }
     function setLimitMarketContractAddress(
@@ -123,19 +132,19 @@ contract ProtocolManager is
 
     function calculateAmountMinus_OriginationFee(
         uint256 collateraValue
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return (collateraValue - (calculateOriginationFee(collateraValue)));
     }
 
     function calculateAmountMinus_SettlementFee(
         uint256 collateraValue
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return (collateraValue - (calculateSettlementFee(collateraValue))); // @note change magic number to precision constant
     }
 
     function calculateAmountMinus_CancellationFee(
         uint256 amount
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return (amount - (calculateCancellationFee(amount)));
     }
 
@@ -146,19 +155,19 @@ contract ProtocolManager is
     // @audit fix the fees
     function calculateCancellationFee(
         uint256 collateraValue
-    ) private pure returns (uint256) {
+    ) private view returns (uint256) {
         return ((collateraValue * CANCELLATION_FEE) / 100) * 1 ether;
     }
     function calculateOriginationFee(
         uint256 collateraValue
-    ) private pure returns (uint256) {
+    ) private view returns (uint256) {
         return ((collateraValue * ORIGINATION_FEE) / 100) * 1 ether;
     }
 
     // change to settlement fee
     function calculateSettlementFee(
         uint256 collateraValue
-    ) private pure returns (uint256) {
+    ) private view returns (uint256) {
         return (collateraValue * SETTLEMENT_FEE) / 100;
     }
 }

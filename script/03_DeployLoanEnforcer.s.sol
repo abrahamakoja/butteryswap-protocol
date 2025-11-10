@@ -8,7 +8,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract DeployLoanEnforcer is Script {
     address mostRecentlyDeployedProtocolManager;
-    function run() external returns (LoanEnforcer) {
+    function run() external {
         mostRecentlyDeployedProtocolManager = DevOpsTools
             .get_most_recent_deployment("ProtocolManager", block.chainid);
         vm.startBroadcast();
@@ -21,6 +21,5 @@ contract DeployLoanEnforcer is Script {
         );
 
         vm.stopBroadcast();
-        return LoanEnforcer(proxy);
     }
 }

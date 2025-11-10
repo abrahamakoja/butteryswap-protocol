@@ -8,7 +8,8 @@ ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
-fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "out" }]
+fs_permissions = [{ access = "read", path = "./"}]
+# fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "out" }]
 cache = true
 cache_path = 'cache'
 broadcast = 'broadcast'

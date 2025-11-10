@@ -46,8 +46,7 @@ contract LimitMarket is
 
     IProtocolManager private protocolManager;
 
-    bytes32 public constant LIMIT_MARKET_ADMIN =
-        keccak256("LIMIT_MARKET_ADMIN");
+    bytes32 public LIMIT_MARKET_ADMIN;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -69,9 +68,14 @@ contract LimitMarket is
     }
 
     function initialize(address _protocolManager) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        LIMIT_MARKET_ADMIN = keccak256("LIMIT_MARKET_ADMIN");
+        address deployer = IProtocolManager(_protocolManager).DEPLOYER();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, deployer);
+        _grantRole(LIMIT_MARKET_ADMIN, deployer);
         protocolManager = IProtocolManager(_protocolManager);
-        // console2.log("constructor caller", msg.sender);
-        // console2.log("constructor deployment address", address(this));
         bytes memory data = abi.encodeWithSelector( //@audit is this call safe?
                 IProtocolManager(_protocolManager)
                     .setLimitMarketContractAddress
@@ -82,7 +86,7 @@ contract LimitMarket is
             data
         );
         require(success);
-        // _initialize();
+        // _initialize(); //@audit remove
     }
 
     function _authorizeUpgrade(

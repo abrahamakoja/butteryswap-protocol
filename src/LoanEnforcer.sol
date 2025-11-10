@@ -66,6 +66,8 @@ contract LoanEnforcer is
     }
 
     function initialize(address _protocolManager) public initializer {
+        __ReentrancyGuard_init();
+        __AccessControl_init();
         protocolManager = IProtocolManager(_protocolManager);
     }
 

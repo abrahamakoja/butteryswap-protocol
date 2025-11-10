@@ -10,7 +10,7 @@ pragma solidity ^0.8.28;
 
 // debug this
 /// @audit remove before production
-import {Script, console2} from "forge-std/Script.sol";
+// import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
@@ -73,12 +73,11 @@ contract TokenManager is
         tokenOperationalState _tokenOperationalState;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /*/////////////////                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                /////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant TOKEN_MANAGER_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN");
+    bytes32 public TOKEN_MANAGER_ADMIN;
 
     IProtocolManager private protocolManager;
     uint256 private totalRequestedTokens;
@@ -169,13 +168,20 @@ contract TokenManager is
 
     /// @notice contract constructor.
     function initialize(address _protocolManager) public initializer {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
         protocolManager = IProtocolManager(_protocolManager);
 
-        bool roleGranted = _grantRole(
+        TOKEN_MANAGER_ADMIN = keccak256("TOKEN_MANAGER_ADMIN");
+
+        _grantRole(
+            DEFAULT_ADMIN_ROLE,
+            IProtocolManager(_protocolManager).DEPLOYER()
+        );
+        _grantRole(
             TOKEN_MANAGER_ADMIN,
             IProtocolManager(_protocolManager).TOKEN_MANAGER_CONTRACT()
         );
-        if (!roleGranted) revert();
     }
     function _authorizeUpgrade(
         address

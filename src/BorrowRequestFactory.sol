@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 /// @title BorrowRequestFactory
 /// @author ButterySwap Protocol
-/// @notice Explain to an end user what this does
-/// @dev Explain to a developer any extra details
+/// @notice  @audit Explain to an end user what this does
+/// @dev @audit Explain to a developer any extra details
 
 //  debug @audit
 import {Script, console2} from "forge-std/Script.sol";
