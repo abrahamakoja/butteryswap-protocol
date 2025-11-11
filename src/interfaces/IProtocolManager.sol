@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 interface IProtocolManager {
-    function setLimitMarketContractAddress(address _address) external;
+    function setLimitMarketContractAddress(address limitMarketAddress) external;
     function TokenManager() external returns (address);
     function FEE_CONTRACT() external returns (address);
     function BorrowRequestFactory() external returns (address);
@@ -32,7 +32,14 @@ interface IProtocolManager {
     function minimumDeposit() external returns (uint256);
     function INDEX_PRECISION() external returns (uint256);
     function SETTLEMENT_FEE() external returns (uint256);
-    function PRIORITY_FEE() external returns (uint256);
     function MAX_ASSET_LIMIT() external returns (uint256);
     function MAX_OWNERS_LIMIT() external returns (uint256);
+    function updateBorrowRequestFactoryContract(
+        address borrowRequestFactory,
+        address manager
+    ) external;
+    function updateTokenManagerContract(
+        address tokenManager,
+        address manager
+    ) external;
 }

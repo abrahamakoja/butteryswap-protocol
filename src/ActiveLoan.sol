@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
@@ -28,7 +28,6 @@ contract ActiveLoan {
         borrower = _borrower;
         lender = _lender;
         protocolManager = IProtocolManager(_protocolManager);
-       
 
         s_activeLoan = LoanConfigLibrary.createActiveLoan(
             _borrower,
@@ -42,8 +41,6 @@ contract ActiveLoan {
     }
 
     receive() external payable {}
-
-    
 
     function getDetails()
         external

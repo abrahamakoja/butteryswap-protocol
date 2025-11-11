@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 // debug
 import {Script, console} from "forge-std/Script.sol";
 
@@ -60,7 +60,7 @@ contract LendRequest {
             lender,
             _timeCreated
         );
-       
+
         protocolManager = IProtocolManager(_protocolManager);
     }
 
@@ -74,7 +74,7 @@ contract LendRequest {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function offerLoan(address borrower,uint256 amount) external onlyEnforcer {
+    function offerLoan(address borrower, uint256 amount) external onlyEnforcer {
         // transfer eth to an address and transfer tokens to an address
         emit LoanOffered(address(borrower), amount);
         // LoanConfigLibrary.offerLoan(
@@ -84,11 +84,8 @@ contract LendRequest {
         // );
     }
 
-    function updateRequestState(
-        uint8 state
-    ) external onlyFactory {
-        s_lendRequest.updateLendRequestState( state);
-       
+    function updateRequestState(uint8 state) external onlyFactory {
+        s_lendRequest.updateLendRequestState(state);
     }
 
     function resetRequestDetails() external onlyFactory {

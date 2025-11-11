@@ -10,7 +10,7 @@ pragma solidity ^0.8.28;
 
 // debug this
 /// @audit remove before production
-// import {Script, console2} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
@@ -80,7 +80,7 @@ contract TokenManager is
     bytes32 public TOKEN_MANAGER_ADMIN;
 
     IProtocolManager private protocolManager;
-    uint256 private totalRequestedTokens;
+    uint256 public totalRequestedTokens;
     uint256 private totalListedTokens;
     uint256 private totalTokensToUnList;
     uint256 private totalUnListedTokens;
@@ -180,8 +180,14 @@ contract TokenManager is
         );
         _grantRole(
             TOKEN_MANAGER_ADMIN,
-            IProtocolManager(_protocolManager).TOKEN_MANAGER_CONTRACT()
+            IProtocolManager(_protocolManager).DEPLOYER()
         );
+
+        // updateTokenManagerContract
+        protocolManager.updateTokenManagerContract(address(this), msg.sender);
+
+        // storage variables
+        totalRequestedTokens = 0;
     }
     function _authorizeUpgrade(
         address
@@ -205,8 +211,7 @@ contract TokenManager is
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
         if (
-            msg.value !=
-            protocolManager.calculateTokenListingFee(address(token))
+            msg.value < protocolManager.calculateTokenListingFee(address(token))
         ) revert TokenManager__invalidAmount();
 
         /// effects
@@ -227,6 +232,7 @@ contract TokenManager is
         s_tokenDetails[address(token)] = _tokenDetails;
         /// @dev maps the token address to it's index on the que
         s_requestedTokenToIndex[address(token)] = index;
+        console2.log("request index:", index);
         s_requestedTokenIndexToAddress[index] = address(token);
         s_isListed[address(token)] = false;
         totalRequestedTokens++;
@@ -257,8 +263,7 @@ contract TokenManager is
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
         if (
-            msg.value !=
-            protocolManager.calculateTokenFeeAddressUpdateFee(token)
+            msg.value < protocolManager.calculateTokenFeeAddressUpdateFee(token)
         ) revert TokenManager__invalidAmount();
 
         if (s_tokenDetails[address(token)].marketOwner != address(msg.sender))
@@ -292,10 +297,12 @@ contract TokenManager is
         if (index > totalRequestedTokens) {
             revert TokenManager__LimitExceeded();
         }
+        console2.log("index ::", index);
 
         /// Effects
         /// @dev get the address of the token attached to the inputted index
         address token = s_requestedTokenIndexToAddress[index];
+        console2.log("index token::", index, token);
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -304,23 +311,26 @@ contract TokenManager is
             revert TokenManager__TokenIsListed();
         }
         uint256 _totalListedTokens = totalListedTokens;
+        // console2.log("index _totalListedTokens before::", _totalListedTokens);
         uint256 newIndex = _totalListedTokens +
             protocolManager.INDEX_PRECISION();
 
+        console2.log("index newIndex ::", newIndex);
         /// @dev update token listing detail
         s_tokenDetails[token]._tokenListingState = tokenListingState.LISTED;
-        /// @dev update token operational detail
+        // /// @dev update token operational detail
         s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
             .ACTIVE;
         s_listedTokenToIndex[token] = newIndex;
         s_listedTokenIndexToAddress[newIndex] = address(token);
-        /// @dev update s_isListed mapping to true
+        // /// @dev update s_isListed mapping to true
         s_isListed[token] = true;
 
+        totalListedTokens += 1;
+        console2.log("index totalListedTokens ::", totalListedTokens);
         delete s_requestedTokenIndexToAddress[index];
         delete s_requestedTokenToIndex[token];
-        totalRequestedTokens--;
-        totalListedTokens++;
+        console2.log("index totalRequestedTokens ::", totalRequestedTokens);
 
         // emit
         emit tokenListed(address(token));

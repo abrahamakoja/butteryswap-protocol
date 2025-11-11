@@ -52,9 +52,9 @@ mt:
 
 	# Run the test
 	if [ $$COUNT -eq 1 ]; then
-		FOUNDRY_PROFILE=solx forge test --match-test $$FUNC
+		FOUNDRY_PROFILE=solx forge test -vvvvv --match-test $$FUNC
 	elif [ $$COUNT -eq 2 ]; then
-		FOUNDRY_PROFILE=solx forge test --match-path $$PATH_TO_FILE --match-test $$FUNC
+		FOUNDRY_PROFILE=solx forge test -vvvvv --match-path $$PATH_TO_FILE --match-test $$FUNC
 	fi
 
 # Prevent "No rule to make target" warnings for extra words

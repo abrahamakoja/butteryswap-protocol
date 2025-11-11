@@ -7,4 +7,4 @@ halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/
 solidity-stringutils/=lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/
 @openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
-
+permit2/src/=lib/permit2/src/

@@ -50,7 +50,7 @@ contract BorrowRequestFactory is
     error BorrowRequestFactory__BorrowRequestFailed();
     error BorrowRequestFactory__PriorityFeePaymentFailed();
     error BorrowRequestFactory__OriginationFeePaymentFailed();
-    error LendRequestFactory__insufficientFeeAmount();
+    error BorrowRequestFactory__insufficientFeeAmount();
     error BorrowRequestFactory__collateralValueMismatch();
     error BorrowRequestFactory__RequestIsPrioritized();
 
@@ -141,14 +141,16 @@ contract BorrowRequestFactory is
         __ReentrancyGuard_init();
 
         s_protocolManager = IProtocolManager(_protocolManager);
-        _grantRole(
-            DEFAULT_ADMIN_ROLE,
-            IProtocolManager(_protocolManager).DEPLOYER()
-        );
+        _grantRole(DEFAULT_ADMIN_ROLE, s_protocolManager.DEPLOYER());
 
         _grantRole(
             LIMIT_MARKET,
-            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT_ADDRESS()
+            s_protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+
+        s_protocolManager.updateBorrowRequestFactoryContract(
+            address(this),
+            msg.sender
         );
     }
 
@@ -230,14 +232,14 @@ contract BorrowRequestFactory is
         if (
             msg.value <
             s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
-        ) revert();
+        ) revert BorrowRequestFactory__insufficientPriorityFee();
 
         if (msg.value == 0)
             revert BorrowRequestFactory__insufficientPriorityFee();
         if (
             msg.value !=
             s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
-        ) revert();
+        ) revert BorrowRequestFactory__insufficientPriorityFee();
 
         require(
             (s_isValidContract[borrowRequest] == true),
@@ -458,18 +460,17 @@ contract BorrowRequestFactory is
                         _collateralAmount[index]
                     );
 
-                totalCollateralValue += s_protocolManager
-                    .calculate_CollateralValue(_collateralAmount[index]); //@audit token manager handles collateral value
+                totalCollateralValue += 1; //@audit token manager handles collateral value @audit fix calculation
                 collateralToValue[address(borrowRequest)][
                     _tokens[index]
                 ] += _collateralAmount[index];
 
                 // Reset the allowance to the exact collateralAmount
-                erc20TokenLibrary.approveTokens(
-                    _tokens[index],
-                    address(this),
-                    _collateralAmount[index]
-                );
+                // erc20TokenLibrary.IncreaseAllowance(
+                //     _tokens[index],
+                //     address(this),
+                //     _collateralAmount[index]
+                // );
             }
 
             if (_priority) {
@@ -509,10 +510,14 @@ contract BorrowRequestFactory is
         originationFee = s_protocolManager.calculate_OriginationFee(
             totalCollateralValue
         );
-        if (msg.value == 0) revert LendRequestFactory__insufficientFeeAmount();
-        if (_priority == true && msg.value != (originationFee + priorityFee))
+
+        // @audit all these should be in one check
+        // @audit better custom errors
+        if (msg.value == 0)
+            revert BorrowRequestFactory__insufficientFeeAmount();
+        if (_priority == true && msg.value < (originationFee + priorityFee))
             revert();
-        if (_priority == false && msg.value != originationFee) revert();
+        if (_priority == false && msg.value < originationFee) revert();
 
         borrowerToTotalAmountRequested[_borrower] += totalCollateralValue;
 
@@ -548,6 +553,7 @@ contract BorrowRequestFactory is
         }
 
         /** TRANSFER TOKENS TO BORROW REQUEST CONTRACT */
+        // @audit possible to put this within the first loop
         for (uint256 index = 0; index < _tokens.length; index++) {
             erc20TokenLibrary.transferFromTokens(
                 _tokens[index],

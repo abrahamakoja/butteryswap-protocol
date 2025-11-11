@@ -6,7 +6,9 @@ out = "out"
 libs = ["lib"]
 ffi = true
 ast = true
+offline=true
 build_info = true
+auto_detect_solc=true
 extra_output = ["storageLayout"]
 fs_permissions = [{ access = "read", path = "./"}]
 # fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "out" }]

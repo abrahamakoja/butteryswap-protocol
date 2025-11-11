@@ -96,6 +96,23 @@ contract ProtocolManager is
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function calculate_CollateralValue(
+        uint256 amount
+    ) external pure returns (uint256) {
+        return amount;
+    }
+
+    function calculate_PriorityFee(
+        uint256 amount
+    ) external pure returns (uint256) {
+        return amount / 3;
+    }
+
+    function calculate_OriginationFee(
+        uint256 amount
+    ) external pure returns (uint256) {
+        return amount / 3;
+    }
 
     function updateEnforcerContract(
         address _address
@@ -103,7 +120,7 @@ contract ProtocolManager is
     function calculateTokenListingFee(
         address token
     ) external pure returns (uint256 fee) {
-        require(token != address(0));
+        // require(token != address(0));
         //@audit unused variable
         return 1 ether;
     }
@@ -119,9 +136,22 @@ contract ProtocolManager is
         LIMIT_MARKET_CONTRACT_ADDRESS = limitMarketAddress;
     }
     function updateBorrowRequestFactoryContract(
-        address borrowRequestFactory
-    ) external addressValidated(borrowRequestFactory) onlyRole(MANAGER) {
+        address borrowRequestFactory,
+        address manager
+    )
+        external
+        addressValidated(borrowRequestFactory)
+        addressValidated(manager)
+    {
+        require(hasRole(MANAGER, manager));
         BorrowRequestFactory = borrowRequestFactory;
+    }
+    function updateTokenManagerContract(
+        address tokenManager,
+        address manager
+    ) external addressValidated(tokenManager) addressValidated(manager) {
+        require(hasRole(MANAGER, manager));
+        TokenManager = tokenManager;
     }
     function updateLendRequestFactoryContract(
         address _address
