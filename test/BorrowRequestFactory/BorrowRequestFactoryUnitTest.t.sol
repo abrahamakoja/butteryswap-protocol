@@ -155,7 +155,7 @@ contract BorrowRequestFactoryUnitTest is Test {
             tokens,
             false
         );
-        // BorrowRequestV2(borrowRequest2).getRequestDetails();
+        BorrowRequestV2(borrowRequest2).getRequestDetails();
         vm.stopPrank();
     }
 }

@@ -17,6 +17,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
+import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -33,8 +34,10 @@ contract LimitMarket is
     error LimitMarket_UnauthorizedAccess(address caller);
     error LimitMarket_BorrowRequestFailed();
     // new
-    error LimitMarket_InvalidTokenCount(uint256 tokenCount);
-    error LimitMarket_NoCollateralSent(uint256 collateralAmount);
+    error LimitMarket__rangeDataMisMatch();
+    error LimitMarket__InvalidTokenCount(uint256 tokenCount);
+    error LimitMarket__unSupportedToken(address token);
+    error LimitMarket__NoCollateralSent(uint256 collateralAmount);
     error LimitMarket_EnforcerNotInitialized();
     error LimitMarket_NoAmountSent(uint256 balance, uint256 amountSent);
     error LimitMarket_InvalidAmount(uint256 balance, uint256 amountSent);
@@ -97,8 +100,27 @@ contract LimitMarket is
         address[] calldata tokens,
         bool priority
     ) external payable nonReentrant returns (address borrowRequest) {
-        console2.log("msg.sender limit", msg.sender);
-        console2.log("msg.value limit:::", msg.value);
+        // checks
+        require(
+            (collateralAmount.length == tokens.length),
+            LimitMarket__rangeDataMisMatch()
+        );
+
+        if (
+            tokens.length == 0 ||
+            tokens.length > protocolManager.MAX_ASSET_LIMIT()
+        ) revert LimitMarket__InvalidTokenCount(tokens.length);
+
+        for (uint256 index = 0; index < tokens.length; index++) {
+            // check each token is listed
+            if (
+                !ITokenManager(protocolManager.TokenManager())
+                    .checkIsTokenListed(address(tokens[index]))
+            ) revert LimitMarket__unSupportedToken(tokens[index]);
+
+            if (collateralAmount[index] == 0)
+                revert LimitMarket__NoCollateralSent(collateralAmount[index]);
+        }
 
         borrowRequest = IBorrowRequestFactory(
             protocolManager.BorrowRequestFactory()

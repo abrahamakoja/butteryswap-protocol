@@ -81,14 +81,40 @@ contract BorrowRequestFactory is
     error BorrowRequestFactory__RequestIsPrioritized();
 
     /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    struct RequestInfo {
+        address borrower;
+        address request;
+        uint256 totalAmountRequested;
+        uint256 position;
+        bool isValid;
+        bool prioritized;
+    }
+
+    struct PriorityList {
+        address request;
+        uint256 position;
+    }
+
+    struct TokenInfo {
+        address tokenAddress;
+        uint256 amount;
+        uint256 price;
+        uint256 ethValueAtRequestTime;
+    }
+
+    /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant LIMIT_MARKET = keccak256("LIMIT_MARKET");
+    bytes32 public limitMarketContract;
 
     address private _beacon;
 
-    // address private _implementation;
+    uint256 private _requestCount;
+    uint256 private _priorityCount;
 
     IProtocolManager private _protocolManager;
 
@@ -98,6 +124,10 @@ contract BorrowRequestFactory is
 
     mapping(address borrower => address[] borrowRequestAddresses)
         private userToBorrowRequestAddresses;
+    mapping(address borrower => RequestInfo[] requestInfo)
+        private userToRequests;
+    mapping(uint256 index => PriorityList[] priorityList)
+        private indexToPrioritizedRequests;
 
     mapping(address borrowRequest => address borrower)
         private borrowRequestToBorrower;
@@ -113,7 +143,7 @@ contract BorrowRequestFactory is
 
     mapping(address => bool) private s_isValidContract;
 
-    mapping(address borrowRequest => mapping(address collateral => uint256 value))
+    mapping(address borrowRequest => TokenInfo[] tokenInfo)
         private collateralToValue;
 
     mapping(address borrower => uint256 totalAmountRequested)
@@ -122,6 +152,11 @@ contract BorrowRequestFactory is
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+
+    event BorrowRequestFactoryInitialized(
+        address indexed borrowRequestFactoryAddress
+    );
+    event ImplementationUpgraded(address indexed newImplementation);
 
     event BorrowRequestCreated(
         address indexed user,
@@ -168,35 +203,34 @@ contract BorrowRequestFactory is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
+        limitMarketContract = keccak256("limitMarketContract");
         _protocolManager = IProtocolManager(protocolManager);
         _beacon = beacon;
+        _requestCount = 0;
         address deployer = _protocolManager.deployer();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, deployer);
+        bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, deployer);
 
-        _grantRole(
-            LIMIT_MARKET,
+        bool limitMarketContractRoleGranted = _grantRole(
+            limitMarketContract,
             _protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
         );
-
+        require(adminRoleGranted && limitMarketContractRoleGranted);
         _protocolManager.updateBorrowRequestFactoryContract(
             address(this),
             deployer
         );
-
-        // BorrowRequest impl = new BorrowRequest();
-        // _implementation = address(impl);
-
-        // _beacon = new UpgradeableBeacon(_implementation, address(this));
-        // _beacon.transferOwnership(deployer);
+        emit BorrowRequestFactoryInitialized(address(this));
     }
 
     function upgradeImplementation(
-        address newImplementation
+        address _newImplementation
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        UpgradeableBeacon(_beacon).upgradeTo((newImplementation));
-        _beacon = newImplementation;
-        // emit ImplementationUpgraded(_newImplementation);
+        UpgradeableBeacon(_beacon).upgradeTo({
+            newImplementation: _newImplementation
+        });
+        _beacon = _newImplementation;
+        emit ImplementationUpgraded({newImplementation: _newImplementation});
     }
 
     function _authorizeUpgrade(
@@ -223,51 +257,36 @@ contract BorrowRequestFactory is
         external
         payable
         addressIsValid(borrower)
-        onlyRole(LIMIT_MARKET)
+        onlyRole(limitMarketContract)
         nonReentrant
         returns (address borrowRequest)
     {
-        console2.log("factory msg.sender", msg.sender);
-        console2.log(
-            "factory LimitMarket address",
-            _protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
-        );
         // @note check health factor of each token
-        // @audit return the created request address
+        // @audit check fee here
         // @audit if value of tokens match requested collateral amount based of ltv
         // @audit integrate enumerable sets
         // @audit loanAmountRequested should be checked based off the ltv of supplied tokens
-        // @audit implement proxy clones
-
-        /** CHECKS */
-        // uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
+        // uint256 totalCollateralValue;
+        //@audit change this to a helper function that gets value in eth for tokens
         // @audit value at creation time would always differ by completion,
         // do not depend on collateral value for accounting but protocol interest rates at creation
         // interest should be fetched from limit market before passed to factory.
 
-        require(
-            (collateralAmount.length == tokens.length),
-            BorrowRequestFactory__rangeDataMisMatch()
-        );
+        /// CHECKS
 
-        if (
-            tokens.length == 0 ||
-            tokens.length > _protocolManager.MAX_ASSET_LIMIT()
-        ) revert BorrowRequestFactory__InvalidTokenCount(tokens.length);
-
-        borrowRequest = _rawCreateRequest(
-            collateralAmount,
-            loanAmountRequested,
-            tokens,
-            borrower,
-            priority
-        );
+        borrowRequest = _rawCreateRequest({
+            _collateralAmount: collateralAmount,
+            _loanAmountRequested: loanAmountRequested,
+            _tokens: tokens,
+            _borrower: borrower,
+            _priority: priority
+        });
     }
 
     function prioritizeLoanRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
         //@audit merge all three priority fee check using ||
         if (
             msg.value <
@@ -322,7 +341,7 @@ contract BorrowRequestFactory is
         address[] calldata tokens,
         uint256[] calldata collateralAmounts,
         uint256 loanAmountRequested
-    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
         // @audit if value of tokens match requested collateral amount based of ltv
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -384,7 +403,7 @@ contract BorrowRequestFactory is
     function cancelRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
         if (s_isValidContract[borrowRequest] == false)
             revert BorrowRequestFactory__InvalidRequest();
         /** GET LOAN DETAILS */
@@ -471,25 +490,10 @@ contract BorrowRequestFactory is
         address _borrower,
         bool _priority
     ) private returns (address _borrowRequest) {
-        /** EFFECTS */
+        // EFFECTS
         uint256 totalCollateralValue;
         uint256 originationFee;
         uint256 priorityFee;
-
-        for (uint256 index = 0; index < _tokens.length; index++) {
-            // check each token is listed
-            if (
-                !ITokenManager(_protocolManager.TokenManager())
-                    .checkIsTokenListed(address(_tokens[index]))
-            ) revert BorrowRequestFactory__unSupportedToken(_tokens[index]);
-
-            if (_collateralAmount[index] == 0)
-                revert BorrowRequestFactory__NoCollateralSent(
-                    _collateralAmount[index]
-                );
-
-            // totalCollateralValue += 1; //@audit token manager handles collateral value @audit fix calculation
-        }
 
         bytes memory initData = abi.encodeWithSelector(
             bytes4(
@@ -505,53 +509,34 @@ contract BorrowRequestFactory is
             address(_protocolManager)
         );
 
+        /// INTERACTIONS
+
         BeaconProxy borrowRequestProxy = new BeaconProxy(
             address(_beacon),
             initData
         );
 
-        // console2.log(
-        //     "2 address",
-        //     address(BeaconProxy(borrowRequest)._implementation())
-        // );
+        for (uint256 index = 0; index < _tokens.length; index++) {
+            TokenInfo memory tokenInfo = TokenInfo({
+                tokenAddress: _tokens[index],
+                amount: _collateralAmount[index],
+                price: 0,
+                ethValueAtRequestTime: 0
+            });
 
-        // @audit revisit accounting
-        // collateralToValue[address(borrowRequest)][
-        //     _tokens[index]
-        // ] += _collateralAmount[index];
+            collateralToValue[address(borrowRequestProxy)].push(tokenInfo);
 
-        if (_priority) {
-            s_loanIsPrioritized[address(borrowRequestProxy)] = true;
-
-            prioritizedBorrowRequestToBorrower[
-                address(borrowRequestProxy)
-            ] = address(_borrower);
-
-            // @audit no longer relevant implement substitute
-            _prioritizedRequests.push(
-                BorrowRequest(BorrowRequest(address(borrowRequestProxy)))
+            /// @dev transfer tokens to borrowRequest contract
+            erc20TokenLibrary.transferFromTokens(
+                _tokens[index],
+                address(_borrower),
+                address(borrowRequestProxy),
+                _collateralAmount[index]
             );
 
-            userToPrioritizedBorrowRequestAddresses[_borrower].push(
-                address(borrowRequestProxy)
-            );
-        } else {
-            _totalUnPrioritizedRequests.push(
-                BorrowRequest(address(borrowRequestProxy))
-            );
-
-            borrowRequestToBorrower[address(borrowRequestProxy)] = address(
-                _borrower
-            );
-
-            // @audit missing in cancel request
-            userToBorrowRequestAddresses[_borrower].push(
-                address(borrowRequestProxy)
-            );
+            //@audit this should capture the sum of all token eth value at request time
+            totalCollateralValue++;
         }
-
-        if (_loanAmountRequested < totalCollateralValue)
-            revert BorrowRequestFactory__collateralValueMismatch(); //@audit change to ltv check
 
         priorityFee = _protocolManager.calculate_PriorityFee(
             totalCollateralValue
@@ -561,55 +546,62 @@ contract BorrowRequestFactory is
             totalCollateralValue
         );
 
-        // @audit all these should be in one check
-        // @audit better custom errors
-        if (msg.value == 0)
-            revert BorrowRequestFactory__insufficientFeeAmount();
-        if (_priority == true && msg.value < (originationFee + priorityFee))
-            revert();
-        if (_priority == false && msg.value < originationFee) revert();
+        RequestInfo memory requestInfo = RequestInfo({
+            borrower: _borrower,
+            request: address(borrowRequestProxy),
+            totalAmountRequested: totalCollateralValue,
+            position: _requestCount,
+            isValid: true,
+            prioritized: _priority
+        });
+
+        userToRequests[_borrower].push(requestInfo);
+
+        if (_priority) {
+            PriorityList memory priorityInfo = PriorityList({
+                request: address(borrowRequestProxy),
+                position: _priorityCount
+            });
+            indexToPrioritizedRequests[_priorityCount].push(priorityInfo);
+            _priorityCount++;
+        }
+
+        _requestCount++;
 
         borrowerToTotalAmountRequested[_borrower] += totalCollateralValue;
 
-        s_isValidContract[address(borrowRequestProxy)] = true;
+        /// EVENTS
 
-        /** EMIT EVENTS */
         emit BorrowRequestCreated(
             _borrower,
             address(borrowRequestProxy),
             totalCollateralValue
         );
-        if (_priority == true)
+        if (_priority)
             emit BorrowRequestPrioritized(address(borrowRequestProxy));
 
-        /** INTERACTIONS */
+        /// INTERACTIONS
 
-        /** COLLECT PRIORITY FEE */
-        if (_priority == true) {
-            /** SUM BOTH PRIORITY AND ORIGINATION FEES TOGETHER */
+        /// @dev collect fee
+        if (_priority) {
+            /// COLLECT ORIGINATION FEE + PRIORITY FEE
             uint256 fee = priorityFee + originationFee;
             (bool priorityFeePaid, ) = _protocolManager.FEE_CONTRACT().call{
                 value: fee
             }("");
-            if (!priorityFeePaid)
-                revert BorrowRequestFactory__PriorityFeePaymentFailed();
+
+            require(
+                priorityFeePaid,
+                BorrowRequestFactory__PriorityFeePaymentFailed()
+            );
         } else {
-            /** COLLECT ORIGINATION FEE */
+            /// COLLECT ONLY ORIGINATION FEE
             (bool originationFeePaid, ) = _protocolManager.FEE_CONTRACT().call{
                 value: originationFee
             }("");
-            if (!originationFeePaid)
-                revert BorrowRequestFactory__OriginationFeePaymentFailed();
-        }
-
-        /** TRANSFER TOKENS TO BORROW REQUEST CONTRACT */
-        // @audit possible to put this within the first loop
-        for (uint256 index = 0; index < _tokens.length; index++) {
-            erc20TokenLibrary.transferFromTokens(
-                _tokens[index],
-                address(_borrower),
-                address(borrowRequestProxy),
-                _collateralAmount[index]
+            require(
+                originationFeePaid,
+                BorrowRequestFactory__OriginationFeePaymentFailed()
             );
         }
 
@@ -741,9 +733,9 @@ contract BorrowRequestFactory is
                 index
             ];
 
-            collateralToValue[address(_borrowRequest)][
-                _tokens[index]
-            ] += _collateralAmounts[index];
+            // collateralToValue[address(_borrowRequest)][
+            //     _tokens[index]
+            // ] += _collateralAmounts[index];
 
             // interactions
 
@@ -834,4 +826,7 @@ contract BorrowRequestFactory is
             timeCreated
         );
     }
+
+    // gap
+    uint256[60] private __gap;
 }
