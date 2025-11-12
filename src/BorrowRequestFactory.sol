@@ -86,9 +86,9 @@ contract BorrowRequestFactory is
 
     bytes32 public constant LIMIT_MARKET = keccak256("LIMIT_MARKET");
 
-    UpgradeableBeacon private _beacon;
+    address private _beacon;
 
-    address private _implementation;
+    // address private _implementation;
 
     IProtocolManager private _protocolManager;
 
@@ -161,12 +161,16 @@ contract BorrowRequestFactory is
     /*//////////////////////////////////////////////////////////////
                             PUBLIC FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    function initialize(address protocolManager) public initializer {
+    function initialize(
+        address protocolManager,
+        address beacon
+    ) public initializer {
         __AccessControl_init();
         __ReentrancyGuard_init();
 
         _protocolManager = IProtocolManager(protocolManager);
-        address deployer = _protocolManager.DEPLOYER();
+        _beacon = beacon;
+        address deployer = _protocolManager.deployer();
 
         _grantRole(DEFAULT_ADMIN_ROLE, deployer);
 
@@ -177,17 +181,23 @@ contract BorrowRequestFactory is
 
         _protocolManager.updateBorrowRequestFactoryContract(
             address(this),
-            msg.sender
+            deployer
         );
 
-        BorrowRequest impl = new BorrowRequest();
-        _implementation = address(impl);
+        // BorrowRequest impl = new BorrowRequest();
+        // _implementation = address(impl);
 
-        _beacon = new UpgradeableBeacon(_implementation, address(this));
-        _beacon.transferOwnership(msg.sender);
+        // _beacon = new UpgradeableBeacon(_implementation, address(this));
+        // _beacon.transferOwnership(deployer);
     }
 
-    // function _disableInitializers() internal override {}
+    function upgradeImplementation(
+        address newImplementation
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        UpgradeableBeacon(_beacon).upgradeTo((newImplementation));
+        _beacon = newImplementation;
+        // emit ImplementationUpgraded(_newImplementation);
+    }
 
     function _authorizeUpgrade(
         address
@@ -482,7 +492,11 @@ contract BorrowRequestFactory is
         }
 
         bytes memory initData = abi.encodeWithSelector(
-            BorrowRequest.initialize.selector,
+            bytes4(
+                keccak256(
+                    "initialize(address,uint256[],uint256,address[],uint256,address)"
+                )
+            ),
             _borrower,
             _collateralAmount,
             _loanAmountRequested,
@@ -616,7 +630,7 @@ contract BorrowRequestFactory is
             _borrower
         );
 
-        // _prioritizedRequests.push(BorrowRequest(_borrowRequest));
+        _prioritizedRequests.push(BorrowRequest(_borrowRequest));
 
         userToPrioritizedBorrowRequestAddresses[_borrower].push(
             address(_borrowRequest)

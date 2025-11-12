@@ -8,7 +8,7 @@ interface IProtocolManager {
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
     function TOKEN_MANAGER_CONTRACT() external returns (address);
-    function DEPLOYER() external returns (address);
+    function deployer() external returns (address);
     function LIMIT_MARKET_CONTRACT_ADDRESS() external returns (address);
     function LendRequestFactory() external returns (address);
     function Enforcer() external returns (address);
@@ -37,6 +37,9 @@ interface IProtocolManager {
     function updateBorrowRequestFactoryContract(
         address borrowRequestFactory,
         address manager
+    ) external;
+    function setBorrowRequestImplementation(
+        address _borrowRequestImplementation
     ) external;
     function updateTokenManagerContract(
         address tokenManager,

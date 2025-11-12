@@ -176,11 +176,11 @@ contract TokenManager is
 
         _grantRole(
             DEFAULT_ADMIN_ROLE,
-            IProtocolManager(_protocolManager).DEPLOYER()
+            IProtocolManager(_protocolManager).deployer()
         );
         _grantRole(
             TOKEN_MANAGER_ADMIN,
-            IProtocolManager(_protocolManager).DEPLOYER()
+            IProtocolManager(_protocolManager).deployer()
         );
 
         // updateTokenManagerContract

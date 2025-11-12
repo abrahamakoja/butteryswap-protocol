@@ -42,9 +42,10 @@ contract ProtocolManager is
     address public LendRequestFactory;
     address public TokenManager;
     uint256 public minimumDeposit;
-    address public DEPLOYER;
+    address public deployer;
     address public TOKEN_MANAGER_CONTRACT;
     address public LIMIT_MARKET_CONTRACT_ADDRESS;
+    address public borrowRequestImplementation;
     /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public LISTING_FEE;
     address public FEE_CONTRACT;
@@ -69,7 +70,7 @@ contract ProtocolManager is
         _grantRole(MANAGER, msg.sender);
 
         //    assign storage values
-        DEPLOYER = msg.sender;
+        deployer = msg.sender;
         LISTING_FEE = 1 ether;
         FEE_CONTRACT = 0xDfCF9329f7cF00eC3A0a53109A1287C4d5A49C05;
         MAX_ASSET_LIMIT = 6;
@@ -132,9 +133,24 @@ contract ProtocolManager is
             ProtocolManager__invalidAddress()
         );
         console2.log("protocol manager msg.sender", msg.sender);
-        console2.log("protocol manager deployer", DEPLOYER);
+        console2.log("protocol manager deployer", deployer);
         LIMIT_MARKET_CONTRACT_ADDRESS = limitMarketAddress;
     }
+    function setBorrowRequestImplementation(
+        address _borrowRequestImplementation
+    )
+        external
+        addressValidated(_borrowRequestImplementation)
+        onlyRole(MANAGER)
+    {
+        console2.log(
+            "borrow request implementation",
+            _borrowRequestImplementation
+        );
+        borrowRequestImplementation = _borrowRequestImplementation;
+    }
+
+    // @audit require msg.sender to be factory or admin ,lock after execution
     function updateBorrowRequestFactoryContract(
         address borrowRequestFactory,
         address manager

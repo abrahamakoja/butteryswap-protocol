@@ -71,7 +71,7 @@ contract LimitMarket is
         __AccessControl_init();
         __ReentrancyGuard_init();
         LIMIT_MARKET_ADMIN = keccak256("LIMIT_MARKET_ADMIN");
-        address deployer = IProtocolManager(_protocolManager).DEPLOYER();
+        address deployer = IProtocolManager(_protocolManager).deployer();
 
         _grantRole(DEFAULT_ADMIN_ROLE, deployer);
         _grantRole(LIMIT_MARKET_ADMIN, deployer);
