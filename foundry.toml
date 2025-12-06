@@ -6,20 +6,27 @@ out = "out"
 libs = ["lib"]
 ffi = true
 ast = true
-offline=true
+via_ir = true
+# offline=false
 build_info = true
 auto_detect_solc=true
+bytecode_hash = "none"
 extra_output = ["storageLayout"]
 fs_permissions = [{ access = "read", path = "./"}]
-# fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "out" }]
 cache = true
 cache_path = 'cache'
 broadcast = 'broadcast'
 # remappings = 'remappings.txt'
 
-# remove in production
+# @audit remove in production
 [profile.solx]
-solc_version = "/home/oxAkoja/.local/bin/solx"
+# solc_version = "/home/oxAkoja/.solc-select/global-version"
+# solc_version="/home/oxAkoja/.local/bin/solx"
+# offline=false
+# auto_detect_solc=true
+# bytecode_hash = "none"
+
+
 
 
 [fuzz]
@@ -34,6 +41,10 @@ depth = 128
 show_metrics = true
 fail_on_revert = true
 show_progress = true
+
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
 
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

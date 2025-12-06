@@ -3,12 +3,12 @@
 pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {BorrowRequest} from "../../src/BorrowRequest.sol";
+import {BorrowRequest} from "../src/BorrowRequest.sol";
 import {BorrowRequestFactory} from "../src/BorrowRequestFactory.sol";
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import {IProtocolManager} from "../../src/interfaces/IProtocolManager.sol";
+import {IProtocolManager} from "../src/interfaces/IProtocolManager.sol";
 contract DeployBorrowRequestFactory is Script {
     address mostRecentlyDeployedProtocolManager;
     UpgradeableBeacon beacon;
