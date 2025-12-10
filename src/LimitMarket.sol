@@ -19,14 +19,14 @@ import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract LimitMarket is
     AccessControlUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuard
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -72,7 +72,7 @@ contract LimitMarket is
 
     function initialize(address _protocolManager) public initializer {
         __AccessControl_init();
-        __ReentrancyGuard_init();
+
         LIMIT_MARKET_ADMIN = keccak256("LIMIT_MARKET_ADMIN");
         address deployer = IProtocolManager(_protocolManager).deployer();
 

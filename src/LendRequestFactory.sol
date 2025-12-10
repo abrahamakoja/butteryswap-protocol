@@ -11,14 +11,14 @@ import {Script, console} from "forge-std/Script.sol";
 import {LendRequest} from "./LendRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract LendRequestFactory is
     AccessControlUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuard
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -121,7 +121,7 @@ contract LendRequestFactory is
 
     function initialize(address _protocolManager) public initializer {
         __AccessControl_init();
-        __ReentrancyGuard_init();
+
         protocolManager = IProtocolManager(_protocolManager);
 
         bool roleGranted = _grantRole(

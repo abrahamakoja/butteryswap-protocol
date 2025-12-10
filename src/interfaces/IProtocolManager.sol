@@ -5,6 +5,7 @@ interface IProtocolManager {
     function setLimitMarketContractAddress(address limitMarketAddress) external;
     function TokenManager() external returns (address);
     function FEE_CONTRACT() external returns (address);
+    function UNISWAP_V2_ORACLE_FEE() external returns (uint24);
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
     function TOKEN_MANAGER_CONTRACT() external returns (address);
@@ -34,7 +35,7 @@ interface IProtocolManager {
     function SETTLEMENT_FEE() external returns (uint256);
     function MAX_ASSET_LIMIT() external returns (uint256);
     function MAX_OWNERS_LIMIT() external returns (uint256);
-    function updateBorrowRequestFactoryContract(
+    function updateLoanManagerContract(
         address borrowRequestFactory,
         address manager
     ) external;

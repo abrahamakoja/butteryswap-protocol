@@ -16,14 +16,14 @@ import {Script, console2} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract TokenManager is
     AccessControlUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuard
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS

@@ -16,14 +16,14 @@ import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 /// @audit remove before production
 import {Script, console2} from "forge-std/Script.sol";
 
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract ProtocolManager is
     AccessControlUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuard
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -55,6 +55,8 @@ contract ProtocolManager is
     uint256 public SETTLEMENT_FEE;
     uint256 public INDEX_PRECISION;
 
+    uint24 public UNISWAP_V2_ORACLE_FEE;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -62,7 +64,6 @@ contract ProtocolManager is
 
     function initialize() public initializer {
         __AccessControl_init();
-        __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
@@ -78,6 +79,7 @@ contract ProtocolManager is
         CANCELLATION_FEE = 10;
         SETTLEMENT_FEE = 6;
         INDEX_PRECISION = 1;
+        UNISWAP_V2_ORACLE_FEE = 3000;
     }
 
     function _authorizeUpgrade(
