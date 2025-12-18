@@ -16,14 +16,14 @@ import {Script, console2} from "forge-std/Script.sol";
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract TokenManager is
     AccessControlUpgradeable,
     UUPSUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardTransient
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -169,7 +169,6 @@ contract TokenManager is
     /// @notice contract constructor.
     function initialize(address _protocolManager) public initializer {
         __AccessControl_init();
-        __ReentrancyGuard_init();
         protocolManager = IProtocolManager(_protocolManager);
 
         TOKEN_MANAGER_ADMIN = keccak256("TOKEN_MANAGER_ADMIN");

@@ -46,14 +46,14 @@ import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract BorrowRequestFactory is
     AccessControlUpgradeable,
     UUPSUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardTransient
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -201,7 +201,6 @@ contract BorrowRequestFactory is
         address beacon
     ) public initializer {
         __AccessControl_init();
-        __ReentrancyGuard_init();
 
         limitMarketContract = keccak256("limitMarketContract");
         _protocolManager = IProtocolManager(protocolManager);
@@ -517,9 +516,10 @@ contract BorrowRequestFactory is
         );
 
         for (uint256 index = 0; index < _tokens.length; index++) {
+            uint256 collateralAmount = _collateralAmount[index];
             TokenInfo memory tokenInfo = TokenInfo({
                 tokenAddress: _tokens[index],
-                amount: _collateralAmount[index],
+                amount: collateralAmount,
                 price: 0,
                 ethValueAtRequestTime: 0
             });
@@ -531,7 +531,7 @@ contract BorrowRequestFactory is
                 _tokens[index],
                 address(_borrower),
                 address(borrowRequestProxy),
-                _collateralAmount[index]
+                collateralAmount
             );
 
             //@audit this should capture the sum of all token eth value at request time

@@ -10,6 +10,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {IProtocolManager} from "../src/interfaces/IProtocolManager.sol";
 contract DeployBorrowRequestFactory is Script {
+    
     address mostRecentlyDeployedProtocolManager;
     UpgradeableBeacon beacon;
     function run()

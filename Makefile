@@ -5,7 +5,7 @@
 export
 
 # build
-build:; FOUNDRY_PROFILE=solx forge build 
+build:; FOUNDRY_PROFILE=solx forge build  -vvvvv
 
 # deploy
 

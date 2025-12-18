@@ -21,13 +21,13 @@ import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 // new
 
-import {ERC6909Claims} from "@uniswap/v4-core/src/ERC6909Claims.sol";
+// import {ERC6909Claims} from "@uniswap/v4-core/src/ERC6909Claims.sol";
 
 /**
  * ███████████              █████     █████                                   █████████                                     
@@ -57,7 +57,7 @@ import {ERC6909Claims} from "@uniswap/v4-core/src/ERC6909Claims.sol";
 contract LoanManager is
     AccessControlUpgradeable,
     UUPSUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardTransient
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -512,9 +512,10 @@ contract LoanManager is
         );
 
         for (uint256 index = 0; index < _tokens.length; index++) {
+            uint256 collateralAmount = _collateralAmount[index];
             TokenInfo memory tokenInfo = TokenInfo({
                 tokenAddress: _tokens[index],
-                amount: _collateralAmount[index],
+                amount: collateralAmount,
                 price: 0,
                 ethValueAtRequestTime: 0
             });
@@ -526,7 +527,7 @@ contract LoanManager is
                 _tokens[index],
                 address(_borrower),
                 address(borrowRequestProxy),
-                _collateralAmount[index]
+                collateralAmount
             );
 
             //@audit this should capture the sum of all token eth value at request time

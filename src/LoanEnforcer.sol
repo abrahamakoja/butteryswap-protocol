@@ -31,13 +31,13 @@ import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract LoanEnforcer is
     AccessControlUpgradeable,
-    ReentrancyGuard,
+    ReentrancyGuardTransient,
     UUPSUpgradeable
 {
     /*//////////////////////////////////////////////////////////////

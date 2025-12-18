@@ -6,21 +6,20 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ERC6909Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/ERC6909Upgradeable.sol";
 import {ERC6909MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/extensions/ERC6909MetadataUpgradeable.sol";
 import {ERC6909TokenSupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/extensions/ERC6909TokenSupplyUpgradeable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract Backery is
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
     ERC6909Upgradeable,
     ERC6909MetadataUpgradeable,
     ERC6909TokenSupplyUpgradeable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardTransient
 {
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
-    // --------------------
-    // Initialization
-    // --------------------
+    bytes32 private ADMIN_ROLE;
+    uint256 private DOUGH; // lenders
+    uint256 private BREAD; // borrowers
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -28,94 +27,73 @@ contract Backery is
     }
 
     function initialize() public initializer {
+        __AccessControl_init();
         __ERC6909_init();
         __ERC6909Metadata_init();
         __ERC6909TokenSupply_init();
-        __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
+
+        ADMIN_ROLE = keccak256("ADMIN_ROLE");
+        DOUGH = uint64(uint256(keccak256("DOUGH")) + block.number);
+        BREAD = uint64(uint256(keccak256("BREAD")) + block.number);
+
+        TokenMetadata memory doughMetaData = TokenMetadata({
+            name: "Dough",
+            symbol: "DOUGH",
+            decimals: 18
+        });
+        TokenMetadata memory breadMetaData = TokenMetadata({
+            name: "Bread",
+            symbol: "BREAD",
+            decimals: 18
+        });
+
+        _setName(DOUGH, doughMetaData.name);
+        _setSymbol(DOUGH, doughMetaData.symbol);
+        _setDecimals(DOUGH, doughMetaData.decimals);
+
+        _setName(BREAD, breadMetaData.name);
+        _setSymbol(BREAD, breadMetaData.symbol);
+        _setDecimals(BREAD, breadMetaData.decimals);
     }
-
-    // --------------------
-    // Bread (borrower) functions
-    // --------------------
-    function mintBread(
-        address to,
-        uint256 breadId,
-        uint256 amount
-    ) external onlyRole(ADMIN_ROLE) {
-        _mint(to, breadId, amount);
-        // _increaseTotalSupply(breadId, amount);
+    function getTokenMetadata(
+        uint256 ID
+    ) external view returns (TokenMetadata memory tokenMetadata) {
+        return
+            tokenMetadata = TokenMetadata({
+                name: name(ID),
+                symbol: symbol(ID),
+                decimals: decimals(ID)
+            });
     }
-
-    function burnBread(
-        address from,
-        uint256 breadId,
-        uint256 amount
-    ) external onlyRole(ADMIN_ROLE) {
-        _burn(from, breadId, amount);
-        // _decreaseTotalSupply(breadId, amount);
-    }
-
-    function setBreadMetadata(
-        uint256 breadId,
-        string calldata metadata
-    ) external onlyRole(ADMIN_ROLE) {
-        // _setTokenMetadata(breadId, metadata);
-    }
-
-    // function breadMetadata(
-    //     uint256 breadId
-    // ) external view returns (string memory) {
-    //     return _tokenMetadata(breadId);
-    // }
-
-    // --------------------
-    // Crumbs (lender) functions
-    // --------------------
-    function mintCrumbs(
-        address to,
-        uint256 crumbsId,
-        uint256 amount
-    ) external onlyRole(ADMIN_ROLE) {
-        _mint(to, crumbsId, amount);
-        // _increaseTotalSupply(crumbsId, amount);
-    }
-
-    function burnCrumbs(
-        address from,
-        uint256 crumbsId,
-        uint256 amount
-    ) external onlyRole(ADMIN_ROLE) {
-        _burn(from, crumbsId, amount);
-        // _decreaseTotalSupply(crumbsId, amount);
-    }
-
-    // function setCrumbsMetadata(
-    //     uint256 crumbsId,
-    //     string calldata metadata
-    // ) external onlyRole(ADMIN_ROLE) {
-    //     _setTokenMetadata(crumbsId, metadata);
-    // }
-
-    function crumbsMetadata(
-        uint256 crumbsId
-    ) external view returns (string memory) {
-        return _tokenMetadata(crumbsId);
-    }
-
-    // --------------------
-    // ERC6909 support functions
-    // --------------------
-    function exists(uint256 tokenId) public view returns (bool) {
-        return totalSupply(tokenId) > 0;
-    }
-
-    // --------------------
-    // UUPS upgrade authorization
-    // --------------------
+    // initializers
     function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(ADMIN_ROLE) {}
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function _update(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount
+    )
+        internal
+        override(ERC6909Upgradeable, ERC6909TokenSupplyUpgradeable)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {}
+
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(AccessControlUpgradeable, ERC6909Upgradeable, IERC165)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
 }

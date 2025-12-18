@@ -46,4 +46,8 @@ interface IProtocolManager {
         address tokenManager,
         address manager
     ) external;
+    function updateBorrowRequestFactoryContract(
+        address borrowRequestFactory,
+        address manager
+    ) external;
 }

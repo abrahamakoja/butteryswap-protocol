@@ -8,13 +8,16 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 contract DeployProtocolManager is Script {
     function run() external returns (ProtocolManager protocolManager) {
         console2.log("this ran");
+
         vm.startBroadcast();
+
         address proxy = Upgrades.deployUUPSProxy(
             "ProtocolManager.sol",
             abi.encodeCall(ProtocolManager.initialize, ())
         );
 
         vm.stopBroadcast();
+
         return ProtocolManager(proxy);
     }
 }

@@ -16,14 +16,14 @@ import {ILimitMarket} from "./interfaces/ILimitMarket.sol";
 /// @audit remove before production
 import {Script, console2} from "forge-std/Script.sol";
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 contract ProtocolManager is
     AccessControlUpgradeable,
     UUPSUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardTransient
 {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -123,7 +123,7 @@ contract ProtocolManager is
     function calculateTokenListingFee(
         address token
     ) external pure returns (uint256 fee) {
-        // require(token != address(0));
+        require(token != address(0));
         //@audit unused variable
         return 1 ether;
     }
@@ -168,15 +168,15 @@ contract ProtocolManager is
         address tokenManager,
         address manager
     ) external addressValidated(tokenManager) addressValidated(manager) {
-        require(hasRole(MANAGER, manager));
+        // require(hasRole(MANAGER, manager), "not allowed");
         TokenManager = tokenManager;
     }
     function updateLendRequestFactoryContract(
         address _address
     ) external addressValidated(_address) onlyRole(MANAGER) {}
-    function updateTokenManagerContract(
-        address _address
-    ) external addressValidated(_address) onlyRole(MANAGER) {}
+    // function updateTokenManagerContract(
+    //     address _address
+    // ) external addressValidated(_address) onlyRole(MANAGER) {}
 
     function calculateAmountMinus_OriginationFee(
         uint256 collateraValue

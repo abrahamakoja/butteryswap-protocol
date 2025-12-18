@@ -81,7 +81,7 @@ contract BorrowRequestFactoryUnitTest is Test {
             string memory name = "meme";
             collateralAmount[i] = amount + 100;
             ERC20Mock token = new ERC20Mock(
-                "name",
+                name,
                 "MEME",
                 borrower,
                 UINT256_MAX

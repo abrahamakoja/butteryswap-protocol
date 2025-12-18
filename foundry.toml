@@ -1,17 +1,17 @@
 [profile.default]
 auto_detect_solc=true
-optimizer = true
-optimizer_runs = 50
+# optimizer = true
+# optimizer_runs = 50
 src = "src"
 out = "out"
 libs = ["lib"]
 ffi = true
 ast = true
-offline=false
+offline=true
 build_info = true
 bytecode_hash = "none"
 extra_output = ["storageLayout"]
-fs_permissions = [{ access = "read", path = "./"}]
+fs_permissions = [{ access = "read", path = "/"}]
 cache = true
 cache_path = 'cache'
 broadcast = 'broadcast'
@@ -21,8 +21,8 @@ broadcast = 'broadcast'
 [profile.solx]
 # solc_version = "/home/oxAkoja/.local/bin/solx"
 # offline=true
-auto_detect_solc=true
-via_ir = true
+# auto_detect_solc=true
+# via_ir = true
 
 [fuzz]
 runs = 1000

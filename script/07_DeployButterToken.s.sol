@@ -2,13 +2,13 @@
 pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
-import {ButterToken} from "../src/ButterToken.sol";
+import {Butter} from "../src/Butter.sol";
 
 contract DeployButterToken is Script {
-    function run() external returns (ButterToken) {
+    function run() external returns (Butter) {
         vm.startBroadcast();
-        ButterToken butterToken = new ButterToken();
+        Butter butter = new Butter();
         vm.stopBroadcast();
-        return butterToken;
+        return butter;
     }
 }
