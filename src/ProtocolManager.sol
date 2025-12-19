@@ -45,7 +45,7 @@ contract ProtocolManager is
     address public deployer;
     address public TOKEN_MANAGER_CONTRACT;
     address public LIMIT_MARKET_CONTRACT_ADDRESS;
-    address public borrowRequestImplementation;
+    address public loanManagerImplementationAddress;
     /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public LISTING_FEE;
     address public FEE_CONTRACT;
@@ -79,7 +79,8 @@ contract ProtocolManager is
         CANCELLATION_FEE = 10;
         SETTLEMENT_FEE = 6;
         INDEX_PRECISION = 1;
-        UNISWAP_V2_ORACLE_FEE = 3000;
+
+        console2.log("protocol Manager deployer", msg.sender);
     }
 
     function _authorizeUpgrade(
@@ -138,18 +139,20 @@ contract ProtocolManager is
         console2.log("protocol manager deployer", deployer);
         LIMIT_MARKET_CONTRACT_ADDRESS = limitMarketAddress;
     }
-    function setBorrowRequestImplementation(
-        address _borrowRequestImplementation
-    )
-        external
-        addressValidated(_borrowRequestImplementation)
-        onlyRole(MANAGER)
-    {
+    function setLoanManagerImplementationAddress(
+        address _loanManagerImplementation,
+        address _deployer
+    ) external addressValidated(_loanManagerImplementation) onlyRole(MANAGER) {
         console2.log(
-            "borrow request implementation",
-            _borrowRequestImplementation
+            "loan manager  implementation",
+            address(_loanManagerImplementation)
         );
-        borrowRequestImplementation = _borrowRequestImplementation;
+        console2.log(
+            "loan manager  implementation deployer",
+            address(_deployer)
+        );
+        console2.log("MANAGER", address(deployer));
+        loanManagerImplementationAddress = _loanManagerImplementation;
     }
 
     // @audit require msg.sender to be factory or admin ,lock after execution

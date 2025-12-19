@@ -12,7 +12,7 @@ contract DeployLendRequestFactory is Script {
 
     function run() external returns (LendRequestFactory) {
         mostRecentlyDeployedProtocolManager = DevOpsTools
-            .get_most_recent_deployment("ProtocolManager", block.chainid);
+            .get_most_recent_deployment("ERC1967Proxy", block.chainid);
         vm.startBroadcast();
         address proxy = Upgrades.deployUUPSProxy(
             "LendRequestFactory.sol",

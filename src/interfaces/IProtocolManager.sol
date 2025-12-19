@@ -35,12 +35,10 @@ interface IProtocolManager {
     function SETTLEMENT_FEE() external returns (uint256);
     function MAX_ASSET_LIMIT() external returns (uint256);
     function MAX_OWNERS_LIMIT() external returns (uint256);
-    function updateLoanManagerContract(
-        address borrowRequestFactory,
-        address manager
-    ) external;
-    function setBorrowRequestImplementation(
-        address _borrowRequestImplementation
+
+    function setLoanManagerImplementationAddress(
+        address _loanManagerImplementationAddress,
+        address deployer
     ) external;
     function updateTokenManagerContract(
         address tokenManager,

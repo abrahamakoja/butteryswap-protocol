@@ -48,7 +48,10 @@ contract BorrowRequestFactoryUnitTest is Test {
 
         // borrow request implementation
         BorrowRequest implementation = new BorrowRequest();
-        protocolManager.setBorrowRequestImplementation(address(implementation));
+        protocolManager.setLoanManagerImplementationAddress(
+            address(implementation),
+            deployer
+        );
         beacon = new UpgradeableBeacon(address(implementation), deployer);
 
         // borrow request factory

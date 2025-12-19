@@ -18,6 +18,12 @@ contract DeployProtocolManager is Script {
 
         vm.stopBroadcast();
 
+        console2.log(
+            "script deployer",
+            address(ProtocolManager(proxy).deployer())
+        );
+        console2.log("script proxy", address(proxy));
+
         return ProtocolManager(proxy);
     }
 }

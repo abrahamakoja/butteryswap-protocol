@@ -215,7 +215,11 @@ contract LoanManager is
             _protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
         );
         require(adminRoleGranted && limitMarketContractRoleGranted);
-        _protocolManager.updateLoanManagerContract(address(this), deployer);
+        // @audit change to proxy
+        _protocolManager.setLoanManagerImplementationAddress(
+            address(this),
+            msg.sender
+        );
         emit LoanManagerInitialized(address(this));
     }
 
