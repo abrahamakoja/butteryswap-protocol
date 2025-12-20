@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {LimitMarket} from "../src/LimitMarket.sol";
-import {ProxyDevOps, ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
+import {ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract DeployLimitMarket is Script {

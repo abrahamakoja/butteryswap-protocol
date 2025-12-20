@@ -142,7 +142,10 @@ contract ProtocolManager is
     function setLoanManagerImplementationAddress(
         address _loanManagerImplementation,
         address _deployer
-    ) external addressValidated(_loanManagerImplementation) onlyRole(MANAGER) {
+    )
+        external
+        addressValidated(_loanManagerImplementation)
+    /*onlyRole(MANAGER) */ {
         console2.log(
             "loan manager  implementation",
             address(_loanManagerImplementation)
