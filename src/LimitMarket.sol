@@ -197,6 +197,9 @@ contract LimitMarket is
         );
     }
 
+    // gap
+    uint256[60] private __gap;
+
     ////////////////////////
     /// Public Functions ///
     ////////////////////////

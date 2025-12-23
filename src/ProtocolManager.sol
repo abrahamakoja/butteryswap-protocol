@@ -38,6 +38,7 @@ contract ProtocolManager is
 
     bytes32 public MANAGER;
     address public Enforcer;
+    address public backery;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
@@ -177,6 +178,13 @@ contract ProtocolManager is
         // require(hasRole(MANAGER, manager), "not allowed");
         TokenManager = tokenManager;
     }
+    function updateBackeryContract(
+        address _backery,
+        address manager
+    ) external addressValidated(_backery) addressValidated(manager) {
+        // require(hasRole(MANAGER, manager), "not allowed");
+        backery = _backery;
+    }
     function updateLendRequestFactoryContract(
         address _address
     ) external addressValidated(_address) onlyRole(MANAGER) {}
@@ -224,4 +232,7 @@ contract ProtocolManager is
     ) private view returns (uint256) {
         return (collateraValue * SETTLEMENT_FEE) / 100;
     }
+
+    // gap
+    uint256[60] private __gap;
 }

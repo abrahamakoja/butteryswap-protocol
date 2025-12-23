@@ -695,4 +695,7 @@ contract LendRequestFactory is
 
         return (lender, state, timeCreated);
     }
+
+    // gap
+    uint256[60] private __gap;
 }

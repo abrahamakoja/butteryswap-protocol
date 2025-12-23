@@ -2,35 +2,31 @@
 
 pragma solidity ^0.8.28;
 
-import {Script, console2} from "forge-std/Script.sol";
-import {LoanManager} from "../src/LoanManager.sol";
+import {Script} from "forge-std/Script.sol";
+import {Backery} from "../src/Backery.sol";
 import {ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {IProtocolManager} from "../src/interfaces/IProtocolManager.sol";
 
-contract DeployLoanManager is Script {
+contract DeployBackery is Script {
     address mostRecentlyDeployedProtocolManager;
 
-    function run() external returns (LoanManager loanManager) {
+    function run() external returns (Backery backery) {
         mostRecentlyDeployedProtocolManager = ProxyDevOpsTools
             .getMostRecentProxyDeployment(
                 "ProtocolManager",
                 "ERC1967Proxy",
                 block.chainid
             );
-
         vm.startBroadcast();
-
         address proxy = Upgrades.deployUUPSProxy(
-            "LoanManager.sol",
+            "Backery.sol",
             abi.encodeCall(
-                LoanManager.initialize,
-                (mostRecentlyDeployedProtocolManager)
+                Backery.initialize,
+                mostRecentlyDeployedProtocolManager
             )
         );
 
         vm.stopBroadcast();
-
-        return LoanManager(proxy);
+        return Backery(proxy);
     }
 }

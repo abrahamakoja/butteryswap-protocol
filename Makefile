@@ -14,9 +14,9 @@ deployDeployLoanEnforcer:;FOUNDRY_PROFILE=solx forge script script/03_DeployLoan
 deployTokenManager:;FOUNDRY_PROFILE=solx forge script script/02_DeployTokenManager.s.sol:DeployTokenManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployProtocolManager:;FOUNDRY_PROFILE=solx forge script script/01_DeployProtocolManager.s.sol:DeployProtocolManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployLoanManager:;FOUNDRY_PROFILE=solx forge script script/05_DeployLoanManager.s.sol:DeployLoanManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvvv
-# deployLendRequestFactory:;FOUNDRY_PROFILE=solx forge script script/06_DeployLendRequestFactory.s.sol:DeployLendRequestFactory --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
+deployBackery:;FOUNDRY_PROFILE=solx forge script script/06_DeployBackery.s.sol:DeployBackery --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 reset:; FOUNDRY_PROFILE=solx forge clean && FOUNDRY_PROFILE=solx  forge build  -vvvvv
-deployAll:;make reset make deployProtocolManager && make deployTokenManager && make deployDeployLoanEnforcer && make deployLimitMarket && make deployLoanManager 
+deployAll:;make reset make deployProtocolManager && make deployTokenManager && make deployDeployLoanEnforcer && make deployLimitMarket && make deployLoanManager && make deployBackery
 
 # test
 .SHELL := /bin/bash

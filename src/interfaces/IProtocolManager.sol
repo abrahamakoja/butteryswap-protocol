@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 interface IProtocolManager {
     function setLimitMarketContractAddress(address limitMarketAddress) external;
     function TokenManager() external returns (address);
+    function loanManager() external returns (address);
     function FEE_CONTRACT() external returns (address);
     function UNISWAP_V2_ORACLE_FEE() external returns (uint24);
     function BorrowRequestFactory() external returns (address);
@@ -44,6 +45,7 @@ interface IProtocolManager {
         address tokenManager,
         address manager
     ) external;
+    function updateBackeryContract(address backery, address manager) external;
     function updateBorrowRequestFactoryContract(
         address borrowRequestFactory,
         address manager
