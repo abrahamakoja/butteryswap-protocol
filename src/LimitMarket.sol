@@ -16,9 +16,10 @@ import {Script, console2} from "forge-std/Script.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
-import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
-import {ITokenManager} from "./interfaces/ITokenManager.sol";
-import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
+// // import {IBorrowRequestFactory} from "./interfaces/IBorrowRequestFactory.sol";
+// import {ITokenManager} from "./interfaces/ITokenManager.sol";
+import {ILoanManager} from "./interfaces/ILoanManager.sol";
+// import {ILendRequestFactory} from "./interfaces/ILendRequestFactory.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -47,7 +48,9 @@ contract LimitMarket is
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    IProtocolManager private protocolManager;
+    IProtocolManager private ProtocolManager; // @audit change case
+
+    ILoanManager LoanManager;
 
     bytes32 public LIMIT_MARKET_ADMIN;
 
@@ -78,9 +81,10 @@ contract LimitMarket is
 
         _grantRole(DEFAULT_ADMIN_ROLE, deployer);
         _grantRole(LIMIT_MARKET_ADMIN, deployer);
-        protocolManager = IProtocolManager(_protocolManager);
+        ProtocolManager = IProtocolManager(_protocolManager);
 
-        protocolManager.setLimitMarketContractAddress(address(this));
+        LoanManager = ILoanManager(ProtocolManager.LoanManager());
+        ProtocolManager.setLimitMarketContractAddress(address(this));
     }
 
     function _authorizeUpgrade(
@@ -95,107 +99,106 @@ contract LimitMarket is
     /// @param collateralAmount The amount of collateral to be locked
     /// @param tokens The list of tokens to be used as collateral
     function borrow(
-        uint256[] calldata collateralAmount,
-        uint256 loanAmountRequested,
         address[] calldata tokens,
+        uint256[] calldata collateralAmount,
+        uint256 amountToBorrow,
         bool priority
-    ) external payable nonReentrant returns (address borrowRequest) {
+    ) external payable nonReentrant returns (uint8 borrowRequestID) {
         // checks
         require(
             (collateralAmount.length == tokens.length),
             LimitMarket__rangeDataMisMatch()
-        );
+        ); //@audit rename errors
 
         if (
             tokens.length == 0 ||
-            tokens.length > protocolManager.MAX_ASSET_LIMIT()
+            tokens.length > ProtocolManager.MAX_ASSET_LIMIT()
         ) revert LimitMarket__InvalidTokenCount(tokens.length);
 
-        for (uint256 index = 0; index < tokens.length; index++) {
-            // check each token is listed
-            if (
-                !ITokenManager(protocolManager.TokenManager())
-                    .checkIsTokenListed(address(tokens[index]))
-            ) revert LimitMarket__unSupportedToken(tokens[index]);
+        address borrower = msg.sender;
 
-            if (collateralAmount[index] == 0)
-                revert LimitMarket__NoCollateralSent(collateralAmount[index]);
+        require(msg.value >= 1 ether); // @audit use fee and add revert error for failure
+
+        if (
+            address(LoanManager) == address(0) ||
+            address(ProtocolManager.LoanManager()) != address(LoanManager)
+        ) {
+            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
+            require(address(LoanManager) != address(0), "LoanManager not set");
         }
 
-        borrowRequest = IBorrowRequestFactory(
-            protocolManager.BorrowRequestFactory()
-        ).createRequest{value: msg.value}(
-            collateralAmount,
-            loanAmountRequested,
-            tokens,
-            msg.sender,
-            priority
-        );
+        borrowRequestID = LoanManager.createBorrowRequest{value: msg.value}({
+            tokens: tokens,
+            collateralAmount: collateralAmount,
+            amountToBorrow: amountToBorrow,
+            borrower: borrower,
+            priority: priority
+        });
     }
 
-    function addLiquidityToBorrowRequest(
-        address borrowRequest,
-        address[] calldata tokens,
-        uint256[] calldata collateralAmounts,
-        uint256 _loanAmountRequested
-    ) external payable nonReentrant {
-        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-            .addLiquidity(
-                msg.sender,
-                borrowRequest,
-                tokens,
-                collateralAmounts,
-                _loanAmountRequested
-            );
-    }
+    // function addLiquidityToBorrowRequest(
+    //     address borrowRequest,
+    //     address[] calldata tokens,
+    //     uint256[] calldata collateralAmounts,
+    //     uint256 _loanAmountRequested
+    // ) external payable nonReentrant {
+    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+    //         .addLiquidity(
+    //             msg.sender,
+    //             borrowRequest,
+    //             tokens,
+    //             collateralAmounts,
+    //             _loanAmountRequested
+    //         );
+    // }
 
-    function prioritizeBorrowRequest(
-        address borrowRequest
-    ) external payable nonReentrant {
-        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-            .prioritizeLoanRequest(msg.sender, borrowRequest);
-    }
+    // function prioritizeBorrowRequest(
+    //     address borrowRequest
+    // ) external payable nonReentrant {
+    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+    //         .prioritizeLoanRequest(msg.sender, borrowRequest);
+    // }
 
-    function cancelBorrowRequest(
-        address borrowRequest
-    ) external payable nonReentrant {
-        IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-            .cancelRequest(msg.sender, borrowRequest);
-    }
+    // function cancelBorrowRequest(
+    //     address borrowRequest
+    // ) external payable nonReentrant {
+    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+    //         .cancelRequest(msg.sender, borrowRequest);
+    // }
 
     /*//////////////////////////////////////////////////////////////
                         EXTERNAL LEND FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function Lend(bool _priority) external payable nonReentrant {
-        ILendRequestFactory(protocolManager.LendRequestFactory()).createRequest(
-            msg.sender,
-            _priority
-        );
-    }
+    // function Lend(bool _priority) external payable nonReentrant {
+    //     ILendRequestFactory(protocolManager.LendRequestFactory()).createRequest(
+    //         msg.sender,
+    //         _priority
+    //     );
+    // }
 
-    function prioritizeLendRequest(
-        address lendRequest
-    ) external payable nonReentrant {
-        ILendRequestFactory(protocolManager.LendRequestFactory())
-            .prioritizeLoanRequest(msg.sender, lendRequest);
-    }
-    function addLiquidityToLendRequest(
-        address lendRequest
-    ) external payable nonReentrant {
-        ILendRequestFactory(protocolManager.LendRequestFactory()).addLiquidity(
-            msg.sender,
-            lendRequest
-        );
-    }
-    function cancelLendRequest(
-        address lendRequest
-    ) external payable nonReentrant {
-        ILendRequestFactory(protocolManager.LendRequestFactory()).cancelRequest(
-            msg.sender,
-            lendRequest
-        );
-    }
+    // function prioritizeLendRequest(
+    //     address lendRequest
+    // ) external payable nonReentrant {
+    //     ILendRequestFactory(protocolManager.LendRequestFactory())
+    //         .prioritizeLoanRequest(msg.sender, lendRequest);
+    // }
+    // function addLiquidityToLendRequest(
+    //     address lendRequest
+    // ) external payable nonReentrant {
+    //     ILendRequestFactory(protocolManager.LendRequestFactory()).addLiquidity(
+    //         msg.sender,
+    //         lendRequest
+    //     );
+    // }
+    // function cancelLendRequest(
+    //     address lendRequest
+    // ) external payable nonReentrant {
+    //     ILendRequestFactory(protocolManager.LendRequestFactory()).cancelRequest(
+    //         msg.sender,
+    //         lendRequest
+    //     );
+    // }
 
     // gap
     uint256[60] private __gap;

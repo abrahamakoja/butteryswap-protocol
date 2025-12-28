@@ -38,7 +38,7 @@ contract ProtocolManager is
 
     bytes32 public MANAGER;
     address public Enforcer;
-    address public backery;
+    address public Backery;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
     address public TokenManager;
@@ -46,7 +46,7 @@ contract ProtocolManager is
     address public deployer;
     address public TOKEN_MANAGER_CONTRACT;
     address public LIMIT_MARKET_CONTRACT_ADDRESS;
-    address public loanManagerImplementationAddress;
+    address public LoanManager;
     /// @dev listing fee to be paid by caller when creating a listing request.
     uint256 public LISTING_FEE;
     address public FEE_CONTRACT;
@@ -140,7 +140,7 @@ contract ProtocolManager is
         console2.log("protocol manager deployer", deployer);
         LIMIT_MARKET_CONTRACT_ADDRESS = limitMarketAddress;
     }
-    function setLoanManagerImplementationAddress(
+    function setloanManager(
         address _loanManagerImplementation,
         address _deployer
     )
@@ -156,7 +156,7 @@ contract ProtocolManager is
             address(_deployer)
         );
         console2.log("MANAGER", address(deployer));
-        loanManagerImplementationAddress = _loanManagerImplementation;
+        LoanManager = _loanManagerImplementation;
     }
 
     // @audit require msg.sender to be factory or admin ,lock after execution
@@ -179,11 +179,11 @@ contract ProtocolManager is
         TokenManager = tokenManager;
     }
     function updateBackeryContract(
-        address _backery,
+        address backery,
         address manager
-    ) external addressValidated(_backery) addressValidated(manager) {
+    ) external addressValidated(backery) addressValidated(manager) {
         // require(hasRole(MANAGER, manager), "not allowed");
-        backery = _backery;
+        Backery = backery;
     }
     function updateLendRequestFactoryContract(
         address _address

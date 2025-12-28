@@ -16,6 +16,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {erc20TokenLibrary} from "./libraries/erc20TokenLibrary.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
+import {IBackery} from "./interfaces/IBackery.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -66,37 +67,19 @@ contract LoanManager is
                            TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
 
-    struct RequestInfo {
-        address borrower;
-        address request;
-        uint256 totalAmountRequested;
-        uint256 position;
-        bool isValid;
-        bool prioritized;
-    }
-
-    struct PriorityList {
-        address request;
-        uint256 position;
-    }
-
-    struct TokenInfo {
-        address tokenAddress;
-        uint256 amount;
-        uint256 price;
-        uint256 ethValueAtRequestTime;
-    }
-
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public limitMarketContract;
+    bytes32 public LIMIT_MARKET;
 
-    uint256 private _requestCount;
-    uint256 private _priorityCount;
+    address public admin;
 
-    IProtocolManager private _protocolManager;
+    IProtocolManager ProtocolManager;
+
+    ITokenManager TokenManager;
+
+    IBackery Backery;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -118,24 +101,24 @@ contract LoanManager is
     function initialize(address protocolManager) public initializer {
         // @audit lock after initialize
         __AccessControl_init();
+        LIMIT_MARKET = keccak256("LIMIT_MARKET");
+        ProtocolManager = IProtocolManager(protocolManager);
+        TokenManager = ITokenManager(ProtocolManager.TokenManager());
+        Backery = IBackery(address(0));
 
-        // limitMarketContract = keccak256("limitMarketContract");
-        // _protocolManager = IProtocolManager(protocolManager);
+        admin = ProtocolManager.deployer();
 
-        // address deployer = _protocolManager.deployer();
+        bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        // bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, deployer);
+        bool limitMarketContractRoleGranted = _grantRole(
+            LIMIT_MARKET,
+            ProtocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+        require(adminRoleGranted && limitMarketContractRoleGranted);
 
-        // bool limitMarketContractRoleGranted = _grantRole(
-        //     limitMarketContract,
-        //     _protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
-        // );
-        // require(adminRoleGranted && limitMarketContractRoleGranted);
-        // // @audit change to proxy
-        // _protocolManager.setLoanManagerImplementationAddress(
-        //     address(this),
-        //     msg.sender
-        // );
+        ProtocolManager.setloanManager(address(this), msg.sender);
+
+        console2.log("loan manager deployed address", address(this));
     }
 
     function _authorizeUpgrade(
@@ -145,6 +128,49 @@ contract LoanManager is
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function createBorrowRequest(
+        address[] calldata tokens,
+        uint256[] calldata collateralAmount,
+        uint256 amountToBorrow,
+        address borrower,
+        bool priority
+    ) external payable onlyRole(LIMIT_MARKET) returns (uint8 ID) {
+        uint256 collateralValue;
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 tokenValue = TokenManager.getTotalTokenEthValue(
+                tokens[i],
+                collateralAmount[i]
+            );
+
+            collateralValue += tokenValue;
+
+            /// @dev transfer tokens to loanManager contract
+            erc20TokenLibrary.transferFromTokens(
+                tokens[i],
+                address(borrower),
+                address(this),
+                collateralAmount[i]
+            ); // @audit change to token library
+        }
+        uint256 eligibleAmountToBorrow = collateralValue <= amountToBorrow
+            ? collateralValue
+            : amountToBorrow;
+
+        // @audit check ltv before proceeding
+
+        // mint
+        if (
+            address(Backery) == address(0) ||
+            address(ProtocolManager.Backery()) != address(Backery)
+        ) {
+            Backery = IBackery(address(ProtocolManager.Backery()));
+            require(address(Backery) != address(0), "Backery not set");
+        }
+
+        Backery.mint(borrower, 2, eligibleAmountToBorrow);
+    }
 
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS

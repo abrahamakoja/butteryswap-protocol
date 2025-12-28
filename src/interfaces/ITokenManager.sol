@@ -42,4 +42,8 @@ interface ITokenManager {
     function checkIsTokenOperational(
         address token
     ) external view returns (bool operational);
+    function getTotalTokenEthValue(
+        address token,
+        uint256 amount
+    ) external view returns (uint256 tokenEthValue);
 }

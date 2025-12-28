@@ -464,7 +464,7 @@ contract TokenManager is
 
     function checkIsTokenListed(
         address token
-    ) external view isValidAddress(token) returns (bool isListed) {
+    ) public view isValidAddress(token) returns (bool isListed) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -491,5 +491,24 @@ contract TokenManager is
         } else {
             return operational = false;
         }
+    }
+
+    function getTotalTokenEthValue(
+        address token,
+        uint256 amount
+    ) public view returns (uint256 tokenEthValue) {
+        // verify token is supported
+        require(checkIsTokenListed(token), "token is not listed"); // @audit change to custom error
+
+        // verify collateralAmount is not 0 for any token
+        require(amount != 0);
+
+        // get eth value of token and add it to total eth value
+        tokenEthValue = 1; // @audit use oracle to get value
+        // ensure collateral amount is over or equal to minimum allowed ammount
+
+        // return eth value
+
+        return tokenEthValue;
     }
 }

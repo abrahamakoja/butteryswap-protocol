@@ -21,31 +21,32 @@ contract Backery is
     bytes32 private LOAN_MANAGER;
     uint256 private DOUGH; // lenders
     uint256 private BREAD; // borrowers
-    IProtocolManager private protocolManager;
+    address public admin;
+
+    IProtocolManager ProtocolManager;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address _protocolManager) public initializer {
+    function initialize(address protocolManager) public initializer {
         __AccessControl_init();
         __ERC6909_init();
         __ERC6909Metadata_init();
         __ERC6909TokenSupply_init();
 
         LOAN_MANAGER = keccak256("LOAN_MANAGER");
-        protocolManager = IProtocolManager(_protocolManager);
-        address deployer = protocolManager.deployer();
+        ProtocolManager = IProtocolManager(protocolManager);
+
+        admin = ProtocolManager.deployer();
+
         bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        bool protocolManagerRoleGranted = _grantRole(
+        bool loanManagerRoleGranted = _grantRole(
             LOAN_MANAGER,
-            protocolManager.loanManager()
+            ProtocolManager.LoanManager()
         );
-        require(
-            adminRoleGranted && protocolManagerRoleGranted,
-            "grantRole failed"
-        );
+        require(adminRoleGranted && loanManagerRoleGranted, "grantRole failed");
 
         DOUGH = 1;
         BREAD = 2;
@@ -69,7 +70,11 @@ contract Backery is
         _setSymbol(BREAD, breadMetaData.symbol);
         _setDecimals(BREAD, breadMetaData.decimals);
 
-        protocolManager.updateBackeryContract(address(this), deployer);
+        ProtocolManager.updateBackeryContract(address(this), admin);
+    }
+
+    function mint(address to, uint256 id, uint256 amount) external {
+        _mint(to, id, amount);
     }
     function getTokenMetadata(
         uint256 ID

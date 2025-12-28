@@ -74,122 +74,122 @@ contract LoanEnforcer is
         address
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
-    function executeLoanDisbursement() external payable onlyExecutor {
-        address selectedBorrowRequest;
-        address selectedLendRequest;
-        (
-            uint256 totalLendRequests,
-            uint256 totalPrioritizedLendRequests
-        ) = ILendRequestFactory(protocolManager.LendRequestFactory())
-                .getTotalRequests();
+    // function executeLoanDisbursement() external payable onlyExecutor {
+    //     address selectedBorrowRequest;
+    //     address selectedLendRequest;
+    //     (
+    //         uint256 totalLendRequests,
+    //         uint256 totalPrioritizedLendRequests
+    //     ) = ILendRequestFactory(protocolManager.LendRequestFactory())
+    //             .getTotalRequests();
 
-        (
-            uint256 totalBorrowRequests,
-            uint256 totalPrioritizedBorrowRequest
-        ) = IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-                .getTotalRequests();
+    //     (
+    //         uint256 totalBorrowRequests,
+    //         uint256 totalPrioritizedBorrowRequest
+    //     ) = IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
+    //             .getTotalRequests();
 
-        uint256 lowestNonPrioritizedRequestsCount = totalBorrowRequests >
-            totalLendRequests
-            ? totalBorrowRequests
-            : totalLendRequests;
+    //     uint256 lowestNonPrioritizedRequestsCount = totalBorrowRequests >
+    //         totalLendRequests
+    //         ? totalBorrowRequests
+    //         : totalLendRequests;
 
-        uint256 lowestPrioritizedRequestsCount = totalPrioritizedBorrowRequest >
-            totalPrioritizedLendRequests
-            ? totalPrioritizedBorrowRequest
-            : totalPrioritizedLendRequests;
+    //     uint256 lowestPrioritizedRequestsCount = totalPrioritizedBorrowRequest >
+    //         totalPrioritizedLendRequests
+    //         ? totalPrioritizedBorrowRequest
+    //         : totalPrioritizedLendRequests;
 
-        uint256 batchLimit = lowestNonPrioritizedRequestsCount <
-            protocolManager.BATCH_LIMIT()
-            ? lowestNonPrioritizedRequestsCount
-            : protocolManager.BATCH_LIMIT();
+    //     uint256 batchLimit = lowestNonPrioritizedRequestsCount <
+    //         protocolManager.BATCH_LIMIT()
+    //         ? lowestNonPrioritizedRequestsCount
+    //         : protocolManager.BATCH_LIMIT();
 
-        uint256 prioritizedRequestsLimit = lowestPrioritizedRequestsCount <
-            protocolManager.PRIORITIZED_BATCH_LIMIT()
-            ? lowestNonPrioritizedRequestsCount
-            : protocolManager.PRIORITIZED_BATCH_LIMIT();
+    //     uint256 prioritizedRequestsLimit = lowestPrioritizedRequestsCount <
+    //         protocolManager.PRIORITIZED_BATCH_LIMIT()
+    //         ? lowestNonPrioritizedRequestsCount
+    //         : protocolManager.PRIORITIZED_BATCH_LIMIT();
 
-        if (totalBorrowRequests <= totalLendRequests) {
-            for (uint256 index = 0; index < batchLimit; index++) {
-                if (
-                    totalPrioritizedBorrowRequest >
-                    protocolManager.INDEX_PRECISION() &&
-                    totalPrioritizedLendRequests >
-                    protocolManager.INDEX_PRECISION()
-                ) {
-                    for (
-                        uint256 num = 0;
-                        num < prioritizedRequestsLimit;
-                        num++
-                    ) {
-                        selectedLendRequest = ILendRequestFactory(
-                            protocolManager.LendRequestFactory()
-                        ).getPrioritizedRequestViaIndex(num);
+    //     if (totalBorrowRequests <= totalLendRequests) {
+    //         for (uint256 index = 0; index < batchLimit; index++) {
+    //             if (
+    //                 totalPrioritizedBorrowRequest >
+    //                 protocolManager.INDEX_PRECISION() &&
+    //                 totalPrioritizedLendRequests >
+    //                 protocolManager.INDEX_PRECISION()
+    //             ) {
+    //                 for (
+    //                     uint256 num = 0;
+    //                     num < prioritizedRequestsLimit;
+    //                     num++
+    //                 ) {
+    //                     selectedLendRequest = ILendRequestFactory(
+    //                         protocolManager.LendRequestFactory()
+    //                     ).getPrioritizedRequestViaIndex(num);
 
-                        selectedBorrowRequest = IBorrowRequestFactory(
-                            protocolManager.BorrowRequestFactory()
-                        ).getPrioritizedRequestViaIndex(num);
-                    }
-                } else {
-                    selectedLendRequest = ILendRequestFactory(
-                        protocolManager.LendRequestFactory()
-                    ).getNonPrioritizedRequestViaIndex(index);
+    //                     selectedBorrowRequest = IBorrowRequestFactory(
+    //                         protocolManager.BorrowRequestFactory()
+    //                     ).getPrioritizedRequestViaIndex(num);
+    //                 }
+    //             } else {
+    //                 selectedLendRequest = ILendRequestFactory(
+    //                     protocolManager.LendRequestFactory()
+    //                 ).getNonPrioritizedRequestViaIndex(index);
 
-                    selectedBorrowRequest = IBorrowRequestFactory(
-                        protocolManager.BorrowRequestFactory()
-                    ).getNonPrioritizedRequestViaIndex(index);
-                }
+    //                 selectedBorrowRequest = IBorrowRequestFactory(
+    //                     protocolManager.BorrowRequestFactory()
+    //                 ).getNonPrioritizedRequestViaIndex(index);
+    //             }
 
-                (
-                    address[] memory tokens,
-                    uint256[] memory collateralAmount,
-                    uint256 loanAmountRequested,
-                    address borrower,
-                    uint8 borrowRequestState,
+    //             (
+    //                 address[] memory tokens,
+    //                 uint256[] memory collateralAmount,
+    //                 uint256 loanAmountRequested,
+    //                 address borrower,
+    //                 uint8 borrowRequestState,
 
-                ) = IBorrowRequest(selectedBorrowRequest).getRequestDetails();
+    //             ) = IBorrowRequest(selectedBorrowRequest).getRequestDetails();
 
-                (address lender, uint8 lendRequestState, ) = ILendRequest(
-                    selectedLendRequest
-                ).getRequestDetails();
+    //             (address lender, uint8 lendRequestState, ) = ILendRequest(
+    //                 selectedLendRequest
+    //             ).getRequestDetails();
 
-                if (
-                    borrowRequestState !=
-                    uint8(LoanConfigLibrary.RequestState.OPEN) &&
-                    lendRequestState !=
-                    uint8(LoanConfigLibrary.RequestState.OPEN)
-                ) revert();
+    //             if (
+    //                 borrowRequestState !=
+    //                 uint8(LoanConfigLibrary.RequestState.OPEN) &&
+    //                 lendRequestState !=
+    //                 uint8(LoanConfigLibrary.RequestState.OPEN)
+    //             ) revert();
 
-                uint256 availableLiquidity = selectedLendRequest.balance;
+    //             uint256 availableLiquidity = selectedLendRequest.balance;
 
-                uint256 loanOffered = loanAmountRequested <= availableLiquidity
-                    ? loanAmountRequested
-                    : availableLiquidity;
+    //             uint256 loanOffered = loanAmountRequested <= availableLiquidity
+    //                 ? loanAmountRequested
+    //                 : availableLiquidity;
 
-                ActiveLoan activeLoan = new ActiveLoan(
-                    borrower,
-                    lender,
-                    address(protocolManager),
-                    collateralAmount,
-                    tokens,
-                    loanAmountRequested,
-                    loanOffered,
-                    block.timestamp
-                );
+    //             ActiveLoan activeLoan = new ActiveLoan(
+    //                 borrower,
+    //                 lender,
+    //                 address(protocolManager),
+    //                 collateralAmount,
+    //                 tokens,
+    //                 loanAmountRequested,
+    //                 loanOffered,
+    //                 block.timestamp
+    //             );
 
-                IBorrowRequest(selectedBorrowRequest).acceptLoan(
-                    address(activeLoan)
-                );
+    //             IBorrowRequest(selectedBorrowRequest).acceptLoan(
+    //                 address(activeLoan)
+    //             );
 
-                ILendRequest(selectedLendRequest).offerLoan(
-                    address(borrower),
-                    loanOffered
-                );
-            }
-        }
+    //             ILendRequest(selectedLendRequest).offerLoan(
+    //                 address(borrower),
+    //                 loanOffered
+    //             );
+    //         }
+    //     }
 
-        return;
-    }
+    //     return;
+    // }
 
     // gap
     uint256[60] private __gap;

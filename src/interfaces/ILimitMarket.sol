@@ -3,11 +3,11 @@ pragma solidity ^0.8.28;
 
 interface ILimitMarket {
     function borrow(
-        uint256[] calldata collateralAmount,
-        uint256 loanAmountRequested,
         address[] calldata tokens,
+        uint256[] calldata collateralAmount,
+        uint256 amountToBorrow,
         bool priority
-    ) external payable returns (address borrowRequest);
+    ) external payable returns (uint8 borrowRequestID);
     // function getPrioritizedBorrowRequestAddress(
     //     uint256 batchLimit,
     //     uint256 numOfResponse
