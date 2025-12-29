@@ -103,7 +103,7 @@ contract LimitMarket is
         uint256[] calldata collateralAmount,
         uint256 amountToBorrow,
         bool priority
-    ) external payable nonReentrant returns (uint8 borrowRequestID) {
+    ) external payable nonReentrant returns (uint256 borrowRequestID) {
         // checks
         require(
             (collateralAmount.length == tokens.length),

@@ -67,6 +67,43 @@ contract LoanManager is
                            TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
 
+    struct BorrowRequestDetails {
+        uint256 amountToBorrow;
+        bool priority;
+        uint256 timeCreated;
+        uint256 interestRate;
+        uint256 dueDate;
+        uint256 BreadBalance;
+        uint256 requestID;
+        TokenDetails[] tokenDetails;
+        RequestState state;
+    }
+
+    struct TokenDetails {
+        address token;
+        uint256 amountDeposited;
+        uint256 tokenValue;
+    }
+
+    struct Queue {
+        uint256 head;
+        uint256 tail;
+        mapping(uint256 => uint256) next;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           ENUMS
+    //////////////////////////////////////////////////////////////*/
+    enum RequestState {
+        CLOSED,
+        OPEN,
+        CANCELLED,
+        SETTLED,
+        ADDING_LIQUIDITY,
+        PRIORITIZING,
+        CANCELLING
+    }
+
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
@@ -80,6 +117,17 @@ contract LoanManager is
     ITokenManager TokenManager;
 
     IBackery Backery;
+
+    uint256 nextID;
+
+    Queue private priorityQueue;
+    Queue private normalQueue;
+
+    mapping(uint256 ID => BorrowRequestDetails borrowRequestDetails)
+        private _borrowRequestDetails;
+
+    mapping(address borrower => uint256[] borrowRequestsID)
+        private borrowerToRequestsID;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -107,6 +155,7 @@ contract LoanManager is
         Backery = IBackery(address(0));
 
         admin = ProtocolManager.deployer();
+        nextID = 0;
 
         bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
@@ -117,8 +166,6 @@ contract LoanManager is
         require(adminRoleGranted && limitMarketContractRoleGranted);
 
         ProtocolManager.setloanManager(address(this), msg.sender);
-
-        console2.log("loan manager deployed address", address(this));
     }
 
     function _authorizeUpgrade(
@@ -135,16 +182,33 @@ contract LoanManager is
         uint256 amountToBorrow,
         address borrower,
         bool priority
-    ) external payable onlyRole(LIMIT_MARKET) returns (uint8 ID) {
+    )
+        external
+        payable
+        onlyRole(LIMIT_MARKET)
+        returns (uint256 borrowRequestID)
+    {
         uint256 collateralValue;
+        borrowRequestID = nextID++;
+
+        BorrowRequestDetails
+            storage borrowRequestDetails = _borrowRequestDetails[
+                borrowRequestID
+            ];
 
         for (uint256 i = 0; i < tokens.length; i++) {
+            TokenDetails memory tokendetails;
             uint256 tokenValue = TokenManager.getTotalTokenEthValue(
                 tokens[i],
                 collateralAmount[i]
             );
 
             collateralValue += tokenValue;
+            tokendetails.token = tokens[i];
+            tokendetails.amountDeposited = collateralAmount[i];
+            tokendetails.tokenValue = tokenValue;
+
+            borrowRequestDetails.tokenDetails.push(tokendetails);
 
             /// @dev transfer tokens to loanManager contract
             erc20TokenLibrary.transferFromTokens(
@@ -154,9 +218,25 @@ contract LoanManager is
                 collateralAmount[i]
             ); // @audit change to token library
         }
+
         uint256 eligibleAmountToBorrow = collateralValue <= amountToBorrow
             ? collateralValue
             : amountToBorrow;
+        borrowRequestDetails.amountToBorrow = eligibleAmountToBorrow;
+        borrowRequestDetails.priority = priority;
+        borrowRequestDetails.timeCreated = block.timestamp;
+        borrowRequestDetails.interestRate = 1e18; // @audit fix
+        borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
+        borrowRequestDetails.BreadBalance = eligibleAmountToBorrow;
+        borrowRequestDetails.requestID = borrowRequestID;
+        borrowRequestDetails.state = RequestState.OPEN;
+        borrowerToRequestsID[borrower].push(borrowRequestID);
+
+        if (priority == true) {
+            _enQueue(priorityQueue, borrowRequestID);
+        } else {
+            _enQueue(normalQueue, borrowRequestID);
+        }
 
         // @audit check ltv before proceeding
 
@@ -169,12 +249,32 @@ contract LoanManager is
             require(address(Backery) != address(0), "Backery not set");
         }
 
-        Backery.mint(borrower, 2, eligibleAmountToBorrow);
+        Backery.mint(borrower, 2, eligibleAmountToBorrow * 1 ether); //@audit overflow?
     }
 
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _enQueue(Queue storage q, uint256 ID) private {
+        if (q.tail != 0) {
+            q.next[q.tail] = ID;
+        } else {
+            q.head = ID;
+        }
+        q.tail = ID;
+    }
+
+    function _deQueue(Queue storage q) private returns (uint256 ID) {
+        ID = q.head;
+        require(ID != 0, "empty Queue");
+        q.head = q.next[ID];
+        delete q.next[ID];
+
+        if (q.head == 0) {
+            q.tail = 0;
+        }
+    }
 
     /*//////////////////////////////////////////////////////////////
                               PRIVATE VIEW FUNCTIONS

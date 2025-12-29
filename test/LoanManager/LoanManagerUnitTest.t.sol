@@ -72,7 +72,7 @@ contract LoanManagerUnitTest is Test {
             "Backery.sol",
             abi.encodeCall(Backery.initialize, address(protocolManagerProxy))
         );
-        iBackery = IBackery(LoanManagerProxy);
+        iBackery = IBackery(BackeryProxy);
 
         // console2.log("limit contract", address(iLimitMarket));
     }
@@ -133,7 +133,14 @@ contract LoanManagerUnitTest is Test {
             loanAmountRequested,
             false
         );
-
+        uint256 breadTotalSupply = iBackery.getTotalSupply(2);
+        uint256 doughTotalSupply = iBackery.getTotalSupply(1);
+        uint256 borrowerBalance = iBackery.getBalance(borrower, 2);
+        string memory name = iBackery.getName(2);
+        console2.log("Bread supply", breadTotalSupply);
+        console2.log("borrower balance", borrowerBalance);
+        console2.log("dough supply", doughTotalSupply);
+        console2.log("Bread name", name);
         vm.stopPrank();
     }
 }

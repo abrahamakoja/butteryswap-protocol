@@ -8,5 +8,5 @@ interface ILoanManager {
         uint256 amountToBorrow,
         address borrower,
         bool priority
-    ) external payable returns (uint8 ID);
+    ) external payable returns (uint256 borrowRequestID);
 }

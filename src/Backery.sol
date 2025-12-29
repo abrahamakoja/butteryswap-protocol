@@ -76,6 +76,26 @@ contract Backery is
     function mint(address to, uint256 id, uint256 amount) external {
         _mint(to, id, amount);
     }
+
+    function getBalance(
+        address owner,
+        uint256 tokenId
+    ) external view returns (uint256 balance) {
+        balance = balanceOf(owner, tokenId);
+        return balance;
+    }
+
+    function getTotalSupply(
+        uint256 ID
+    ) external view returns (uint256 _totalSupply) {
+        _totalSupply = totalSupply(ID);
+        return _totalSupply;
+    }
+
+    function getName(uint256 ID) external view returns (string memory _name) {
+        _name = name(ID);
+        return _name;
+    }
     function getTokenMetadata(
         uint256 ID
     ) external view returns (TokenMetadata memory tokenMetadata) {
@@ -87,9 +107,7 @@ contract Backery is
             });
     }
     // initializers
-    function _authorizeUpgrade(
-        address
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override {}
 
     function _update(
         address from,
@@ -98,9 +116,11 @@ contract Backery is
         uint256 amount
     )
         internal
+        virtual
         override(ERC6909Upgradeable, ERC6909TokenSupplyUpgradeable)
-        onlyRole(LOAN_MANAGER)
-    {}
+    {
+        super._update(from, to, id, amount);
+    }
 
     function supportsInterface(
         bytes4 interfaceId
