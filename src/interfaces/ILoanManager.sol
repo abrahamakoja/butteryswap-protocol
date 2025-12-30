@@ -32,6 +32,13 @@ interface ILoanManager {
     function getBorrowerRequestsDetails(
         address borrower
     ) external view returns (uint256[] memory requestsID);
+    function increaseCollaterallAmount(
+        address borrower,
+        uint256 requestID,
+        address[] calldata tokens,
+        uint256[] calldata collateralAmounts,
+        uint256 amountToBorrow
+    ) external payable;
     function prioritizeBorrowRequest(
         address borrower,
         uint256 requestID

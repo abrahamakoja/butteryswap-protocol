@@ -136,32 +136,54 @@ contract LimitMarket is
         });
     }
 
-    // function addLiquidityToBorrowRequest(
-    //     address borrowRequest,
-    //     address[] calldata tokens,
-    //     uint256[] calldata collateralAmounts,
-    //     uint256 _loanAmountRequested
-    // ) external payable nonReentrant {
-    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-    //         .addLiquidity(
-    //             msg.sender,
-    //             borrowRequest,
-    //             tokens,
-    //             collateralAmounts,
-    //             _loanAmountRequested
-    //         );
-    // }
+    function increaseCollaterallAmount(
+        uint256 requestID,
+        address[] calldata tokens,
+        uint256[] calldata collateralAmount,
+        uint256 amountToBorrow
+    ) external payable nonReentrant {
+        // checks
+        require(
+            (collateralAmount.length == tokens.length),
+            LimitMarket__rangeDataMisMatch()
+        ); //@audit rename errors
+
+        if (
+            tokens.length == 0 ||
+            tokens.length > ProtocolManager.MAX_ASSET_LIMIT()
+        ) revert LimitMarket__InvalidTokenCount(tokens.length);
+
+        address borrower = msg.sender;
+
+        require(msg.value >= 1 ether, "invalid fee amount"); // @audit use fee and add revert error for failure
+
+        if (
+            address(LoanManager) == address(0) ||
+            address(ProtocolManager.LoanManager()) != address(LoanManager)
+        ) {
+            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
+            require(address(LoanManager) != address(0), "LoanManager not set");
+        }
+        LoanManager.increaseCollaterallAmount(
+            borrower,
+            requestID,
+            tokens,
+            collateralAmount,
+            amountToBorrow
+        );
+    }
 
     function prioritizeBorrowRequest(
         uint256 requestID
     ) external payable nonReentrant {
         // check loan is not prioritised
+        address borrower = msg.sender;
         require(
             LoanManager.isRequestPrioritized(requestID) == false,
             "loan already prioritized"
         );
         LoanManager.prioritizeBorrowRequest{value: msg.value}(
-            msg.sender,
+            borrower,
             requestID
         );
     }

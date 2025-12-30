@@ -296,7 +296,7 @@ contract TokenManager is
         if (index > totalRequestedTokens) {
             revert TokenManager__LimitExceeded();
         }
-        console2.log("index ::", index);
+        // console2.log("index ::", index);
 
         /// Effects
         /// @dev get the address of the token attached to the inputted index

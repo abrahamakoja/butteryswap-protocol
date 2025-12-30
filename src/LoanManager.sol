@@ -100,9 +100,7 @@ contract LoanManager is
         OPEN,
         CANCELLED,
         SETTLED,
-        ADDING_LIQUIDITY,
-        PRIORITIZING,
-        CANCELLING
+        UPDATING
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -130,15 +128,22 @@ contract LoanManager is
     mapping(address borrower => uint256[] borrowRequestsID)
         internal borrowerToRequestsID;
 
-    mapping(address user => mapping(uint256 requetID => bool isOwner))
-        internal isOwner; //@audit change naming conventions to standard
-
-    mapping(uint256 requestID => RequestState state) internal requestState;
+    mapping(uint256 requestID => uint256 requestQueuePosition)
+        internal requestQueuePosition; // @audit get position
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
-    event BorrowRequestCreated(uint256 indexed requestID);
+    event BorrowRequestCreated(
+        uint256 indexed requestID,
+        uint256 indexed amountToBorrow
+    );
+    event collateralAmountIncreased(
+        uint256 indexed requestID,
+        uint256 indexed collateralValue,
+        uint256 indexed amountToBorrow
+    );
+    event BorrowRequestPrioritized(uint256 indexed requestID);
 
     modifier addressIsValid(address _address) {
         require((_address != address(0)), LoanManager__InvalidAddress());
@@ -238,19 +243,19 @@ contract LoanManager is
         borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = RequestState.OPEN;
         borrowerToRequestsID[borrower].push(requestID);
-        isOwner[borrower][requestID] = true;
-        requestState[requestID] = RequestState.OPEN;
 
         if (priority == true) {
             _enQueue(priorityQueue, requestID);
+            emit BorrowRequestPrioritized(requestID);
         } else {
             _enQueue(normalQueue, requestID);
         }
 
         // @audit check ltv before proceeding
+        // @audit collect fee
 
         /// EVENTS
-        emit BorrowRequestCreated(requestID);
+        emit BorrowRequestCreated(requestID, amountToBorrow);
         // mint
         if (
             address(Backery) == address(0) ||
@@ -268,21 +273,115 @@ contract LoanManager is
         uint256 requestID
     ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         // checks
-        // check state
-        require(_state(requestID) == RequestState.OPEN, "loan state invalid");
-
-        // check borrower isowner
-        require(_isOwner(borrower, requestID), "not owner");
-        // @audit collect fee
-
-        // effects
         BorrowRequestDetails
             storage borrowRequestDetails = _borrowRequestDetails[requestID];
+        // check borrower isowner
+        require(borrowRequestDetails.borrower == borrower, "not owner");
+
+        // check state
+        require(
+            borrowRequestDetails.state == RequestState.OPEN,
+            "loan state invalid"
+        );
+        //  checks position hasnt been skipped if yes re-assign next
+        // change state
+        borrowRequestDetails.state = RequestState.UPDATING;
 
         borrowRequestDetails.priority = true;
 
         _enQueue(priorityQueue, requestID);
+        // EVENTS
+        emit BorrowRequestPrioritized(requestID);
         // @audit understand dequeeue first
+        borrowRequestDetails.state == RequestState.OPEN;
+    }
+
+    function increaseCollaterallAmount(
+        address borrower,
+        uint256 requestID,
+        address[] calldata tokens,
+        uint256[] calldata collateralAmounts,
+        uint256 amountToBorrow
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+        // @audit add zero checks and overflows
+        uint256 collateralValue;
+        uint256 currentTokenCount;
+        uint256 newTokenCount;
+        // uint256 eligibleAmountToBorrow;
+        BorrowRequestDetails
+            storage borrowRequestDetails = _borrowRequestDetails[requestID];
+        currentTokenCount = borrowRequestDetails.tokenDetails.length;
+        TokenDetails memory tokendetails; //@audit
+        // check borrower isowner
+        require(borrowRequestDetails.borrower == borrower, "not owner");
+
+        // check state
+        require(
+            borrowRequestDetails.state == RequestState.OPEN,
+            "loan state invalid"
+        );
+        // change state
+        borrowRequestDetails.state = RequestState.UPDATING;
+
+        // check if new deposit exceeds eligible borrow limit @audit do this once we start tracking reserves
+        // ensure both tokens and collateralmatches
+        require(tokens.length == collateralAmounts.length, "range mismatch");
+        // ensure tokens are supported
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // checks
+            require(collateralAmounts[0] != 0, "invalid amount");
+            collateralValue += TokenManager.getTotalTokenEthValue(
+                tokens[i],
+                collateralAmounts[i]
+            );
+
+            if (tokens[i] == tokendetails.token) {
+                tokendetails.amountDeposited += collateralAmounts[i];
+                tokendetails.tokenValue += collateralValue;
+            } else {
+                tokendetails.token = tokens[i];
+                tokendetails.amountDeposited = collateralAmounts[i];
+                tokendetails.tokenValue = collateralValue;
+                newTokenCount++;
+            }
+
+            borrowRequestDetails.tokenDetails.push(tokendetails);
+
+            /// @dev transfer tokens to loanManager contract
+            erc20TokenLibrary.transferFromTokens(
+                tokens[i],
+                address(borrower),
+                address(this),
+                collateralAmounts[i]
+            ); // @audit change to token library
+        }
+
+        uint256 eligibleAmountToBorrow = collateralValue <= amountToBorrow
+            ? collateralValue
+            : amountToBorrow; //@audit token amounts must be formatted corrrectly in 18 decimals
+
+        // check if tokens already supplied exceed limit
+        require(
+            (currentTokenCount + newTokenCount) <=
+                ProtocolManager.MAX_ASSET_LIMIT(),
+            "token limit exceeded"
+        );
+
+        //  checks position hasnt been skipped if yes re-assign next
+        // @audit fully implement this during enforcer
+
+        // effects
+        /// EVENTS
+        emit collateralAmountIncreased(
+            requestID,
+            collateralValue,
+            amountToBorrow
+        );
+        // @audit collect fee
+        // mints additional bread
+        Backery.mint(borrower, 2, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+
+        borrowRequestDetails.state == RequestState.OPEN;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -294,17 +393,6 @@ contract LoanManager is
     ) public view returns (bool) {
         BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
         return details.priority;
-    }
-
-    function _state(uint256 requestID) internal view returns (RequestState) {
-        return requestState[requestID];
-    }
-
-    function _isOwner(
-        address user,
-        uint256 requestID
-    ) internal view returns (bool) {
-        return isOwner[user][requestID];
     }
 
     function _enQueue(Queue storage q, uint256 ID) private {
