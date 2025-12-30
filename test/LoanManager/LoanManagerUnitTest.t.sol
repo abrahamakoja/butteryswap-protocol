@@ -2,10 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {Test, console2} from "forge-std/Test.sol";
-// import {BorrowRequest} from "../../src/BorrowRequest.sol";
 import {erc20TokenLibrary} from "../../src/libraries/erc20TokenLibrary.sol";
 import {ProtocolManager} from "../../src/ProtocolManager.sol";
-// import {BorrowRequestFactory} from "../../src/BorrowRequestFactory.sol";
 import {LimitMarket} from "../../src/LimitMarket.sol";
 import {LoanManager} from "../../src/LoanManager.sol";
 import {ILimitMarket} from "../../src/interfaces/ILimitMarket.sol";
@@ -18,17 +16,18 @@ import {Backery} from "../../src/Backery.sol";
 import {IBackery} from "../../src/interfaces/IBackery.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
-// import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
 contract LoanManagerUnitTest is Test {
+    address borrower;
     IProtocolManager iProtocolManager;
     ILimitMarket iLimitMarket;
     ITokenManager iTokenManager;
     ILoanManager iLoanManager;
     IBackery iBackery;
-    // UpgradeableBeacon beacon;
+
     address deployer;
     function setUp() public {
+        borrower = vm.randomAddress();
         // protocolManager
         address protocolManagerProxy = Upgrades.deployUUPSProxy(
             "ProtocolManager.sol",
@@ -73,74 +72,139 @@ contract LoanManagerUnitTest is Test {
             abi.encodeCall(Backery.initialize, address(protocolManagerProxy))
         );
         iBackery = IBackery(BackeryProxy);
-
-        // console2.log("limit contract", address(iLimitMarket));
     }
 
-    function testCreateRequest() external {
-        // return ();
-        address borrower = vm.randomAddress();
-        vm.deal(borrower, 1000 ether);
-        uint256 amount;
-        uint256 loanAmountRequested = 60;
-        uint256[] memory collateralAmount = new uint256[](6);
-        address[] memory tokens = new address[](6);
-        vm.startPrank(borrower);
+    function testCreateRequest() external {}
+
+    function testPrioritizeBorrowRequest() external {
+        vm.deal(borrower, 10 ether);
+        uint256 amountToBorrow = 2 ether;
+        uint256 tokenListingFee = 1 ether;
+        uint256 priorityFee = 1 ether;
+        uint256 originationFee = 1 ether;
+        uint256 num = 3;
+        uint256 amount = 100;
+        uint256 requestID;
+        address[] memory tokens = new address[](num);
+        uint256[] memory collateralAmount = new uint256[](num);
         for (uint256 i = 0; i < collateralAmount.length; i++) {
-            string memory name = "meme";
-            collateralAmount[i] = amount + 100;
-            ERC20Mock token = new ERC20Mock(
-                name,
-                "MEME",
-                borrower,
-                UINT256_MAX
-            );
-            tokens[i] = address(token);
-            amount += 100;
-            // Reset the allowance to the exact collateralAmount
+            collateralAmount[i] = amount;
+            amount += amount;
+        }
+        tokens = _addTokens(tokenListingFee, num, borrower, collateralAmount);
+        vm.startPrank(borrower);
+        _increaseTokenAllowance(tokens, collateralAmount);
+        requestID = _borrow(
+            originationFee,
+            tokens,
+            collateralAmount,
+            amountToBorrow,
+            false
+        );
+
+        // prioritize loan
+        iLimitMarket.prioritizeBorrowRequest{value: priorityFee}(requestID);
+        // assert
+        assertTrue(iLoanManager.isRequestPrioritized(requestID));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _getBorrowRequestDetails(
+        uint256 requestID
+    )
+        internal
+        returns (
+            address _borrower,
+            uint256 amountToBorrow,
+            bool priority,
+            uint256 timeCreated,
+            uint256 interestRate,
+            uint256 dueDate,
+            uint256 BreadBalance,
+            uint256 _requestID,
+            address[] memory _tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenvalue,
+            uint8 _state
+        )
+    {
+        (
+            _borrower,
+            amountToBorrow,
+            priority,
+            timeCreated,
+            interestRate,
+            dueDate,
+            BreadBalance,
+            _requestID,
+            _tokens,
+            amountDeposited,
+            tokenvalue,
+            _state
+        ) = iLoanManager.getBorrowRequestDetails(requestID);
+    }
+
+    function _borrow(
+        uint256 fee,
+        address[] memory tokens,
+        uint256[] memory collateralAmount,
+        uint256 amountToBorrow,
+        bool priority
+    ) internal returns (uint256 requestID) {
+        iLimitMarket.borrow{value: fee}(
+            tokens,
+            collateralAmount,
+            amountToBorrow,
+            false
+        );
+    }
+
+    function _increaseTokenAllowance(
+        address[] memory tokens,
+        uint256[] memory collateralAmount
+    ) internal {
+        for (uint256 i = 0; i < tokens.length; i++) {
             erc20TokenLibrary.IncreaseAllowance(
                 tokens[i],
                 address(iLoanManager),
                 collateralAmount[i]
             );
-            console2.log("token", i, tokens[i]);
         }
-        // console2.log("token length", tokens.length);
+    }
 
+    function _addTokens(
+        uint256 fee,
+        uint256 num,
+        address user,
+        uint256[] memory collateralAmount
+    ) private returns (address[] memory tokens) {
+        vm.startPrank(user);
+        tokens = new address[](num);
+        for (uint256 i = 0; i < num; i++) {
+            string memory name = "meme coin";
+
+            ERC20Mock token = new ERC20Mock(
+                name,
+                "MEME",
+                user,
+                collateralAmount[i]
+            );
+            tokens[i] = address(token);
+        }
+        // request
         for (uint256 i = 0; i < tokens.length; i++) {
-            iTokenManager.requestTokenListing{value: 6 ether}(tokens[i]);
-            // iTokenManager.approveTokenRequest(i);
+            iTokenManager.requestTokenListing{value: fee}(tokens[i]);
         }
         vm.stopPrank();
 
+        // approve
+        vm.startPrank(deployer);
         for (uint256 i = 1; i <= iTokenManager.totalRequestedTokens(); i++) {
             iTokenManager.approveTokenRequest(i);
         }
-
-        vm.startPrank(borrower);
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Reset the allowance to the exact collateralAmount
-            erc20TokenLibrary.IncreaseAllowance(
-                tokens[i],
-                address(iLoanManager),
-                2000
-            );
-        }
-        console2.log("limit contract", address(iLimitMarket));
-        uint8 borrowRequestId = iLimitMarket.borrow{value: 200 ether}(
-            tokens,
-            collateralAmount,
-            loanAmountRequested,
-            false
-        );
-        uint256 breadTotalSupply = iBackery.getTotalSupply(2);
-        uint256 doughTotalSupply = iBackery.getTotalSupply(1);
-        uint256 borrowerBalance = iBackery.getBalance(borrower, 2);
-        string memory name = iBackery.getName(2);
-        console2.log("Bread supply", breadTotalSupply);
-        console2.log("borrower balance", borrowerBalance);
-        console2.log("dough supply", doughTotalSupply);
-        console2.log("Bread name", name);
         vm.stopPrank();
     }
 }

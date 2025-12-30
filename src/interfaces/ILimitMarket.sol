@@ -7,7 +7,8 @@ interface ILimitMarket {
         uint256[] calldata collateralAmount,
         uint256 amountToBorrow,
         bool priority
-    ) external payable returns (uint8 borrowRequestID);
+    ) external payable returns (uint256 borrowRequestID);
+    function prioritizeBorrowRequest(uint256 requestID) external payable;
     // function getPrioritizedBorrowRequestAddress(
     //     uint256 batchLimit,
     //     uint256 numOfResponse

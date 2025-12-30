@@ -9,4 +9,35 @@ interface ILoanManager {
         address borrower,
         bool priority
     ) external payable returns (uint256 borrowRequestID);
+
+    function getBorrowRequestDetails(
+        uint256 borrowRequestID
+    )
+        external
+        view
+        returns (
+            address borrower,
+            uint256 amountToBorrow,
+            bool priority,
+            uint256 timeCreated,
+            uint256 interestRate,
+            uint256 dueDate,
+            uint256 BreadBalance,
+            uint256 requestID,
+            address[] memory tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenvalue,
+            uint8 state
+        );
+    function getBorrowerRequestsDetails(
+        address borrower
+    ) external view returns (uint256[] memory requestsID);
+    function prioritizeBorrowRequest(
+        address borrower,
+        uint256 requestID
+    ) external payable;
+
+    function isRequestPrioritized(
+        uint256 requestID
+    ) external view returns (bool);
 }

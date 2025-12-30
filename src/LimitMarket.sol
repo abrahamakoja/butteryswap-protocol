@@ -152,12 +152,19 @@ contract LimitMarket is
     //         );
     // }
 
-    // function prioritizeBorrowRequest(
-    //     address borrowRequest
-    // ) external payable nonReentrant {
-    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-    //         .prioritizeLoanRequest(msg.sender, borrowRequest);
-    // }
+    function prioritizeBorrowRequest(
+        uint256 requestID
+    ) external payable nonReentrant {
+        // check loan is not prioritised
+        require(
+            LoanManager.isRequestPrioritized(requestID) == false,
+            "loan already prioritized"
+        );
+        LoanManager.prioritizeBorrowRequest{value: msg.value}(
+            msg.sender,
+            requestID
+        );
+    }
 
     // function cancelBorrowRequest(
     //     address borrowRequest

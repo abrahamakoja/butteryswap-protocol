@@ -68,6 +68,7 @@ contract LoanManager is
     //////////////////////////////////////////////////////////////*/
 
     struct BorrowRequestDetails {
+        address borrower;
         uint256 amountToBorrow;
         bool priority;
         uint256 timeCreated;
@@ -120,18 +121,24 @@ contract LoanManager is
 
     uint256 nextID;
 
-    Queue private priorityQueue;
-    Queue private normalQueue;
+    Queue internal priorityQueue;
+    Queue internal normalQueue;
 
     mapping(uint256 ID => BorrowRequestDetails borrowRequestDetails)
-        private _borrowRequestDetails;
+        internal _borrowRequestDetails;
 
     mapping(address borrower => uint256[] borrowRequestsID)
-        private borrowerToRequestsID;
+        internal borrowerToRequestsID;
+
+    mapping(address user => mapping(uint256 requetID => bool isOwner))
+        internal isOwner; //@audit change naming conventions to standard
+
+    mapping(uint256 requestID => RequestState state) internal requestState;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+    event BorrowRequestCreated(uint256 indexed requestID);
 
     modifier addressIsValid(address _address) {
         require((_address != address(0)), LoanManager__InvalidAddress());
@@ -186,15 +193,14 @@ contract LoanManager is
         external
         payable
         onlyRole(LIMIT_MARKET)
-        returns (uint256 borrowRequestID)
+        nonReentrant
+        returns (uint256 requestID)
     {
         uint256 collateralValue;
-        borrowRequestID = nextID++;
+        requestID = nextID++;
 
         BorrowRequestDetails
-            storage borrowRequestDetails = _borrowRequestDetails[
-                borrowRequestID
-            ];
+            storage borrowRequestDetails = _borrowRequestDetails[requestID];
 
         for (uint256 i = 0; i < tokens.length; i++) {
             TokenDetails memory tokendetails;
@@ -221,25 +227,30 @@ contract LoanManager is
 
         uint256 eligibleAmountToBorrow = collateralValue <= amountToBorrow
             ? collateralValue
-            : amountToBorrow;
+            : amountToBorrow; //@audit token amounts must be formatted corrrectly in 18 decimals
+        borrowRequestDetails.borrower = borrower;
         borrowRequestDetails.amountToBorrow = eligibleAmountToBorrow;
         borrowRequestDetails.priority = priority;
         borrowRequestDetails.timeCreated = block.timestamp;
         borrowRequestDetails.interestRate = 1e18; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
         borrowRequestDetails.BreadBalance = eligibleAmountToBorrow;
-        borrowRequestDetails.requestID = borrowRequestID;
+        borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = RequestState.OPEN;
-        borrowerToRequestsID[borrower].push(borrowRequestID);
+        borrowerToRequestsID[borrower].push(requestID);
+        isOwner[borrower][requestID] = true;
+        requestState[requestID] = RequestState.OPEN;
 
         if (priority == true) {
-            _enQueue(priorityQueue, borrowRequestID);
+            _enQueue(priorityQueue, requestID);
         } else {
-            _enQueue(normalQueue, borrowRequestID);
+            _enQueue(normalQueue, requestID);
         }
 
         // @audit check ltv before proceeding
 
+        /// EVENTS
+        emit BorrowRequestCreated(requestID);
         // mint
         if (
             address(Backery) == address(0) ||
@@ -252,9 +263,49 @@ contract LoanManager is
         Backery.mint(borrower, 2, eligibleAmountToBorrow * 1 ether); //@audit overflow?
     }
 
+    function prioritizeBorrowRequest(
+        address borrower,
+        uint256 requestID
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+        // checks
+        // check state
+        require(_state(requestID) == RequestState.OPEN, "loan state invalid");
+
+        // check borrower isowner
+        require(_isOwner(borrower, requestID), "not owner");
+        // @audit collect fee
+
+        // effects
+        BorrowRequestDetails
+            storage borrowRequestDetails = _borrowRequestDetails[requestID];
+
+        borrowRequestDetails.priority = true;
+
+        _enQueue(priorityQueue, requestID);
+        // @audit understand dequeeue first
+    }
+
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function isRequestPrioritized(
+        uint256 requestID
+    ) public view returns (bool) {
+        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
+        return details.priority;
+    }
+
+    function _state(uint256 requestID) internal view returns (RequestState) {
+        return requestState[requestID];
+    }
+
+    function _isOwner(
+        address user,
+        uint256 requestID
+    ) internal view returns (bool) {
+        return isOwner[user][requestID];
+    }
 
     function _enQueue(Queue storage q, uint256 ID) private {
         if (q.tail != 0) {
@@ -274,6 +325,69 @@ contract LoanManager is
         if (q.head == 0) {
             q.tail = 0;
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              PUBLIC PURE/VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function getBorrowerRequestsDetails(
+        address borrower
+    ) public view returns (uint256[] memory requestsID) {
+        uint256 count = borrowerToRequestsID[borrower].length;
+        requestsID = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            requestsID[i] = borrowerToRequestsID[borrower][i];
+        }
+        return requestsID;
+    }
+
+    function getBorrowRequestDetails(
+        uint256 _requestID
+    )
+        public
+        view
+        returns (
+            address borrower,
+            uint256 amountToBorrow,
+            bool priority,
+            uint256 timeCreated,
+            uint256 interestRate,
+            uint256 dueDate,
+            uint256 BreadBalance,
+            uint256 requestID,
+            address[] memory tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenvalue,
+            uint8 state
+        )
+    {
+        BorrowRequestDetails memory details = _borrowRequestDetails[_requestID];
+        uint256 count = details.tokenDetails.length;
+
+        tokens = new address[](count);
+        amountDeposited = new uint256[](count);
+        tokenvalue = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            tokens[i] = details.tokenDetails[i].token;
+            amountDeposited[i] = details.tokenDetails[i].amountDeposited;
+            tokenvalue[i] = details.tokenDetails[i].tokenValue;
+        }
+
+        return (
+            details.borrower,
+            details.amountToBorrow,
+            details.priority,
+            details.timeCreated,
+            details.interestRate,
+            details.dueDate,
+            details.BreadBalance,
+            details.requestID,
+            tokens,
+            amountDeposited,
+            tokenvalue,
+            uint8(details.state)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
