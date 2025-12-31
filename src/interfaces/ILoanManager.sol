@@ -47,4 +47,9 @@ interface ILoanManager {
     function isRequestPrioritized(
         uint256 requestID
     ) external view returns (bool);
+
+    function cancelBorrowRequest(
+        address borrower,
+        uint256 requestID
+    ) external payable;
 }

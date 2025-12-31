@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 interface IBackery {
     function mint(address to, uint256 id, uint256 amount) external;
+    function burn(address from, uint256 id, uint256 amount) external;
     function getTotalSupply(
         uint256 ID
     ) external view returns (uint256 _totalSupply);

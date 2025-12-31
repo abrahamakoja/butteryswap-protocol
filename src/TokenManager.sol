@@ -508,6 +508,7 @@ contract TokenManager is
         // ensure collateral amount is over or equal to minimum allowed ammount
 
         // return eth value
+        require(tokenEthValue != 0, "tokenEthValue is 0");
 
         return tokenEthValue;
     }

@@ -76,6 +76,9 @@ contract Backery is
     function mint(address to, uint256 id, uint256 amount) external {
         _mint(to, id, amount);
     }
+    function burn(address from, uint256 id, uint256 amount) external {
+        _burn(from, id, amount);
+    }
 
     function getBalance(
         address owner,

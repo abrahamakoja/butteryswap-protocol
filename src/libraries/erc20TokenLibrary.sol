@@ -43,6 +43,9 @@ library erc20TokenLibrary {
         address spender,
         uint256 amount
     ) internal {
+        require(token != address(0), "token address is 0x0");
+        require(spender != address(0), "spender address is 0x0");
+        require(amount != 0, "cannot increase allowance to 0");
         IERC20 _token = IERC20(token);
         _token.safeIncreaseAllowance(spender, amount);
     }

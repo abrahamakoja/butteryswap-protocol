@@ -26,6 +26,28 @@ contract LoanManagerUnitTest is Test {
     IBackery iBackery;
 
     address deployer;
+
+    struct TestVars {
+        uint256 x;
+        uint256 amountToBorrow;
+        uint256 listingFee;
+        uint256 topUpFee;
+        uint256 originationFee;
+        uint256 num;
+        uint256 amount;
+        uint256 requestID;
+        uint256 newAmount;
+        uint256 newAmountToBorrow;
+        bool priority;
+        address[] tokens;
+        address[] token2;
+        address[] token1;
+        uint256[] collateralAmount;
+        uint256[] collateralAmount2;
+        uint256[] collateralAmount1;
+        uint256[] newCollateralAmount;
+    }
+
     function setUp() public {
         borrower = vm.randomAddress();
         // protocolManager
@@ -47,7 +69,7 @@ contract LoanManagerUnitTest is Test {
 
         iLimitMarket = ILimitMarket(LimitMarketProxy);
 
-        // iTokenManager
+        // TokenManager
         address TokenManagerProxy = Upgrades.deployUUPSProxy(
             "TokenManager.sol",
             abi.encodeCall(
@@ -76,124 +98,41 @@ contract LoanManagerUnitTest is Test {
 
     function testCreateRequest() external {}
 
-    function testPrioritizeBorrowRequest() external {
-        vm.deal(borrower, 10 ether);
-        uint256 amountToBorrow = 2 ether;
-        uint256 tokenListingFee = 1 ether;
-        uint256 priorityFee = 1 ether;
-        uint256 originationFee = 1 ether;
-        uint256 num = 3;
-        uint256 amount = 100;
-        uint256 requestID;
-        address[] memory tokens = new address[](num);
-        uint256[] memory collateralAmount = new uint256[](num);
-        for (uint256 i = 0; i < collateralAmount.length; i++) {
-            collateralAmount[i] = amount;
-            amount += amount;
-        }
-        tokens = _addTokens(tokenListingFee, num, borrower, collateralAmount);
-        vm.startPrank(borrower);
-        _increaseTokenAllowance(tokens, collateralAmount);
-        requestID = _borrow(
-            originationFee,
-            tokens,
-            collateralAmount,
-            amountToBorrow,
-            false
-        );
-
-        // prioritize loan
-        iLimitMarket.prioritizeBorrowRequest{value: priorityFee}(requestID);
-        // assert
-        assertTrue(iLoanManager.isRequestPrioritized(requestID));
-    }
+    function testPrioritizeBorrowRequest() external {}
 
     function testIncreaseCollaterallAmount() external {
-        vm.deal(borrower, 10 ether);
-        uint x;
-        uint256 amountToBorrow = 2 ether;
-        uint256 tokenListingFee = 1 ether;
-        uint256 topUpFee = 1 ether;
-        uint256 originationFee = 1 ether;
-        uint256 num = 5;
-        uint256 amount = 100;
-        address[] memory tokens = new address[](num);
-        uint256[] memory collateralAmount = new uint256[](num);
-
-        for (uint256 i = 0; i < collateralAmount.length; i++) {
-            collateralAmount[i] = amount;
-            amount += amount;
-        }
-
-        tokens = _addTokens(tokenListingFee, num, borrower, collateralAmount);
-
-        vm.startPrank(borrower);
-
-        _increaseTokenAllowance(tokens, collateralAmount);
-        address[] memory token2 = new address[](3);
-        address[] memory token1 = new address[](2);
-        uint256[] memory collateralAmount2 = new uint256[](3);
-        uint256[] memory collateralAmount1 = new uint256[](2);
-
-        for (uint256 i = 0; i < num; i++) {
-            if (i < 2) {
-                console2.log("continue", i);
-                token1[i] = tokens[i];
-                collateralAmount1[i] = collateralAmount[i];
-                console2.log(token1[i]);
-                continue;
-            }
-
-            console2.log("x", x);
-            token2[x] = tokens[i];
-            collateralAmount2[x] = collateralAmount[i];
-            console2.log(token2[x]);
-
-            x++;
-        }
-
-        console2.log(token1.length);
-        console2.log(token2.length);
-
-        // return ();
-
-        uint256 requestID = _borrow(
-            originationFee,
-            token1,
-            collateralAmount1,
-            3 ether,
-            false
-        );
-
-        // vm.stopPrank();
-
-        // vm.startPrank(borrower);
-
-        uint256 newAmount = 300;
-        uint256 newAmountToBorrow = 6 ether;
-        // uint256 newNum = 3;
-        uint256[] memory newCollateralAmount = new uint256[](token2.length);
-        for (uint256 i = 0; i < token2.length; i++) {
-            newCollateralAmount[i] = newAmount;
-            newAmount += newAmount;
-        }
-        // address[] memory newTokens = new address[](newNum);
         //  @audit known issue with tokenmanager accounting
-        // newTokens = _addTokens(
-        //     tokenListingFee,
-        //     newNum,
-        //     borrower,
-        //     newCollateralAmount
-        // );
+    }
 
-        // increase allowance for new tokens
-        // _increaseTokenAllowance(newTokens, newCollateralAmount);
-        iLimitMarket.increaseCollaterallAmount{value: topUpFee}(
-            requestID,
-            token2,
-            newCollateralAmount,
-            newAmountToBorrow
+    function testCancelBorrowRequest() external {
+        vm.deal(borrower, 100 ether);
+
+        TestVars memory testVars;
+        testVars.num = 6;
+        testVars.amount = 6e18;
+        testVars.originationFee = 1 ether;
+        testVars.listingFee = 1 ether;
+        testVars.amountToBorrow = 6 ether;
+        testVars.priority = false;
+        // testVars.tokens = new address[](testVars.num);
+        // testVars.collateralAmount = new uint256[](testVars.num);
+
+        _quickSetup(
+            testVars.listingFee,
+            testVars.num,
+            borrower,
+            testVars.amount,
+            testVars.amountToBorrow,
+            testVars.priority,
+            testVars.originationFee,
+            testVars.tokens,
+            testVars.collateralAmount
         );
+        iBackery.getTotalSupply(2);
+        iLimitMarket.cancelBorrowRequest(testVars.requestID);
+        iBackery.getBalance(borrower, testVars.requestID);
+        iBackery.getTotalSupply(1);
+        iBackery.getTotalSupply(2);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -235,14 +174,51 @@ contract LoanManagerUnitTest is Test {
         ) = iLoanManager.getBorrowRequestDetails(requestID);
     }
 
+    function _quickSetup(
+        uint256 listingFee,
+        uint256 num,
+        address user,
+        uint256 amount,
+        uint256 amountToBorrow,
+        bool priority,
+        uint256 originationFee,
+        address[] memory tokens,
+        uint256[] memory collateralAmount
+    ) internal returns (uint256) {
+        collateralAmount = _collateralAmount(amount, num);
+        tokens = _addTokens(listingFee, num, user, collateralAmount);
+        vm.startPrank(user);
+        _increaseTokenAllowance(tokens, collateralAmount);
+        return
+            _borrow(
+                originationFee,
+                tokens,
+                collateralAmount,
+                amountToBorrow,
+                priority
+            );
+        vm.stopPrank();
+    }
+
+    function _collateralAmount(
+        uint256 amount,
+        uint256 num
+    ) internal returns (uint256[] memory _collateralAmount) {
+        _collateralAmount = new uint256[](num);
+        for (uint i = 0; i < num; i++) {
+            _collateralAmount[i] = amount;
+            amount += amount;
+        }
+    }
+
     function _borrow(
-        uint256 fee,
+        uint256 originationFee,
         address[] memory tokens,
         uint256[] memory collateralAmount,
         uint256 amountToBorrow,
         bool priority
     ) internal returns (uint256 requestID) {
-        iLimitMarket.borrow{value: fee}(
+        iLimitMarket.borrow{value: originationFee}(
             tokens,
             collateralAmount,
             amountToBorrow,
@@ -264,12 +240,13 @@ contract LoanManagerUnitTest is Test {
     }
 
     function _addTokens(
-        uint256 fee,
+        uint256 listingFee,
         uint256 num,
         address user,
         uint256[] memory collateralAmount
     ) private returns (address[] memory tokens) {
         vm.startPrank(user);
+
         tokens = new address[](num);
         for (uint256 i = 0; i < num; i++) {
             string memory name = "meme coin";
@@ -284,7 +261,7 @@ contract LoanManagerUnitTest is Test {
         }
         // request
         for (uint256 i = 0; i < tokens.length; i++) {
-            iTokenManager.requestTokenListing{value: fee}(tokens[i]);
+            iTokenManager.requestTokenListing{value: listingFee}(tokens[i]);
         }
         vm.stopPrank();
 

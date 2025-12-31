@@ -86,10 +86,15 @@ contract LoanManager is
         uint256 tokenValue;
     }
 
+    struct Node {
+        uint256 prev;
+        uint256 next;
+    }
+
     struct Queue {
         uint256 head;
         uint256 tail;
-        mapping(uint256 => uint256) next;
+        mapping(uint256 => Node) nodes;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -118,6 +123,8 @@ contract LoanManager is
     IBackery Backery;
 
     uint256 nextID;
+    uint256 dough;
+    uint256 bread;
 
     Queue internal priorityQueue;
     Queue internal normalQueue;
@@ -138,6 +145,7 @@ contract LoanManager is
         uint256 indexed requestID,
         uint256 indexed amountToBorrow
     );
+    event BreadMinted(address indexed borrower, uint256 indexed breadMinted);
     event collateralAmountIncreased(
         uint256 indexed requestID,
         uint256 indexed collateralValue,
@@ -168,6 +176,8 @@ contract LoanManager is
 
         admin = ProtocolManager.deployer();
         nextID = 0;
+        dough = 1;
+        bread = 2;
 
         bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
@@ -256,6 +266,7 @@ contract LoanManager is
 
         /// EVENTS
         emit BorrowRequestCreated(requestID, amountToBorrow);
+        emit BreadMinted(borrower, eligibleAmountToBorrow);
         // mint
         if (
             address(Backery) == address(0) ||
@@ -265,7 +276,7 @@ contract LoanManager is
             require(address(Backery) != address(0), "Backery not set");
         }
 
-        Backery.mint(borrower, 2, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+        Backery.mint(borrower, bread, eligibleAmountToBorrow * 1 ether); //@audit overflow?
     }
 
     function prioritizeBorrowRequest(
@@ -377,11 +388,54 @@ contract LoanManager is
             collateralValue,
             amountToBorrow
         );
+        emit BreadMinted(borrower, eligibleAmountToBorrow);
         // @audit collect fee
         // mints additional bread
-        Backery.mint(borrower, 2, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+        Backery.mint(borrower, bread, eligibleAmountToBorrow * 1 ether); //@audit overflow?
 
         borrowRequestDetails.state == RequestState.OPEN;
+    }
+
+    function cancelBorrowRequest(
+        address borrower,
+        uint256 requestID
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+        BorrowRequestDetails
+            storage borrowRequestDetails = _borrowRequestDetails[requestID];
+
+        // TokenDetails memory tokendetails; //@audit
+        // // check borrower isowner
+        require(borrowRequestDetails.borrower == borrower, "not owner");
+
+        // // check state
+        require(
+            borrowRequestDetails.state == RequestState.OPEN,
+            "loan state invalid"
+        );
+        // // change state
+        borrowRequestDetails.state = RequestState.UPDATING;
+        // reset request values
+        uint256 BreadBalance = borrowRequestDetails.BreadBalance;
+
+        borrowRequestDetails.dueDate = 0; // @audit fix
+        borrowRequestDetails.BreadBalance = 0;
+        borrowRequestDetails.state = RequestState.CANCELLED;
+
+        // remove from queue
+        if (borrowRequestDetails.priority == true) {
+            _removeFromQueue(priorityQueue, requestID);
+        } else {
+            _removeFromQueue(normalQueue, requestID);
+        }
+        // collect cancelation fee @audit do this when fee contract is ready
+        // burn bread
+        Backery.burn(borrower, bread, BreadBalance);
+        // transfer tokens back to borrower
+
+        console2.log("boorower", borrowRequestDetails.borrower);
+        console2.log("bread balance", borrowRequestDetails.BreadBalance);
+        console2.log("state", uint8(borrowRequestDetails.state));
+        console2.log("due date", borrowRequestDetails.dueDate);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -397,22 +451,50 @@ contract LoanManager is
 
     function _enQueue(Queue storage q, uint256 ID) private {
         if (q.tail != 0) {
-            q.next[q.tail] = ID;
+            q.nodes[q.tail].next = ID;
+            q.nodes[ID].prev = q.tail;
         } else {
             q.head = ID;
         }
         q.tail = ID;
     }
 
+    function _removeFromQueue(Queue storage q, uint256 ID) private {
+        Node storage n = q.nodes[ID];
+
+        uint256 prev = n.prev;
+        uint next = n.next;
+
+        if (prev != 0) {
+            q.nodes[prev].next = next;
+        } else {
+            q.head = next;
+        }
+
+        if (next != 0) {
+            q.nodes[next].prev = prev;
+        } else {
+            q.tail = prev;
+        }
+
+        delete q.nodes[ID];
+    }
+
     function _deQueue(Queue storage q) private returns (uint256 ID) {
         ID = q.head;
         require(ID != 0, "empty Queue");
-        q.head = q.next[ID];
-        delete q.next[ID];
 
-        if (q.head == 0) {
+        uint next = q.nodes[ID].next;
+
+        q.head = next;
+
+        if (next != 0) {
+            q.nodes[next].prev = 0;
+        } else {
             q.tail = 0;
         }
+
+        delete q.nodes[ID];
     }
 
     /*//////////////////////////////////////////////////////////////

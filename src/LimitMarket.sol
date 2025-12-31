@@ -188,12 +188,12 @@ contract LimitMarket is
         );
     }
 
-    // function cancelBorrowRequest(
-    //     address borrowRequest
-    // ) external payable nonReentrant {
-    //     IBorrowRequestFactory(protocolManager.BorrowRequestFactory())
-    //         .cancelRequest(msg.sender, borrowRequest);
-    // }
+    function cancelBorrowRequest(
+        uint256 requestID
+    ) external payable nonReentrant {
+        address borrower = msg.sender;
+        LoanManager.cancelBorrowRequest(borrower, requestID);
+    }
 
     /*//////////////////////////////////////////////////////////////
                         EXTERNAL LEND FUNCTIONS
