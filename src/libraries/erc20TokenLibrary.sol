@@ -20,11 +20,7 @@ library erc20TokenLibrary {
         return _allowance;
     }
 
-    function transferTokens(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function transfer(address token, address to, uint256 amount) internal {
         IERC20 _token = IERC20(token);
         _token.safeTransfer(to, amount);
     }

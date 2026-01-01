@@ -68,6 +68,17 @@ contract LimitMarket is
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
+    modifier loanManagerIsSet() {
+        if (
+            address(LoanManager) == address(0) ||
+            address(ProtocolManager.LoanManager()) != address(LoanManager)
+        ) {
+            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
+            require(address(LoanManager) != address(0), "LoanManager not set");
+        }
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -103,7 +114,13 @@ contract LimitMarket is
         uint256[] calldata collateralAmount,
         uint256 amountToBorrow,
         bool priority
-    ) external payable nonReentrant returns (uint256 borrowRequestID) {
+    )
+        external
+        payable
+        loanManagerIsSet
+        nonReentrant
+        returns (uint256 borrowRequestID)
+    {
         // checks
         require(
             (collateralAmount.length == tokens.length),
@@ -118,14 +135,6 @@ contract LimitMarket is
         address borrower = msg.sender;
 
         require(msg.value >= 1 ether); // @audit use fee and add revert error for failure
-
-        if (
-            address(LoanManager) == address(0) ||
-            address(ProtocolManager.LoanManager()) != address(LoanManager)
-        ) {
-            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
-            require(address(LoanManager) != address(0), "LoanManager not set");
-        }
 
         borrowRequestID = LoanManager.createBorrowRequest{value: msg.value}({
             tokens: tokens,
@@ -155,16 +164,9 @@ contract LimitMarket is
 
         address borrower = msg.sender;
 
-        require(msg.value >= 1 ether, "invalid fee amount"); // @audit use fee and add revert error for failure
+        require(msg.value >= 1 ether, "invalid fee amount"); // @audit use fee and add revert error for failure and determine where best to fail early
 
-        if (
-            address(LoanManager) == address(0) ||
-            address(ProtocolManager.LoanManager()) != address(LoanManager)
-        ) {
-            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
-            require(address(LoanManager) != address(0), "LoanManager not set");
-        }
-        LoanManager.increaseCollaterallAmount(
+        LoanManager.increaseCollaterallAmount{value: msg.value}(
             borrower,
             requestID,
             tokens,
@@ -192,42 +194,38 @@ contract LimitMarket is
         uint256 requestID
     ) external payable nonReentrant {
         address borrower = msg.sender;
-        LoanManager.cancelBorrowRequest(borrower, requestID);
+        LoanManager.cancelBorrowRequest{value: msg.value}(borrower, requestID);
     }
 
     /*//////////////////////////////////////////////////////////////
                         EXTERNAL LEND FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // function Lend(bool _priority) external payable nonReentrant {
-    //     ILendRequestFactory(protocolManager.LendRequestFactory()).createRequest(
-    //         msg.sender,
-    //         _priority
-    //     );
-    // }
+    function lend()
+        external
+        payable
+        loanManagerIsSet
+        nonReentrant
+        returns (uint256 lendRequestID)
+    {
+        require(msg.value != 0, "invalid amount");
 
-    // function prioritizeLendRequest(
-    //     address lendRequest
-    // ) external payable nonReentrant {
-    //     ILendRequestFactory(protocolManager.LendRequestFactory())
-    //         .prioritizeLoanRequest(msg.sender, lendRequest);
-    // }
-    // function addLiquidityToLendRequest(
-    //     address lendRequest
-    // ) external payable nonReentrant {
-    //     ILendRequestFactory(protocolManager.LendRequestFactory()).addLiquidity(
-    //         msg.sender,
-    //         lendRequest
-    //     );
-    // }
-    // function cancelLendRequest(
-    //     address lendRequest
-    // ) external payable nonReentrant {
-    //     ILendRequestFactory(protocolManager.LendRequestFactory()).cancelRequest(
-    //         msg.sender,
-    //         lendRequest
-    //     );
-    // }
+        require(
+            msg.value >= ProtocolManager.minimumDeposit(),
+            "supply not enough"
+        );
+        address lender = msg.sender;
+
+        lendRequestID = LoanManager.createLendRequest{value: msg.value}(lender);
+        return lendRequestID;
+    }
+
+    function cancelLendRequest(
+        uint256 requestID
+    ) external payable nonReentrant {
+        address lender = msg.sender;
+        LoanManager.cancelLendRequest{value: msg.value}(lender, requestID);
+    }
 
     // gap
     uint256[60] private __gap;

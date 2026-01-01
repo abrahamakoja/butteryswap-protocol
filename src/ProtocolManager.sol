@@ -80,6 +80,7 @@ contract ProtocolManager is
         CANCELLATION_FEE = 10;
         SETTLEMENT_FEE = 6;
         INDEX_PRECISION = 1;
+        minimumDeposit = 6 ether; // set to 6 dollars
 
         console2.log("protocol Manager deployer", msg.sender);
     }
@@ -218,7 +219,7 @@ contract ProtocolManager is
     function calculateCancellationFee(
         uint256 collateraValue
     ) private view returns (uint256) {
-        return ((collateraValue * CANCELLATION_FEE) / 100) * 1 ether;
+        return 1e18;
     }
     function calculateOriginationFee(
         uint256 collateraValue

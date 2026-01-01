@@ -679,7 +679,7 @@ contract BorrowRequestFactory is
 
         /** BORROWER WITHDRAWS ALL COLLATERAL */
         for (uint256 index = 0; index < _tokens.length; index++) {
-            erc20TokenLibrary.transferTokens(
+            erc20TokenLibrary.transfer(
                 address(_tokens[index]),
                 address(_borrower),
                 erc20TokenLibrary.getBalance(

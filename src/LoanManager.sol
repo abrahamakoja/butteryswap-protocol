@@ -79,6 +79,14 @@ contract LoanManager is
         TokenDetails[] tokenDetails;
         RequestState state;
     }
+    struct LendRequestDetails {
+        address lender;
+        uint256 amountToLend;
+        uint256 timeCreated;
+        uint256 DoughBalance;
+        uint256 requestID;
+        RequestState state;
+    }
 
     struct TokenDetails {
         address token;
@@ -116,15 +124,18 @@ contract LoanManager is
 
     address public admin;
 
-    IProtocolManager ProtocolManager;
+    IProtocolManager internal ProtocolManager;
 
-    ITokenManager TokenManager;
+    ITokenManager internal TokenManager;
 
-    IBackery Backery;
+    IBackery internal Backery;
 
-    uint256 nextID;
-    uint256 dough;
-    uint256 bread;
+    uint256 internal nextBorrowerID;
+    uint256 internal nextLenderID;
+    uint256 internal dough;
+    uint256 internal bread;
+    uint256 internal borrowRequestCount;
+    uint256 internal lendRequestCount;
 
     Queue internal priorityQueue;
     Queue internal normalQueue;
@@ -135,8 +146,11 @@ contract LoanManager is
     mapping(address borrower => uint256[] borrowRequestsID)
         internal borrowerToRequestsID;
 
-    mapping(uint256 requestID => uint256 requestQueuePosition)
-        internal requestQueuePosition; // @audit get position
+    mapping(uint256 ID => LendRequestDetails lendRequestDetails)
+        internal _lendRequestDetails;
+
+    mapping(address lender => uint256[] lendRequestID)
+        internal lenderToRequestsID;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -152,15 +166,39 @@ contract LoanManager is
         uint256 indexed amountToBorrow
     );
     event BorrowRequestPrioritized(uint256 indexed requestID);
+    event LendRequestCreated(
+        uint256 indexed requestID,
+        uint256 indexed amountToLend
+    );
+    event DoughMinted(address indexed lender, uint256 indexed doughMinted);
 
-    modifier addressIsValid(address _address) {
-        require((_address != address(0)), LoanManager__InvalidAddress());
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    modifier backeryIsSet() {
+        if (
+            address(Backery) == address(0) ||
+            address(ProtocolManager.Backery()) != address(Backery)
+        ) {
+            Backery = IBackery(address(ProtocolManager.Backery()));
+            require(address(Backery) != address(0), "Backery not set");
+        }
         _;
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
+    }
+
+    receive() external payable {
+        if (msg.sender == address(this)) {
+            console2.log("money recieved", msg.value);
+        } else {
+            console2.log("money burnt");
+            revert("not allowed");
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -175,9 +213,12 @@ contract LoanManager is
         Backery = IBackery(address(0));
 
         admin = ProtocolManager.deployer();
-        nextID = 0;
+        nextBorrowerID = 1;
+        nextLenderID = 1;
         dough = 1;
         bread = 2;
+        borrowRequestCount = 0;
+        lendRequestCount = 0;
 
         bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
@@ -198,6 +239,10 @@ contract LoanManager is
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /*//////////////////////////////////////////////////////////////
+                            BORROW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     function createBorrowRequest(
         address[] calldata tokens,
         uint256[] calldata collateralAmount,
@@ -207,12 +252,15 @@ contract LoanManager is
     )
         external
         payable
+        backeryIsSet
         onlyRole(LIMIT_MARKET)
         nonReentrant
         returns (uint256 requestID)
     {
         uint256 collateralValue;
-        requestID = nextID++;
+        requestID = nextBorrowerID;
+        console2.log("function ID", nextBorrowerID);
+        console2.log("function requestID", requestID);
 
         BorrowRequestDetails
             storage borrowRequestDetails = _borrowRequestDetails[requestID];
@@ -252,7 +300,12 @@ contract LoanManager is
         borrowRequestDetails.BreadBalance = eligibleAmountToBorrow;
         borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = RequestState.OPEN;
+
         borrowerToRequestsID[borrower].push(requestID);
+
+        // _borrowRequestDetails[requestID] = borrowRequestDetails; // @audit check if this is relevant
+        borrowRequestCount++;
+        nextBorrowerID++;
 
         if (priority == true) {
             _enQueue(priorityQueue, requestID);
@@ -268,15 +321,10 @@ contract LoanManager is
         emit BorrowRequestCreated(requestID, amountToBorrow);
         emit BreadMinted(borrower, eligibleAmountToBorrow);
         // mint
-        if (
-            address(Backery) == address(0) ||
-            address(ProtocolManager.Backery()) != address(Backery)
-        ) {
-            Backery = IBackery(address(ProtocolManager.Backery()));
-            require(address(Backery) != address(0), "Backery not set");
-        }
 
         Backery.mint(borrower, bread, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+
+        return requestID;
     }
 
     function prioritizeBorrowRequest(
@@ -322,7 +370,7 @@ contract LoanManager is
         BorrowRequestDetails
             storage borrowRequestDetails = _borrowRequestDetails[requestID];
         currentTokenCount = borrowRequestDetails.tokenDetails.length;
-        TokenDetails memory tokendetails; //@audit
+        // TokenDetails memory tokendetails; //@audit
         // check borrower isowner
         require(borrowRequestDetails.borrower == borrower, "not owner");
 
@@ -346,17 +394,23 @@ contract LoanManager is
                 collateralAmounts[i]
             );
 
-            if (tokens[i] == tokendetails.token) {
-                tokendetails.amountDeposited += collateralAmounts[i];
-                tokendetails.tokenValue += collateralValue;
+            if (tokens[i] == borrowRequestDetails.tokenDetails[i].token) {
+                borrowRequestDetails
+                    .tokenDetails[i]
+                    .amountDeposited += collateralAmounts[i];
+                borrowRequestDetails
+                    .tokenDetails[i]
+                    .tokenValue += collateralValue;
             } else {
-                tokendetails.token = tokens[i];
-                tokendetails.amountDeposited = collateralAmounts[i];
-                tokendetails.tokenValue = collateralValue;
+                borrowRequestDetails.tokenDetails[i].token = tokens[i];
+                borrowRequestDetails
+                    .tokenDetails[i]
+                    .amountDeposited = collateralAmounts[i];
+                borrowRequestDetails
+                    .tokenDetails[i]
+                    .tokenValue = collateralValue;
                 newTokenCount++;
             }
-
-            borrowRequestDetails.tokenDetails.push(tokendetails);
 
             /// @dev transfer tokens to loanManager contract
             erc20TokenLibrary.transferFromTokens(
@@ -402,8 +456,11 @@ contract LoanManager is
     ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
         BorrowRequestDetails
             storage borrowRequestDetails = _borrowRequestDetails[requestID];
+        uint256 count = borrowRequestDetails.tokenDetails.length;
+        address[] memory tokens = new address[](count);
+        uint256[] memory amountDeposited = new uint256[](count);
+        uint256[] memory tokenValue = new uint256[](count);
 
-        // TokenDetails memory tokendetails; //@audit
         // // check borrower isowner
         require(borrowRequestDetails.borrower == borrower, "not owner");
 
@@ -420,6 +477,7 @@ contract LoanManager is
         borrowRequestDetails.dueDate = 0; // @audit fix
         borrowRequestDetails.BreadBalance = 0;
         borrowRequestDetails.state = RequestState.CANCELLED;
+        borrowRequestCount--;
 
         // remove from queue
         if (borrowRequestDetails.priority == true) {
@@ -428,9 +486,31 @@ contract LoanManager is
             _removeFromQueue(normalQueue, requestID);
         }
         // collect cancelation fee @audit do this when fee contract is ready
+        // transfer tokens back to borrower
+
+        (tokens, amountDeposited, tokenValue) = _getTokenAllocations(
+            count,
+            borrowRequestDetails
+        );
+
+        //  @audit emit events
+
+        uint256 _tokenValue;
+
+        /** BORROWER WITHDRAWS ALL COLLATERAL */
+        for (uint256 i = 0; i < tokens.length; i++) {
+            erc20TokenLibrary.transfer(
+                address(tokens[i]),
+                address(borrower),
+                amountDeposited[i]
+            );
+            _tokenValue += tokenValue[i];
+        }
+
+        require(BreadBalance == _tokenValue, "balance mismatch");
+
         // burn bread
         Backery.burn(borrower, bread, BreadBalance);
-        // transfer tokens back to borrower
 
         console2.log("boorower", borrowRequestDetails.borrower);
         console2.log("bread balance", borrowRequestDetails.BreadBalance);
@@ -439,15 +519,115 @@ contract LoanManager is
     }
 
     /*//////////////////////////////////////////////////////////////
-                 PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
+                             LEND FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function isRequestPrioritized(
-        uint256 requestID
-    ) public view returns (bool) {
-        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
-        return details.priority;
+    function createLendRequest(
+        address lender
+    )
+        external
+        payable
+        backeryIsSet
+        onlyRole(LIMIT_MARKET)
+        nonReentrant
+        returns (uint256 requestID)
+    {
+        requestID = nextLenderID;
+        console2.log("contract before", address(this).balance);
+        // collect fee
+        uint256 originationFee = ProtocolManager.calculate_OriginationFee(
+            msg.value
+        );
+        uint256 amountToLend = msg.value - originationFee;
+        // update mapping
+        LendRequestDetails storage lendRequestDetails = _lendRequestDetails[
+            requestID
+        ];
+        lendRequestDetails.lender = lender;
+        lendRequestDetails.amountToLend = amountToLend;
+        lendRequestDetails.timeCreated = block.timestamp;
+        lendRequestDetails.DoughBalance = amountToLend;
+        lendRequestDetails.requestID = requestID;
+        lendRequestDetails.state = RequestState.OPEN;
+        lendRequestCount++;
+
+        // _lendRequestDetails[requestID] = lendRequestDetails;
+        lenderToRequestsID[lender].push(requestID);
+        // update lend count
+        nextLenderID++;
+
+        // emit event
+        emit LendRequestCreated(requestID, amountToLend);
+        emit DoughMinted(lender, amountToLend);
+
+        // transfer eth to this address
+        console2.log("lend time", lendRequestDetails.timeCreated);
+        console2.log("lend amount", lendRequestDetails.amountToLend);
+
+        console2.log(
+            "fee contract balance before",
+            address(ProtocolManager.FEE_CONTRACT()).balance
+        );
+        (bool originationFeePaid, ) = ProtocolManager.FEE_CONTRACT().call{
+            value: originationFee
+        }("");
+        (bool success, ) = address(this).call{value: amountToLend}("");
+        require(originationFeePaid && success);
+        console2.log("contract balance after", address(this).balance);
+        console2.log(
+            "fee contract balance after",
+            address(ProtocolManager.FEE_CONTRACT()).balance
+        );
+
+        // mint dough to lender
+        Backery.mint(lender, dough, amountToLend);
     }
+
+    function cancelLendRequest(
+        address lender,
+        uint256 requestID
+    ) external payable onlyRole(LIMIT_MARKET) nonReentrant {
+        LendRequestDetails storage lendRequestDetails = _lendRequestDetails[
+            requestID
+        ];
+
+        require(lendRequestDetails.lender == lender, "not owner");
+        require(
+            lendRequestDetails.state == RequestState.OPEN,
+            "loan state invalid"
+        );
+        lendRequestDetails.state = RequestState.UPDATING;
+
+        uint256 DoughBalance = lendRequestDetails.DoughBalance;
+
+        lendRequestDetails.DoughBalance = 0;
+        lendRequestDetails.state = RequestState.CANCELLED;
+        lendRequestCount--;
+        /** EFFECTS */
+        uint256 amountToLend = lendRequestDetails.amountToLend;
+        uint256 cancellationFee = 1;
+        uint256 amountMinusFee = msg.value - cancellationFee;
+
+        // remove from queue
+        require(DoughBalance == amountToLend, "balance mismatch");
+
+        //  @audit emit events
+
+        // burn bread
+        Backery.burn(lender, dough, DoughBalance);
+
+        // /** COLLECT CANCELLATION FEE */
+        (bool feePaid, ) = ProtocolManager.FEE_CONTRACT().call{
+            value: cancellationFee
+        }("");
+
+        /** LENDER WITHDRAW FUNDS */
+        (bool success, ) = lender.call{value: amountMinusFee}("");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                 PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     function _enQueue(Queue storage q, uint256 ID) private {
         if (q.tail != 0) {
@@ -501,9 +681,48 @@ contract LoanManager is
                               PUBLIC PURE/VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function getBorrowerRequestsDetails(
+    function getTotalBorrowRequestCount() public view returns (uint256 count) {
+        return borrowRequestCount;
+    }
+
+    function _getTokenAllocations(
+        uint256 count,
+        BorrowRequestDetails memory details
+    )
+        private
+        pure
+        returns (
+            address[] memory tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenValue
+        )
+    {
+        tokens = new address[](count);
+        amountDeposited = new uint256[](count);
+        tokenValue = new uint256[](count);
+
+        for (uint256 i = 0; i < count; i++) {
+            tokens[i] = details.tokenDetails[i].token;
+            amountDeposited[i] = details.tokenDetails[i].amountDeposited;
+            tokenValue[i] = details.tokenDetails[i].tokenValue;
+        }
+
+        return (tokens, amountDeposited, tokenValue);
+    }
+
+    //@audit might remove
+    function isRequestPrioritized(
+        uint256 requestID
+    ) public view returns (bool) {
+        require(requestID != 0, "invalid ID");
+        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
+        return details.priority;
+    }
+
+    function getBorrowerRequestsID(
         address borrower
     ) public view returns (uint256[] memory requestsID) {
+        require(address(borrower) != address(0), "invalid address");
         uint256 count = borrowerToRequestsID[borrower].length;
         requestsID = new uint256[](count);
         for (uint256 i = 0; i < count; i++) {
@@ -525,24 +744,25 @@ contract LoanManager is
             uint256 interestRate,
             uint256 dueDate,
             uint256 BreadBalance,
-            uint256 requestID,
+            uint256 requestID /*
             address[] memory tokens,
             uint256[] memory amountDeposited,
-            uint256[] memory tokenvalue,
+            uint256[] memory tokenvalue,*/,
             uint8 state
         )
     {
+        require(requestID != 0, "invalid ID");
         BorrowRequestDetails memory details = _borrowRequestDetails[_requestID];
-        uint256 count = details.tokenDetails.length;
+        // uint256 count = details.tokenDetails.length;
 
-        tokens = new address[](count);
-        amountDeposited = new uint256[](count);
-        tokenvalue = new uint256[](count);
-        for (uint256 i = 0; i < count; i++) {
-            tokens[i] = details.tokenDetails[i].token;
-            amountDeposited[i] = details.tokenDetails[i].amountDeposited;
-            tokenvalue[i] = details.tokenDetails[i].tokenValue;
-        }
+        // tokens = new address[](count);
+        // amountDeposited = new uint256[](count);
+        // tokenvalue = new uint256[](count);
+        // for (uint256 i = 0; i < count; i++) {
+        //     tokens[i] = details.tokenDetails[i].token;
+        //     amountDeposited[i] = details.tokenDetails[i].amountDeposited;
+        //     tokenvalue[i] = details.tokenDetails[i].tokenValue;
+        // }
 
         return (
             details.borrower,
@@ -553,9 +773,36 @@ contract LoanManager is
             details.dueDate,
             details.BreadBalance,
             details.requestID,
+            /*
             tokens,
             amountDeposited,
-            tokenvalue,
+            tokenvalue,*/
+            uint8(details.state)
+        );
+    }
+
+    function getLendRequestDetails(
+        uint256 _requestID
+    )
+        public
+        view
+        returns (
+            address lender,
+            uint256 amountToLend,
+            uint256 timeCreated,
+            uint256 DoughBalance,
+            uint256 requestID,
+            uint8 state
+        )
+    {
+        require(_requestID != 0, "invalid ID");
+        LendRequestDetails memory details = _lendRequestDetails[_requestID];
+        return (
+            details.lender,
+            details.amountToLend,
+            details.timeCreated,
+            details.DoughBalance,
+            details.requestID,
             uint8(details.state)
         );
     }

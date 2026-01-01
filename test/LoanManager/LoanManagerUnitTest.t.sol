@@ -19,6 +19,7 @@ import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 
 contract LoanManagerUnitTest is Test {
     address borrower;
+    address lender;
     IProtocolManager iProtocolManager;
     ILimitMarket iLimitMarket;
     ITokenManager iTokenManager;
@@ -50,6 +51,7 @@ contract LoanManagerUnitTest is Test {
 
     function setUp() public {
         borrower = vm.randomAddress();
+        lender = vm.randomAddress();
         // protocolManager
         address protocolManagerProxy = Upgrades.deployUUPSProxy(
             "ProtocolManager.sol",
@@ -102,9 +104,7 @@ contract LoanManagerUnitTest is Test {
 
     function testIncreaseCollaterallAmount() external {
         //  @audit known issue with tokenmanager accounting
-    }
-
-    function testCancelBorrowRequest() external {
+        // @audit test incomplete fix tokenManager
         vm.deal(borrower, 100 ether);
 
         TestVars memory testVars;
@@ -114,65 +114,101 @@ contract LoanManagerUnitTest is Test {
         testVars.listingFee = 1 ether;
         testVars.amountToBorrow = 6 ether;
         testVars.priority = false;
-        // testVars.tokens = new address[](testVars.num);
-        // testVars.collateralAmount = new uint256[](testVars.num);
+        address[] memory _tokens;
+        uint256[] memory collateralAmount2;
 
-        _quickSetup(
+        (testVars.requestID, _tokens, testVars.collateralAmount) = _quickSetup(
             testVars.listingFee,
             testVars.num,
             borrower,
             testVars.amount,
             testVars.amountToBorrow,
             testVars.priority,
-            testVars.originationFee,
-            testVars.tokens,
-            testVars.collateralAmount
+            testVars.originationFee
         );
+
+        console2.log(" testVars.tokens", testVars.tokens.length);
+        console2.log(" _tokens", _tokens.length);
+        iLoanManager.getBorrowRequestDetails(testVars.requestID);
+
+        testVars.tokens = new address[](3);
+        collateralAmount2 = _collateralAmount(10e18, 3);
+        testVars.tokens = _addTokens(
+            testVars.listingFee,
+            3,
+            borrower,
+            collateralAmount2
+        );
+        _increaseTokenAllowance(_tokens, collateralAmount2);
+
+        iLimitMarket.increaseCollaterallAmount{value: 2 ether}(
+            testVars.requestID,
+            _tokens,
+            collateralAmount2,
+            testVars.amountToBorrow * 2
+        );
+
+        iLoanManager.getBorrowRequestDetails(testVars.requestID);
+    }
+
+    function testCancelBorrowRequest() external {
+        vm.deal(borrower, 100 ether);
+
+        TestVars memory testVars;
+        address[] memory _tokens;
+        testVars.num = 6;
+        testVars.amount = 6e18;
+        testVars.originationFee = 1 ether;
+        testVars.listingFee = 1 ether;
+        testVars.amountToBorrow = 6 ether;
+        testVars.priority = false;
+
+        (testVars.requestID, _tokens, testVars.collateralAmount) = _quickSetup(
+            testVars.listingFee,
+            testVars.num,
+            borrower,
+            testVars.amount,
+            testVars.amountToBorrow,
+            testVars.priority,
+            testVars.originationFee
+        );
+        iLoanManager.getBorrowRequestDetails(testVars.requestID);
+        return;
         iBackery.getTotalSupply(2);
-        iLimitMarket.cancelBorrowRequest(testVars.requestID);
+        uint256 count2 = iLoanManager.getTotalBorrowRequestCount();
+        // console2.log("what is ID", testVars.requestID);
+        // console2.log("what is ", requestID);
+        iLimitMarket.cancelBorrowRequest{value: 1 ether}(testVars.requestID);
+        uint256 count = iLoanManager.getTotalBorrowRequestCount();
         iBackery.getBalance(borrower, testVars.requestID);
         iBackery.getTotalSupply(1);
         iBackery.getTotalSupply(2);
     }
 
+    function testLend() external {
+        vm.startPrank(lender);
+        vm.deal(lender, 20 ether);
+
+        console2.log("test contract before", address(iLoanManager).balance);
+        uint256 requestID = iLimitMarket.lend{value: 6 ether}();
+        console2.log("test contract after", address(iLoanManager).balance);
+        iLoanManager.getLendRequestDetails(requestID);
+    }
+
+    function testCancelLendRequest() external {
+        vm.startPrank(lender);
+        vm.deal(lender, 20 ether);
+
+        console2.log("test contract before", address(iLoanManager).balance);
+        uint256 requestID = iLimitMarket.lend{value: 6 ether}();
+        console2.log("test contract after", address(iLoanManager).balance);
+        iLoanManager.getLendRequestDetails(requestID);
+        iLimitMarket.cancelLendRequest{value: 3 ether}(requestID);
+    }
+
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    function _getBorrowRequestDetails(
-        uint256 requestID
-    )
-        internal
-        returns (
-            address _borrower,
-            uint256 amountToBorrow,
-            bool priority,
-            uint256 timeCreated,
-            uint256 interestRate,
-            uint256 dueDate,
-            uint256 BreadBalance,
-            uint256 _requestID,
-            address[] memory _tokens,
-            uint256[] memory amountDeposited,
-            uint256[] memory tokenvalue,
-            uint8 _state
-        )
-    {
-        (
-            _borrower,
-            amountToBorrow,
-            priority,
-            timeCreated,
-            interestRate,
-            dueDate,
-            BreadBalance,
-            _requestID,
-            _tokens,
-            amountDeposited,
-            tokenvalue,
-            _state
-        ) = iLoanManager.getBorrowRequestDetails(requestID);
-    }
 
     function _quickSetup(
         uint256 listingFee,
@@ -181,22 +217,27 @@ contract LoanManagerUnitTest is Test {
         uint256 amount,
         uint256 amountToBorrow,
         bool priority,
-        uint256 originationFee,
-        address[] memory tokens,
-        uint256[] memory collateralAmount
-    ) internal returns (uint256) {
+        uint256 originationFee
+    )
+        internal
+        returns (
+            uint256 requestID,
+            address[] memory _tokens,
+            uint256[] memory collateralAmount
+        )
+    {
         collateralAmount = _collateralAmount(amount, num);
-        tokens = _addTokens(listingFee, num, user, collateralAmount);
+        _tokens = _addTokens(listingFee, num, user, collateralAmount);
         vm.startPrank(user);
-        _increaseTokenAllowance(tokens, collateralAmount);
-        return
-            _borrow(
-                originationFee,
-                tokens,
-                collateralAmount,
-                amountToBorrow,
-                priority
-            );
+        _increaseTokenAllowance(_tokens, collateralAmount);
+        requestID = _borrow(
+            originationFee,
+            _tokens,
+            collateralAmount,
+            amountToBorrow,
+            priority
+        );
+        return (requestID, _tokens, collateralAmount);
         vm.stopPrank();
     }
 
@@ -218,7 +259,7 @@ contract LoanManagerUnitTest is Test {
         uint256 amountToBorrow,
         bool priority
     ) internal returns (uint256 requestID) {
-        iLimitMarket.borrow{value: originationFee}(
+        requestID = iLimitMarket.borrow{value: originationFee}(
             tokens,
             collateralAmount,
             amountToBorrow,

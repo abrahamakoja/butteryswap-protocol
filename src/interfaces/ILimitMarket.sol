@@ -16,4 +16,6 @@ interface ILimitMarket {
     ) external payable;
     function prioritizeBorrowRequest(uint256 requestID) external payable;
     function cancelBorrowRequest(uint256 requestID) external payable;
+    function lend() external payable returns (uint256 lendRequestID);
+    function cancelLendRequest(uint256 requestID) external payable;
 }

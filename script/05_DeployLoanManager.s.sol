@@ -31,6 +31,6 @@ contract DeployLoanManager is Script {
 
         vm.stopBroadcast();
 
-        return LoanManager(proxy);
+        return LoanManager(payable(address(proxy)));
     }
 }
