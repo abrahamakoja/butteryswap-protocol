@@ -43,9 +43,11 @@ interface IProtocolManager {
         address manager
     ) external;
     function updateBackeryContract(address backery, address manager) external;
+    function updateBackerContract(address backer, address manager) external;
     function updateBorrowRequestFactoryContract(
         address borrowRequestFactory,
         address manager
     ) external;
     function Backery() external returns (address backery);
+    function Backer() external returns (address backer);
 }

@@ -37,7 +37,7 @@ contract ProtocolManager is
     //////////////////////////////////////////////////////////////*/
 
     bytes32 public MANAGER;
-    address public Enforcer;
+    address public Backer;
     address public Backery;
     address public BorrowRequestFactory;
     address public LendRequestFactory;
@@ -185,6 +185,13 @@ contract ProtocolManager is
     ) external addressValidated(backery) addressValidated(manager) {
         // require(hasRole(MANAGER, manager), "not allowed");
         Backery = backery;
+    }
+    function updateBackerContract(
+        address backer,
+        address manager
+    ) external addressValidated(backer) addressValidated(manager) {
+        // require(hasRole(MANAGER, manager), "not allowed");
+        Backer = backer;
     }
     function updateLendRequestFactoryContract(
         address _address

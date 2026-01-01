@@ -14,6 +14,9 @@ import {ITokenManager} from "../../src/interfaces/ITokenManager.sol";
 import {IProtocolManager} from "../../src/interfaces/IProtocolManager.sol";
 import {Backery} from "../../src/Backery.sol";
 import {IBackery} from "../../src/interfaces/IBackery.sol";
+import {IProtocolManager} from "../../src/interfaces/IProtocolManager.sol";
+import {Backer} from "../../src/Backer.sol";
+import {IBacker} from "../../src/interfaces/IBacker.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 
@@ -172,13 +175,16 @@ contract LoanManagerUnitTest is Test {
             testVars.priority,
             testVars.originationFee
         );
+        console2.log("what is ID", testVars.requestID);
         iLoanManager.getBorrowRequestDetails(testVars.requestID);
-        return;
-        iBackery.getTotalSupply(2);
-        uint256 count2 = iLoanManager.getTotalBorrowRequestCount();
-        // console2.log("what is ID", testVars.requestID);
+        iLoanManager.getBorrowRequestTokenDetails(testVars.requestID);
+        iLoanManager.getBorrowerRequestTokenBalance(testVars.requestID);
+        // return;
+        // iBackery.getTotalSupply(2);
+        // uint256 count2 = iLoanManager.getTotalBorrowRequestCount();
         // console2.log("what is ", requestID);
         iLimitMarket.cancelBorrowRequest{value: 1 ether}(testVars.requestID);
+        iLoanManager.getBorrowerRequestTokenBalance(testVars.requestID);
         uint256 count = iLoanManager.getTotalBorrowRequestCount();
         iBackery.getBalance(borrower, testVars.requestID);
         iBackery.getTotalSupply(1);
@@ -190,9 +196,24 @@ contract LoanManagerUnitTest is Test {
         vm.deal(lender, 20 ether);
 
         console2.log("test contract before", address(iLoanManager).balance);
+        iBackery.approve(address(deployer), 1, UINT256_MAX);
         uint256 requestID = iLimitMarket.lend{value: 6 ether}();
         console2.log("test contract after", address(iLoanManager).balance);
         iLoanManager.getLendRequestDetails(requestID);
+
+        console2.log("start here");
+        iBackery.getTotalSupply(1);
+        iBackery.getTotalSupply(2);
+        iBackery.getBalance(borrower, requestID);
+        iBackery.getBalance(lender, requestID);
+        vm.stopPrank();
+        vm.startPrank(deployer);
+
+        iBackery.transferFrom(lender, borrower, 1, 1);
+        iBackery.getBalance(borrower, requestID);
+        iBackery.getBalance(lender, requestID);
+        iBackery.getTotalSupply(1);
+        iBackery.getTotalSupply(2);
     }
 
     function testCancelLendRequest() external {

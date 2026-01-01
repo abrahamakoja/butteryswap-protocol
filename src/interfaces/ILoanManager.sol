@@ -76,4 +76,20 @@ interface ILoanManager {
         address lender,
         uint256 requestID
     ) external payable;
+
+    function getBorrowRequestTokenDetails(
+        uint256 requestID
+    )
+        external
+        view
+        returns (
+            address[] memory tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenValue
+        );
+
+    function getBorrowerRequestTokenBalance(
+        uint256 requestID
+    ) external view returns (address[] memory tokens, uint256[] memory balance);
+    function createActiveLoan() external payable;
 }

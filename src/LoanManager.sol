@@ -74,7 +74,7 @@ contract LoanManager is
         uint256 timeCreated;
         uint256 interestRate;
         uint256 dueDate;
-        uint256 BreadBalance;
+        uint256 mBreadBalance;
         uint256 requestID;
         TokenDetails[] tokenDetails;
         RequestState state;
@@ -83,7 +83,7 @@ contract LoanManager is
         address lender;
         uint256 amountToLend;
         uint256 timeCreated;
-        uint256 DoughBalance;
+        uint256 nBreadBalance;
         uint256 requestID;
         RequestState state;
     }
@@ -132,13 +132,14 @@ contract LoanManager is
 
     uint256 internal nextBorrowerID;
     uint256 internal nextLenderID;
-    uint256 internal dough;
-    uint256 internal bread;
+    uint256 internal nBREAD;
+    uint256 internal mBREAD;
     uint256 internal borrowRequestCount;
     uint256 internal lendRequestCount;
 
     Queue internal priorityQueue;
     Queue internal normalQueue;
+    Queue internal supplyQueue;
 
     mapping(uint256 ID => BorrowRequestDetails borrowRequestDetails)
         internal _borrowRequestDetails;
@@ -159,7 +160,10 @@ contract LoanManager is
         uint256 indexed requestID,
         uint256 indexed amountToBorrow
     );
-    event BreadMinted(address indexed borrower, uint256 indexed breadMinted);
+    event MemeBreadMinted(
+        address indexed borrower,
+        uint256 indexed mBreadMinted
+    );
     event collateralAmountIncreased(
         uint256 indexed requestID,
         uint256 indexed collateralValue,
@@ -170,7 +174,34 @@ contract LoanManager is
         uint256 indexed requestID,
         uint256 indexed amountToLend
     );
-    event DoughMinted(address indexed lender, uint256 indexed doughMinted);
+    event NativeBreadMinted(
+        address indexed lender,
+        uint256 indexed nBreadMinted
+    );
+    event BorrowQueueIncreased(uint256 indexed requestID);
+    event BorrowQueueReduced(uint256 indexed requestID);
+    event BorrowRequestCancelled(
+        address indexed borrower,
+        uint256 indexed requestID
+    );
+    event LendRequestCancelled(
+        address indexed borrower,
+        uint256 indexed requestID
+    );
+
+    event LendQueueIncreased(uint256 indexed requestID);
+    event LendQueueReduced(uint256 indexed requestID);
+    event NativeBreadBurnt(
+        address indexed lender,
+        uint256 indexed nBreadAmount,
+        uint256 indexed requestID
+    );
+
+    event MemeBreadBurnt(
+        address indexed borrower,
+        uint256 indexed mBreadAmount,
+        uint256 indexed requestID
+    );
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -202,7 +233,7 @@ contract LoanManager is
     }
 
     /*//////////////////////////////////////////////////////////////
-                            PUBLIC FUNCTIONS
+                            INITIALIZE
     //////////////////////////////////////////////////////////////*/
     function initialize(address protocolManager) public initializer {
         // @audit lock after initialize
@@ -215,8 +246,8 @@ contract LoanManager is
         admin = ProtocolManager.deployer();
         nextBorrowerID = 1;
         nextLenderID = 1;
-        dough = 1;
-        bread = 2;
+        nBREAD = 1;
+        mBREAD = 2;
         borrowRequestCount = 0;
         lendRequestCount = 0;
 
@@ -297,7 +328,7 @@ contract LoanManager is
         borrowRequestDetails.timeCreated = block.timestamp;
         borrowRequestDetails.interestRate = 1e18; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
-        borrowRequestDetails.BreadBalance = eligibleAmountToBorrow;
+        borrowRequestDetails.mBreadBalance = eligibleAmountToBorrow;
         borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = RequestState.OPEN;
 
@@ -319,11 +350,13 @@ contract LoanManager is
 
         /// EVENTS
         emit BorrowRequestCreated(requestID, amountToBorrow);
-        emit BreadMinted(borrower, eligibleAmountToBorrow);
+        emit MemeBreadMinted(borrower, eligibleAmountToBorrow);
+        emit BorrowQueueIncreased(requestID);
         // mint
 
-        Backery.mint(borrower, bread, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+        Backery.mint(borrower, mBREAD, eligibleAmountToBorrow * 1 ether); //@audit overflow?
 
+        // Backery.transferFrom(borrower, address(ProtocolManager), 1, 1);
         return requestID;
     }
 
@@ -442,10 +475,10 @@ contract LoanManager is
             collateralValue,
             amountToBorrow
         );
-        emit BreadMinted(borrower, eligibleAmountToBorrow);
+        emit MemeBreadMinted(borrower, eligibleAmountToBorrow);
         // @audit collect fee
-        // mints additional bread
-        Backery.mint(borrower, bread, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+        // mints additional mBREAD
+        Backery.mint(borrower, mBREAD, eligibleAmountToBorrow * 1 ether); //@audit overflow?
 
         borrowRequestDetails.state == RequestState.OPEN;
     }
@@ -472,10 +505,10 @@ contract LoanManager is
         // // change state
         borrowRequestDetails.state = RequestState.UPDATING;
         // reset request values
-        uint256 BreadBalance = borrowRequestDetails.BreadBalance;
+        uint256 mBreadBalance = borrowRequestDetails.mBreadBalance;
 
         borrowRequestDetails.dueDate = 0; // @audit fix
-        borrowRequestDetails.BreadBalance = 0;
+        borrowRequestDetails.mBreadBalance = 0;
         borrowRequestDetails.state = RequestState.CANCELLED;
         borrowRequestCount--;
 
@@ -494,6 +527,9 @@ contract LoanManager is
         );
 
         //  @audit emit events
+        emit BorrowRequestCancelled(borrower, requestID);
+        emit BorrowQueueReduced(requestID);
+        emit MemeBreadBurnt(borrower, mBREAD, requestID);
 
         uint256 _tokenValue;
 
@@ -507,13 +543,13 @@ contract LoanManager is
             _tokenValue += tokenValue[i];
         }
 
-        require(BreadBalance == _tokenValue, "balance mismatch");
+        require(mBreadBalance == _tokenValue, "balance mismatch");
 
-        // burn bread
-        Backery.burn(borrower, bread, BreadBalance);
+        // burn mBREAD
+        Backery.burn(borrower, mBREAD, mBreadBalance);
 
         console2.log("boorower", borrowRequestDetails.borrower);
-        console2.log("bread balance", borrowRequestDetails.BreadBalance);
+        console2.log("mBREAD balance", borrowRequestDetails.mBreadBalance);
         console2.log("state", uint8(borrowRequestDetails.state));
         console2.log("due date", borrowRequestDetails.dueDate);
     }
@@ -546,7 +582,7 @@ contract LoanManager is
         lendRequestDetails.lender = lender;
         lendRequestDetails.amountToLend = amountToLend;
         lendRequestDetails.timeCreated = block.timestamp;
-        lendRequestDetails.DoughBalance = amountToLend;
+        lendRequestDetails.nBreadBalance = amountToLend;
         lendRequestDetails.requestID = requestID;
         lendRequestDetails.state = RequestState.OPEN;
         lendRequestCount++;
@@ -556,9 +592,13 @@ contract LoanManager is
         // update lend count
         nextLenderID++;
 
+        // add to queue
+        _enQueue(supplyQueue, requestID);
+
         // emit event
         emit LendRequestCreated(requestID, amountToLend);
-        emit DoughMinted(lender, amountToLend);
+        emit NativeBreadMinted(lender, amountToLend);
+        emit LendQueueIncreased(requestID);
 
         // transfer eth to this address
         console2.log("lend time", lendRequestDetails.timeCreated);
@@ -579,8 +619,8 @@ contract LoanManager is
             address(ProtocolManager.FEE_CONTRACT()).balance
         );
 
-        // mint dough to lender
-        Backery.mint(lender, dough, amountToLend);
+        // mint nBREAD to lender
+        Backery.mint(lender, nBREAD, amountToLend);
     }
 
     function cancelLendRequest(
@@ -598,9 +638,9 @@ contract LoanManager is
         );
         lendRequestDetails.state = RequestState.UPDATING;
 
-        uint256 DoughBalance = lendRequestDetails.DoughBalance;
+        uint256 nBreadBalance = lendRequestDetails.nBreadBalance;
 
-        lendRequestDetails.DoughBalance = 0;
+        lendRequestDetails.nBreadBalance = 0;
         lendRequestDetails.state = RequestState.CANCELLED;
         lendRequestCount--;
         /** EFFECTS */
@@ -609,12 +649,16 @@ contract LoanManager is
         uint256 amountMinusFee = msg.value - cancellationFee;
 
         // remove from queue
-        require(DoughBalance == amountToLend, "balance mismatch");
+        _removeFromQueue(supplyQueue, requestID);
+        require(nBreadBalance == amountToLend, "balance mismatch");
 
         //  @audit emit events
+        emit LendQueueReduced(requestID);
+        emit LendRequestCancelled(lender, requestID);
+        emit NativeBreadBurnt(lender, nBREAD, requestID);
 
-        // burn bread
-        Backery.burn(lender, dough, DoughBalance);
+        // burn nBREAD
+        Backery.burn(lender, nBREAD, nBreadBalance);
 
         // /** COLLECT CANCELLATION FEE */
         (bool feePaid, ) = ProtocolManager.FEE_CONTRACT().call{
@@ -625,6 +669,22 @@ contract LoanManager is
         (bool success, ) = lender.call{value: amountMinusFee}("");
     }
 
+    /*//////////////////////////////////////////////////////////////
+                             TOAST FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function createActiveLoan()
+        external
+        payable
+        onlyRole(LIMIT_MARKET)
+        nonReentrant
+    {
+        // handles loan approval automaticall
+        // would strictly be called by backer
+        // keeps track of all active loans
+        // maintains a FIFO execution approach to disbursement
+        // maintain all relevant accounting on active loans
+    }
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -709,6 +769,31 @@ contract LoanManager is
 
         return (tokens, amountDeposited, tokenValue);
     }
+    function getBorrowRequestTokenDetails(
+        uint256 requestID
+    )
+        external
+        view
+        returns (
+            address[] memory tokens,
+            uint256[] memory amountDeposited,
+            uint256[] memory tokenValue
+        )
+    {
+        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
+        uint256 count = details.tokenDetails.length;
+        tokens = new address[](count);
+        amountDeposited = new uint256[](count);
+        tokenValue = new uint256[](count);
+
+        for (uint256 i = 0; i < count; i++) {
+            tokens[i] = details.tokenDetails[i].token;
+            amountDeposited[i] = details.tokenDetails[i].amountDeposited;
+            tokenValue[i] = details.tokenDetails[i].tokenValue;
+        }
+
+        return (tokens, amountDeposited, tokenValue);
+    }
 
     //@audit might remove
     function isRequestPrioritized(
@@ -731,6 +816,30 @@ contract LoanManager is
         return requestsID;
     }
 
+    function getBorrowerRequestTokenBalance(
+        uint256 requestID
+    )
+        external
+        view
+        returns (address[] memory tokens, uint256[] memory balance)
+    {
+        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
+        uint256 count = details.tokenDetails.length;
+        address borrower = details.borrower;
+        tokens = new address[](count);
+        balance = new uint256[](count);
+
+        for (uint256 i = 0; i < count; i++) {
+            tokens[i] = details.tokenDetails[i].token;
+            balance[i] = erc20TokenLibrary.getBalance(
+                borrower,
+                details.tokenDetails[i].token
+            );
+        }
+
+        return (tokens, balance);
+    }
+
     function getBorrowRequestDetails(
         uint256 _requestID
     )
@@ -743,7 +852,7 @@ contract LoanManager is
             uint256 timeCreated,
             uint256 interestRate,
             uint256 dueDate,
-            uint256 BreadBalance,
+            uint256 mBreadBalance,
             uint256 requestID /*
             address[] memory tokens,
             uint256[] memory amountDeposited,
@@ -751,7 +860,7 @@ contract LoanManager is
             uint8 state
         )
     {
-        require(requestID != 0, "invalid ID");
+        require(_requestID != 0, "invalid ID");
         BorrowRequestDetails memory details = _borrowRequestDetails[_requestID];
         // uint256 count = details.tokenDetails.length;
 
@@ -771,7 +880,7 @@ contract LoanManager is
             details.timeCreated,
             details.interestRate,
             details.dueDate,
-            details.BreadBalance,
+            details.mBreadBalance,
             details.requestID,
             /*
             tokens,
@@ -790,7 +899,7 @@ contract LoanManager is
             address lender,
             uint256 amountToLend,
             uint256 timeCreated,
-            uint256 DoughBalance,
+            uint256 nBreadBalance,
             uint256 requestID,
             uint8 state
         )
@@ -801,7 +910,7 @@ contract LoanManager is
             details.lender,
             details.amountToLend,
             details.timeCreated,
-            details.DoughBalance,
+            details.nBreadBalance,
             details.requestID,
             uint8(details.state)
         );

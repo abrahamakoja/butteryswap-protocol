@@ -10,13 +10,13 @@ build:;FOUNDRY_PROFILE=solx  forge clean && FOUNDRY_PROFILE=solx forge build  -v
 # deploy
 
 deployLimitMarket:;FOUNDRY_PROFILE=solx forge script script/04_DeployLimitMarket.s.sol:DeployLimitMarket --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
-deployDeployLoanEnforcer:;FOUNDRY_PROFILE=solx forge script script/03_DeployLoanEnforcer.s.sol:DeployLoanEnforcer --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
+deployDeployBacker:;FOUNDRY_PROFILE=solx forge script script/03_DeployBacker.s.sol:DeployBacker --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployTokenManager:;FOUNDRY_PROFILE=solx forge script script/02_DeployTokenManager.s.sol:DeployTokenManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployProtocolManager:;FOUNDRY_PROFILE=solx forge script script/01_DeployProtocolManager.s.sol:DeployProtocolManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 deployLoanManager:;FOUNDRY_PROFILE=solx forge script script/05_DeployLoanManager.s.sol:DeployLoanManager --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvvv
 deployBackery:;FOUNDRY_PROFILE=solx forge script script/06_DeployBackery.s.sol:DeployBackery --rpc-url $(LOCAL_RPC_URL) --account DevKey01  --broadcast -vvvv
 reset:; FOUNDRY_PROFILE=solx forge clean && FOUNDRY_PROFILE=solx  forge build  -vvvvv
-deployAll:;make reset make deployProtocolManager && make deployTokenManager && make deployDeployLoanEnforcer && make deployLimitMarket && make deployBackery && make deployLoanManager
+deployAll:;make reset make deployProtocolManager && make deployTokenManager && make deployDeployBacker && make deployLimitMarket && make deployBackery && make deployLoanManager
 
 # test
 .SHELL := /bin/bash

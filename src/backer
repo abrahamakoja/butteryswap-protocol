@@ -85,6 +85,58 @@ contract Backery is
         _burn(from, id, amount);
     }
 
+    function allowance(
+        address owner,
+        address spender,
+        uint256 id
+    )
+        public
+        view
+        virtual
+        override(ERC6909Upgradeable, IERC6909)
+        returns (uint256)
+    {
+        return super.allowance(owner, spender, id);
+    }
+
+    function transfer(
+        address receiver,
+        uint256 id,
+        uint256 amount
+    )
+        public
+        virtual
+        override(ERC6909Upgradeable, IERC6909)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (bool success)
+    {
+        success = transfer(receiver, id, amount);
+        return success;
+    }
+    function transferFrom(
+        address sender,
+        address receiver,
+        uint256 id,
+        uint256 amount
+    )
+        public
+        override(ERC6909Upgradeable, IERC6909)
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (bool success)
+    {
+        success = super.transferFrom(sender, receiver, id, amount);
+        return success;
+    }
+
+    function approve(
+        address spender,
+        uint256 id,
+        uint256 amount
+    ) public override(ERC6909Upgradeable, IERC6909) returns (bool success) {
+        success = approve(spender, id, amount);
+        return success;
+    }
+
     function getBalance(
         address owner,
         uint256 tokenId
@@ -122,11 +174,7 @@ contract Backery is
         address to,
         uint256 id,
         uint256 amount
-    )
-        internal
-        virtual
-        override(ERC6909Upgradeable, ERC6909TokenSupplyUpgradeable)
-    {
+    ) internal override(ERC6909Upgradeable, ERC6909TokenSupplyUpgradeable) {
         super._update(from, to, id, amount);
     }
 
@@ -135,7 +183,6 @@ contract Backery is
     )
         public
         view
-        virtual
         override(AccessControlUpgradeable, ERC6909Upgradeable, IERC165)
         returns (bool)
     {
