@@ -91,5 +91,11 @@ interface ILoanManager {
     function getBorrowerRequestTokenBalance(
         uint256 requestID
     ) external view returns (address[] memory tokens, uint256[] memory balance);
-    function approveLoanRequests() external payable;
+    function approveLoanRequests()
+        external
+        payable
+        returns (uint256 activeLoanID);
+    function getActiveLoanRequest(
+        uint256 activeLoanID
+    ) external view; /*view returns (address[] memory tokens);*/
 }

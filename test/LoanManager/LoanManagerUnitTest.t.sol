@@ -263,7 +263,8 @@ contract LoanManagerUnitTest is Test {
         uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
         vm.stopPrank();
         vm.prank(deployer);
-        iBacker.toast();
+        uint256 activeLoanID = iBacker.toast();
+        iLoanManager.getActiveLoanRequest(activeLoanID);
     }
 
     /*//////////////////////////////////////////////////////////////

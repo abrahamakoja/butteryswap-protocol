@@ -67,6 +67,32 @@ contract LoanManager is
                            TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
 
+    struct ActiveLoanDetails {
+        CollateralDetails collateralDetails;
+        BorrowerDetails borrowerDetails;
+        LenderDetails[] lenderDetails;
+        uint256 timeApproved;
+        uint256 dueDate;
+    }
+
+    struct LenderDetails {
+        address lender;
+        uint256 amountLended;
+        uint256 expectedReturn;
+        uint256 requestID;
+    }
+
+    struct CollateralDetails {
+        TokenDetails[] tokenDetails;
+    }
+
+    struct BorrowerDetails {
+        uint256 amountBorrowed;
+        address borrower;
+        uint256 amountToPayBack;
+        uint256 requestID;
+    }
+
     struct BorrowRequestDetails {
         address borrower;
         uint256 amountToBorrow;
@@ -77,7 +103,7 @@ contract LoanManager is
         uint256 mBreadBalance;
         uint256 requestID;
         TokenDetails[] tokenDetails;
-        RequestState state;
+        LoanState state;
     }
     struct LendRequestDetails {
         address lender;
@@ -85,7 +111,7 @@ contract LoanManager is
         uint256 timeCreated;
         uint256 nBreadBalance;
         uint256 requestID;
-        RequestState state;
+        LoanState state;
     }
 
     struct TokenDetails {
@@ -108,7 +134,7 @@ contract LoanManager is
     /*//////////////////////////////////////////////////////////////
                            ENUMS
     //////////////////////////////////////////////////////////////*/
-    enum RequestState {
+    enum LoanState {
         CLOSED,
         OPEN,
         ACTIVE,
@@ -132,6 +158,7 @@ contract LoanManager is
 
     IBackery internal Backery;
 
+    uint256 internal activeLoanCount;
     uint256 internal nextBorrowerID;
     uint256 internal nextLenderID;
     uint256 internal nBREAD;
@@ -148,6 +175,8 @@ contract LoanManager is
     Queue internal normalQueue;
     Queue internal supplyQueue;
 
+    mapping(uint256 ID => ActiveLoanDetails activeLoanDetails)
+        internal _activeLoanDetails;
     mapping(uint256 ID => BorrowRequestDetails borrowRequestDetails)
         internal _borrowRequestDetails;
 
@@ -257,6 +286,7 @@ contract LoanManager is
 
         admin = ProtocolManager.deployer();
         nextBorrowerID = 1;
+        activeLoanCount = 0;
         nextLenderID = 1;
         nBREAD = 1;
         mBREAD = 2;
@@ -355,7 +385,7 @@ contract LoanManager is
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
         borrowRequestDetails.mBreadBalance = eligibleAmountToBorrow;
         borrowRequestDetails.requestID = requestID;
-        borrowRequestDetails.state = RequestState.OPEN;
+        borrowRequestDetails.state = LoanState.OPEN;
 
         borrowerToRequestsID[borrower].push(requestID);
 
@@ -398,12 +428,12 @@ contract LoanManager is
 
         // check state
         require(
-            borrowRequestDetails.state == RequestState.OPEN,
+            borrowRequestDetails.state == LoanState.OPEN,
             "loan state invalid"
         );
         //  checks position hasnt been skipped if yes re-assign next
         // change state
-        borrowRequestDetails.state = RequestState.UPDATING;
+        borrowRequestDetails.state = LoanState.UPDATING;
 
         borrowRequestDetails.priority = true;
 
@@ -411,7 +441,7 @@ contract LoanManager is
         // EVENTS
         emit BorrowRequestPrioritized(requestID);
         // @audit understand dequeeue first
-        borrowRequestDetails.state == RequestState.OPEN;
+        borrowRequestDetails.state == LoanState.OPEN;
     }
 
     function increaseCollaterallAmount(
@@ -435,11 +465,11 @@ contract LoanManager is
 
         // check state
         require(
-            borrowRequestDetails.state == RequestState.OPEN,
+            borrowRequestDetails.state == LoanState.OPEN,
             "loan state invalid"
         );
         // change state
-        borrowRequestDetails.state = RequestState.UPDATING;
+        borrowRequestDetails.state = LoanState.UPDATING;
 
         // check if new deposit exceeds eligible borrow limit @audit do this once we start tracking reserves
         // ensure both tokens and collateralmatches
@@ -506,7 +536,7 @@ contract LoanManager is
         // mints additional mBREAD
         Backery.mint(borrower, mBREAD, eligibleAmountToBorrow * 1 ether); //@audit overflow?
 
-        borrowRequestDetails.state == RequestState.OPEN;
+        borrowRequestDetails.state == LoanState.OPEN;
     }
 
     function cancelBorrowRequest(
@@ -525,17 +555,17 @@ contract LoanManager is
 
         // // check state
         require(
-            borrowRequestDetails.state == RequestState.OPEN,
+            borrowRequestDetails.state == LoanState.OPEN,
             "loan state invalid"
         );
         // // change state
-        borrowRequestDetails.state = RequestState.UPDATING;
+        borrowRequestDetails.state = LoanState.UPDATING;
         // reset request values
         uint256 mBreadBalance = borrowRequestDetails.mBreadBalance;
 
         borrowRequestDetails.dueDate = 0; // @audit fix
         borrowRequestDetails.mBreadBalance = 0;
-        borrowRequestDetails.state = RequestState.CANCELLED;
+        borrowRequestDetails.state = LoanState.CANCELLED;
         totalBorrowRequestAmount -= borrowRequestDetails.amountToBorrow;
         borrowRequestCount--;
 
@@ -611,7 +641,7 @@ contract LoanManager is
         lendRequestDetails.timeCreated = block.timestamp;
         lendRequestDetails.nBreadBalance = amountToLend;
         lendRequestDetails.requestID = requestID;
-        lendRequestDetails.state = RequestState.OPEN;
+        lendRequestDetails.state = LoanState.OPEN;
         totalLendRequestAmount += amountToLend;
         lendRequestCount++;
 
@@ -661,10 +691,10 @@ contract LoanManager is
 
         require(lendRequestDetails.lender == lender, "not owner");
         require(
-            lendRequestDetails.state == RequestState.OPEN,
+            lendRequestDetails.state == LoanState.OPEN,
             "loan state invalid"
         );
-        lendRequestDetails.state = RequestState.UPDATING;
+        lendRequestDetails.state = LoanState.UPDATING;
 
         uint256 nBreadBalance = lendRequestDetails.nBreadBalance;
         uint256 amountToLend = lendRequestDetails.amountToLend;
@@ -672,7 +702,7 @@ contract LoanManager is
         uint256 amountMinusFee = msg.value - cancellationFee;
 
         lendRequestDetails.nBreadBalance = 0;
-        lendRequestDetails.state = RequestState.CANCELLED;
+        lendRequestDetails.state = LoanState.CANCELLED;
         totalLendRequestAmount -= amountToLend;
         lendRequestCount--;
         /** EFFECTS */
@@ -708,14 +738,23 @@ contract LoanManager is
         backeryIsSet
         onlyRole(BACKER)
         nonReentrant
+        returns (uint256 activeLoanID)
     {
         //    should never revert
         if (totalBorrowRequestAmount > totalLendRequestAmount) {
             console2.log("liquidity low");
-            return;
+            return 0;
         }
-        LendRequestDetails memory lendRequestDetails;
-        BorrowRequestDetails memory borrowRequestDetails;
+        activeLoanCount++;
+        activeLoanID = activeLoanCount;
+        LendRequestDetails storage lendRequestDetails;
+        BorrowRequestDetails storage borrowRequestDetails;
+        ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
+            activeLoanID
+        ];
+
+        console2.log("activeLoanID", activeLoanID);
+        console2.log("activeLoanCount", activeLoanCount);
 
         // get borrow request
         uint256 lendRequest = _deQueue(supplyQueue);
@@ -729,21 +768,21 @@ contract LoanManager is
             // check  list again
             lendRequest = _deQueue(priorityQueue);
             lendRequestDetails = _lendRequestDetails[lendRequest];
-            if (lendRequestDetails.state != RequestState.OPEN) {
+            if (lendRequestDetails.state != LoanState.OPEN) {
                 // requeue
                 _enQueue(supplyQueue, lendRequest);
                 emit LendRequestReQueued(lendRequest);
-                return; //break
+                return 0; //break
             }
             console2.log("lend lendRequest if clause", lendRequest);
         } else {
             lendRequestDetails = _lendRequestDetails[lendRequest];
             // check and change state
-            if (lendRequestDetails.state != RequestState.OPEN) {
+            if (lendRequestDetails.state != LoanState.OPEN) {
                 // requeue
                 _enQueue(supplyQueue, lendRequest);
                 emit LendRequestReQueued(lendRequest);
-                return; //break
+                return 0; //break
             }
             console2.log("normal triggerd", lendRequest);
         }
@@ -755,17 +794,17 @@ contract LoanManager is
             // check priority list
             borrowRequest = _deQueue(priorityQueue);
             borrowRequestDetails = _borrowRequestDetails[borrowRequest];
-            if (borrowRequestDetails.state != RequestState.OPEN) {
+            if (borrowRequestDetails.state != LoanState.OPEN) {
                 // requeue
                 _enQueue(priorityQueue, borrowRequest);
                 emit BorrowRequestReQueued(borrowRequest);
-                return; //break
+                return 0; //break
             }
             console2.log("triggered prioritized", borrowRequest);
         } else {
             borrowRequestDetails = _borrowRequestDetails[borrowRequest];
             // check and change state
-            if (borrowRequestDetails.state != RequestState.OPEN) {
+            if (borrowRequestDetails.state != LoanState.OPEN) {
                 // requeue
                 _enQueue(normalQueue, borrowRequest);
                 emit BorrowRequestReQueued(borrowRequest);
@@ -773,23 +812,55 @@ contract LoanManager is
             console2.log("normal triggerd", borrowRequest);
         }
 
-        lendRequestDetails.state = RequestState.UPDATING;
-        borrowRequestDetails.state = RequestState.UPDATING;
+        lendRequestDetails.state = LoanState.UPDATING;
+        borrowRequestDetails.state = LoanState.UPDATING;
+
         // get relevant values
         uint256 amountToBorrow = borrowRequestDetails.amountToBorrow;
         address borrower = borrowRequestDetails.borrower;
+
         uint256 amountToLend = lendRequestDetails.amountToLend;
         address lender = lendRequestDetails.lender;
+        uint256 lenderRequestID = lendRequestDetails.requestID;
 
         uint256 delta = amountToBorrow < amountToLend
             ? 0
             : amountToBorrow - amountToLend;
-        uint256 amountToPayBack = amountToBorrow +
-            borrowRequestDetails.interestRate;
 
         // mint to borrow if delta is 0
         if (delta == 0) {
+            uint256 amountToPayBack = amountToBorrow +
+                borrowRequestDetails.interestRate;
+            uint256 lDelta = lendRequestDetails.amountToLend - amountToBorrow;
+
+            // update lender request state
+            if (lDelta > 0) {
+                lendRequestDetails.state = LoanState.OPEN;
+            } else {
+                lendRequestDetails.state = LoanState.SETTLED;
+            }
+
+            // update borrower request state
+            borrowRequestDetails.state = LoanState.SETTLED;
+
+            // fetch LenderDetails
+            LenderDetails memory lenderDetails;
+            lenderDetails.lender = lender;
+            lenderDetails.amountLended = amountToLend;
+            lenderDetails.expectedReturn = amountToPayBack;
+            lenderDetails.requestID = lenderRequestID;
+
             // populate the active loan struct
+            // collateral details
+            activeLoanDetails
+                .collateralDetails
+                .tokenDetails = borrowRequestDetails.tokenDetails;
+            // borrower Details
+            activeLoanDetails.borrowerDetails.amountBorrowed = amountToBorrow;
+            activeLoanDetails.lenderDetails.push(lenderDetails);
+            activeLoanDetails.timeApproved = block.timestamp;
+            activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+
             // mint toast to borrower
             emit ToastMinted(borrower, amountToBorrow);
             emit CrumbsMinted(lender, amountToPayBack);
@@ -957,10 +1028,20 @@ contract LoanManager is
         return (tokens, balance);
     }
 
+    function getActiveLoanRequest(uint256 activeLoanID) external view {
+        ActiveLoanDetails memory activeLoanDetails = _activeLoanDetails[
+            activeLoanID
+        ];
+        // tokens = new address[](1);
+        // tokens = activeLoanDetails.collateralDetails.tokenDetails[0].token;
+        console2.log(activeLoanDetails.collateralDetails.tokenDetails[5].token);
+        console2.log(activeLoanID);
+    }
+
     function getBorrowRequestDetails(
         uint256 _requestID
     )
-        public
+        external
         view
         returns (
             address borrower,
@@ -970,25 +1051,12 @@ contract LoanManager is
             uint256 interestRate,
             uint256 dueDate,
             uint256 mBreadBalance,
-            uint256 requestID /*
-            address[] memory tokens,
-            uint256[] memory amountDeposited,
-            uint256[] memory tokenvalue,*/,
+            uint256 requestID,
             uint8 state
         )
     {
         require(_requestID != 0, "invalid ID");
         BorrowRequestDetails memory details = _borrowRequestDetails[_requestID];
-        // uint256 count = details.tokenDetails.length;
-
-        // tokens = new address[](count);
-        // amountDeposited = new uint256[](count);
-        // tokenvalue = new uint256[](count);
-        // for (uint256 i = 0; i < count; i++) {
-        //     tokens[i] = details.tokenDetails[i].token;
-        //     amountDeposited[i] = details.tokenDetails[i].amountDeposited;
-        //     tokenvalue[i] = details.tokenDetails[i].tokenValue;
-        // }
 
         return (
             details.borrower,
@@ -999,10 +1067,6 @@ contract LoanManager is
             details.dueDate,
             details.mBreadBalance,
             details.requestID,
-            /*
-            tokens,
-            amountDeposited,
-            tokenvalue,*/
             uint8(details.state)
         );
     }
