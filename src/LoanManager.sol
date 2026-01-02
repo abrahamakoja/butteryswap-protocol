@@ -815,14 +815,17 @@ contract LoanManager is
         lendRequestDetails.state = LoanState.UPDATING;
         borrowRequestDetails.state = LoanState.UPDATING;
 
-        // get relevant values
+        // get relevant borrow request values
         uint256 amountToBorrow = borrowRequestDetails.amountToBorrow;
         address borrower = borrowRequestDetails.borrower;
+        uint256 borrowerRequestID = borrowRequestDetails.requestID;
 
+        // get relevant lend request values
         uint256 amountToLend = lendRequestDetails.amountToLend;
         address lender = lendRequestDetails.lender;
         uint256 lenderRequestID = lendRequestDetails.requestID;
 
+        // check delta between borrow amount and available liquidity
         uint256 delta = amountToBorrow < amountToLend
             ? 0
             : amountToBorrow - amountToLend;
@@ -851,22 +854,34 @@ contract LoanManager is
             lenderDetails.requestID = lenderRequestID;
 
             // populate the active loan struct
+
             // collateral details
             activeLoanDetails
                 .collateralDetails
                 .tokenDetails = borrowRequestDetails.tokenDetails;
+
             // borrower Details
             activeLoanDetails.borrowerDetails.amountBorrowed = amountToBorrow;
+            activeLoanDetails.borrowerDetails.borrower = borrower;
+            activeLoanDetails.borrowerDetails.amountToPayBack = amountToPayBack;
+            activeLoanDetails.borrowerDetails.requestID = borrowerRequestID;
+
+            // lender details
             activeLoanDetails.lenderDetails.push(lenderDetails);
             activeLoanDetails.timeApproved = block.timestamp;
             activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
 
-            // mint toast to borrower
+            // emit events
             emit ToastMinted(borrower, amountToBorrow);
             emit CrumbsMinted(lender, amountToPayBack);
+            // mint toast to borrower
             Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
             // mint crumbs to lender
             Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
+        } else {
+            // fetch more lend request that can collectively satisfy the borrow request
+            // use the number to bound a for loop
+            // process loan
         }
     }
     /*//////////////////////////////////////////////////////////////
