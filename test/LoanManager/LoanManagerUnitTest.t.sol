@@ -28,6 +28,7 @@ contract LoanManagerUnitTest is Test {
     ITokenManager iTokenManager;
     ILoanManager iLoanManager;
     IBackery iBackery;
+    IBacker iBacker;
 
     address deployer;
 
@@ -62,6 +63,14 @@ contract LoanManagerUnitTest is Test {
         );
         iProtocolManager = IProtocolManager(protocolManagerProxy);
         deployer = IProtocolManager(protocolManagerProxy).deployer();
+
+        // Backer
+        address BackerProxy = Upgrades.deployUUPSProxy(
+            "Backer.sol",
+            abi.encodeCall(Backer.initialize, address(protocolManagerProxy))
+        );
+
+        iBacker = IBacker(BackerProxy);
 
         // limit Market
         address LimitMarketProxy = Upgrades.deployUUPSProxy(
@@ -196,7 +205,6 @@ contract LoanManagerUnitTest is Test {
         vm.deal(lender, 20 ether);
 
         console2.log("test contract before", address(iLoanManager).balance);
-        iBackery.approve(address(deployer), 1, UINT256_MAX);
         uint256 requestID = iLimitMarket.lend{value: 6 ether}();
         console2.log("test contract after", address(iLoanManager).balance);
         iLoanManager.getLendRequestDetails(requestID);
@@ -206,10 +214,7 @@ contract LoanManagerUnitTest is Test {
         iBackery.getTotalSupply(2);
         iBackery.getBalance(borrower, requestID);
         iBackery.getBalance(lender, requestID);
-        vm.stopPrank();
-        vm.startPrank(deployer);
-
-        iBackery.transferFrom(lender, borrower, 1, 1);
+        iBackery.transfer(borrower, 1, 1);
         iBackery.getBalance(borrower, requestID);
         iBackery.getBalance(lender, requestID);
         iBackery.getTotalSupply(1);
@@ -225,6 +230,40 @@ contract LoanManagerUnitTest is Test {
         console2.log("test contract after", address(iLoanManager).balance);
         iLoanManager.getLendRequestDetails(requestID);
         iLimitMarket.cancelLendRequest{value: 3 ether}(requestID);
+    }
+
+    function testApproveLoanRequests() external {
+        vm.deal(borrower, 100 ether);
+
+        TestVars memory testVars;
+        address[] memory _tokens;
+        testVars.num = 6;
+        testVars.amount = 6e18;
+        testVars.originationFee = 1 ether;
+        testVars.listingFee = 1 ether;
+        testVars.amountToBorrow = 6 ether;
+        testVars.priority = true;
+        // bool priority = true;
+
+        (testVars.requestID, _tokens, testVars.collateralAmount) = _quickSetup(
+            testVars.listingFee,
+            testVars.num,
+            borrower,
+            testVars.amount,
+            testVars.amountToBorrow,
+            testVars.priority,
+            testVars.originationFee
+        );
+        vm.stopPrank();
+        vm.startPrank(lender);
+        vm.deal(lender, 20 ether);
+
+        uint256 requestID = iLimitMarket.lend{value: 6 ether}();
+        uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
+        uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
+        vm.stopPrank();
+        vm.prank(deployer);
+        iBacker.toast();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -284,7 +323,7 @@ contract LoanManagerUnitTest is Test {
             tokens,
             collateralAmount,
             amountToBorrow,
-            false
+            priority
         );
     }
 

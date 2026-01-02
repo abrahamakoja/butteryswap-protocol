@@ -51,6 +51,17 @@ contract Backer is
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
+    modifier loanManagerIsSet() {
+        if (
+            address(LoanManager) == address(0) ||
+            address(ProtocolManager.LoanManager()) != address(LoanManager)
+        ) {
+            LoanManager = ILoanManager(address(ProtocolManager.LoanManager()));
+            require(address(LoanManager) != address(0), "LoanManager not set");
+        }
+        _;
+    }
+
     modifier backeryIsSet() {
         if (
             address(Backery) == address(0) ||
@@ -88,8 +99,14 @@ contract Backer is
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function toast() external payable onlyRole(BACKER_ADMIN) nonReentrant {
-        LoanManager.createActiveLoan();
+    function toast()
+        external
+        payable
+        loanManagerIsSet
+        onlyRole(BACKER_ADMIN)
+        nonReentrant
+    {
+        LoanManager.approveLoanRequests();
     }
 
     // gap

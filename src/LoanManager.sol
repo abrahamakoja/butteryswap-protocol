@@ -111,6 +111,7 @@ contract LoanManager is
     enum RequestState {
         CLOSED,
         OPEN,
+        ACTIVE,
         CANCELLED,
         SETTLED,
         UPDATING
@@ -121,6 +122,7 @@ contract LoanManager is
     //////////////////////////////////////////////////////////////*/
 
     bytes32 public LIMIT_MARKET;
+    bytes32 public BACKER;
 
     address public admin;
 
@@ -134,7 +136,12 @@ contract LoanManager is
     uint256 internal nextLenderID;
     uint256 internal nBREAD;
     uint256 internal mBREAD;
+    uint256 internal toast;
+    uint256 internal crumbs;
     uint256 internal borrowRequestCount;
+
+    uint256 internal totalBorrowRequestAmount;
+    uint256 internal totalLendRequestAmount;
     uint256 internal lendRequestCount;
 
     Queue internal priorityQueue;
@@ -164,6 +171,8 @@ contract LoanManager is
         address indexed borrower,
         uint256 indexed mBreadMinted
     );
+    event ToastMinted(address indexed borrower, uint256 indexed toastMinted);
+    event CrumbsMinted(address indexed lender, uint256 indexed crumbsMinted);
     event collateralAmountIncreased(
         uint256 indexed requestID,
         uint256 indexed collateralValue,
@@ -179,6 +188,7 @@ contract LoanManager is
         uint256 indexed nBreadMinted
     );
     event BorrowQueueIncreased(uint256 indexed requestID);
+    event BorrowRequestReQueued(uint256 indexed requestID);
     event BorrowQueueReduced(uint256 indexed requestID);
     event BorrowRequestCancelled(
         address indexed borrower,
@@ -188,6 +198,7 @@ contract LoanManager is
         address indexed borrower,
         uint256 indexed requestID
     );
+    event LendRequestReQueued(uint256 indexed requestID);
 
     event LendQueueIncreased(uint256 indexed requestID);
     event LendQueueReduced(uint256 indexed requestID);
@@ -239,6 +250,7 @@ contract LoanManager is
         // @audit lock after initialize
         __AccessControl_init();
         LIMIT_MARKET = keccak256("LIMIT_MARKET");
+        BACKER = keccak256("BACKER");
         ProtocolManager = IProtocolManager(protocolManager);
         TokenManager = ITokenManager(ProtocolManager.TokenManager());
         Backery = IBackery(address(0));
@@ -248,7 +260,11 @@ contract LoanManager is
         nextLenderID = 1;
         nBREAD = 1;
         mBREAD = 2;
+        toast = 3;
+        crumbs = 4;
         borrowRequestCount = 0;
+        totalBorrowRequestAmount = 0;
+        totalLendRequestAmount = 0;
         lendRequestCount = 0;
 
         bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -257,7 +273,16 @@ contract LoanManager is
             LIMIT_MARKET,
             ProtocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
         );
-        require(adminRoleGranted && limitMarketContractRoleGranted);
+
+        bool backerContractRoleGranted = _grantRole(
+            BACKER,
+            ProtocolManager.Backer()
+        );
+        require(
+            adminRoleGranted &&
+                limitMarketContractRoleGranted &&
+                backerContractRoleGranted
+        );
 
         ProtocolManager.setloanManager(address(this), msg.sender);
     }
@@ -326,7 +351,7 @@ contract LoanManager is
         borrowRequestDetails.amountToBorrow = eligibleAmountToBorrow;
         borrowRequestDetails.priority = priority;
         borrowRequestDetails.timeCreated = block.timestamp;
-        borrowRequestDetails.interestRate = 1e18; // @audit fix
+        borrowRequestDetails.interestRate = 10e18; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
         borrowRequestDetails.mBreadBalance = eligibleAmountToBorrow;
         borrowRequestDetails.requestID = requestID;
@@ -334,11 +359,12 @@ contract LoanManager is
 
         borrowerToRequestsID[borrower].push(requestID);
 
-        // _borrowRequestDetails[requestID] = borrowRequestDetails; // @audit check if this is relevant
+        totalBorrowRequestAmount += eligibleAmountToBorrow;
         borrowRequestCount++;
         nextBorrowerID++;
 
-        if (priority == true) {
+        console2.log("this priority", priority);
+        if (priority) {
             _enQueue(priorityQueue, requestID);
             emit BorrowRequestPrioritized(requestID);
         } else {
@@ -510,6 +536,7 @@ contract LoanManager is
         borrowRequestDetails.dueDate = 0; // @audit fix
         borrowRequestDetails.mBreadBalance = 0;
         borrowRequestDetails.state = RequestState.CANCELLED;
+        totalBorrowRequestAmount -= borrowRequestDetails.amountToBorrow;
         borrowRequestCount--;
 
         // remove from queue
@@ -585,6 +612,7 @@ contract LoanManager is
         lendRequestDetails.nBreadBalance = amountToLend;
         lendRequestDetails.requestID = requestID;
         lendRequestDetails.state = RequestState.OPEN;
+        totalLendRequestAmount += amountToLend;
         lendRequestCount++;
 
         // _lendRequestDetails[requestID] = lendRequestDetails;
@@ -639,14 +667,15 @@ contract LoanManager is
         lendRequestDetails.state = RequestState.UPDATING;
 
         uint256 nBreadBalance = lendRequestDetails.nBreadBalance;
-
-        lendRequestDetails.nBreadBalance = 0;
-        lendRequestDetails.state = RequestState.CANCELLED;
-        lendRequestCount--;
-        /** EFFECTS */
         uint256 amountToLend = lendRequestDetails.amountToLend;
         uint256 cancellationFee = 1;
         uint256 amountMinusFee = msg.value - cancellationFee;
+
+        lendRequestDetails.nBreadBalance = 0;
+        lendRequestDetails.state = RequestState.CANCELLED;
+        totalLendRequestAmount -= amountToLend;
+        lendRequestCount--;
+        /** EFFECTS */
 
         // remove from queue
         _removeFromQueue(supplyQueue, requestID);
@@ -673,17 +702,101 @@ contract LoanManager is
                              TOAST FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function createActiveLoan()
+    function approveLoanRequests()
         external
         payable
-        onlyRole(LIMIT_MARKET)
+        backeryIsSet
+        onlyRole(BACKER)
         nonReentrant
     {
-        // handles loan approval automaticall
-        // would strictly be called by backer
-        // keeps track of all active loans
-        // maintains a FIFO execution approach to disbursement
-        // maintain all relevant accounting on active loans
+        //    should never revert
+        if (totalBorrowRequestAmount > totalLendRequestAmount) {
+            console2.log("liquidity low");
+            return;
+        }
+        LendRequestDetails memory lendRequestDetails;
+        BorrowRequestDetails memory borrowRequestDetails;
+
+        // get borrow request
+        uint256 lendRequest = _deQueue(supplyQueue);
+        uint256 borrowRequest = _deQueue(normalQueue);
+        console2.log("borrowRequest", borrowRequest);
+
+        //  lend request check
+        if (lendRequest == 0) {
+            console2.log("lendRequest 2", lendRequest);
+
+            // check  list again
+            lendRequest = _deQueue(priorityQueue);
+            lendRequestDetails = _lendRequestDetails[lendRequest];
+            if (lendRequestDetails.state != RequestState.OPEN) {
+                // requeue
+                _enQueue(supplyQueue, lendRequest);
+                emit LendRequestReQueued(lendRequest);
+                return; //break
+            }
+            console2.log("lend lendRequest if clause", lendRequest);
+        } else {
+            lendRequestDetails = _lendRequestDetails[lendRequest];
+            // check and change state
+            if (lendRequestDetails.state != RequestState.OPEN) {
+                // requeue
+                _enQueue(supplyQueue, lendRequest);
+                emit LendRequestReQueued(lendRequest);
+                return; //break
+            }
+            console2.log("normal triggerd", lendRequest);
+        }
+
+        // borrow request check
+        if (borrowRequest == 0) {
+            console2.log("triggered 2", borrowRequest);
+
+            // check priority list
+            borrowRequest = _deQueue(priorityQueue);
+            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+            if (borrowRequestDetails.state != RequestState.OPEN) {
+                // requeue
+                _enQueue(priorityQueue, borrowRequest);
+                emit BorrowRequestReQueued(borrowRequest);
+                return; //break
+            }
+            console2.log("triggered prioritized", borrowRequest);
+        } else {
+            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+            // check and change state
+            if (borrowRequestDetails.state != RequestState.OPEN) {
+                // requeue
+                _enQueue(normalQueue, borrowRequest);
+                emit BorrowRequestReQueued(borrowRequest);
+            }
+            console2.log("normal triggerd", borrowRequest);
+        }
+
+        lendRequestDetails.state = RequestState.UPDATING;
+        borrowRequestDetails.state = RequestState.UPDATING;
+        // get relevant values
+        uint256 amountToBorrow = borrowRequestDetails.amountToBorrow;
+        address borrower = borrowRequestDetails.borrower;
+        uint256 amountToLend = lendRequestDetails.amountToLend;
+        address lender = lendRequestDetails.lender;
+
+        uint256 delta = amountToBorrow < amountToLend
+            ? 0
+            : amountToBorrow - amountToLend;
+        uint256 amountToPayBack = amountToBorrow +
+            borrowRequestDetails.interestRate;
+
+        // mint to borrow if delta is 0
+        if (delta == 0) {
+            // populate the active loan struct
+            // mint toast to borrower
+            emit ToastMinted(borrower, amountToBorrow);
+            emit CrumbsMinted(lender, amountToPayBack);
+            Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+            // mint crumbs to lender
+            Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
+        }
     }
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
@@ -722,7 +835,11 @@ contract LoanManager is
 
     function _deQueue(Queue storage q) private returns (uint256 ID) {
         ID = q.head;
-        require(ID != 0, "empty Queue");
+        if (ID == 0) {
+            console2.log("triggered 3", q.head);
+            return 0;
+        }
+        // require(ID != 0, "empty Queue");
 
         uint next = q.nodes[ID].next;
 

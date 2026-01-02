@@ -25,6 +25,9 @@ contract Backery is
     IBacker internal Backer;
     uint256 internal nBREAD; // lenders
     uint256 internal mBREAD; // borrowers
+    uint256 internal toast;
+    uint256 internal crumbs;
+
     address public admin;
 
     IProtocolManager internal ProtocolManager;
@@ -55,6 +58,8 @@ contract Backery is
 
         nBREAD = 1;
         mBREAD = 2;
+        toast = 3;
+        crumbs = 4;
 
         TokenMetadata memory doughMetaData = TokenMetadata({
             name: "Native Bread",
@@ -66,6 +71,16 @@ contract Backery is
             symbol: "mBREAD",
             decimals: 18
         });
+        TokenMetadata memory toastMetaData = TokenMetadata({
+            name: "Toast",
+            symbol: "TOAST",
+            decimals: 18
+        });
+        TokenMetadata memory crumbsMetaData = TokenMetadata({
+            name: "Crumbs",
+            symbol: "CRUMBS",
+            decimals: 18
+        });
 
         _setName(nBREAD, doughMetaData.name);
         _setSymbol(nBREAD, doughMetaData.symbol);
@@ -74,6 +89,14 @@ contract Backery is
         _setName(mBREAD, breadMetaData.name);
         _setSymbol(mBREAD, breadMetaData.symbol);
         _setDecimals(mBREAD, breadMetaData.decimals);
+
+        _setName(toast, toastMetaData.name);
+        _setSymbol(toast, toastMetaData.symbol);
+        _setDecimals(toast, toastMetaData.decimals);
+
+        _setName(crumbs, crumbsMetaData.name);
+        _setSymbol(crumbs, crumbsMetaData.symbol);
+        _setDecimals(crumbs, crumbsMetaData.decimals);
 
         ProtocolManager.updateBackeryContract(address(this), admin);
     }
