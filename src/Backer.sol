@@ -107,7 +107,7 @@ contract Backer is
         nonReentrant
         returns (uint256 activeLoanID)
     {
-        activeLoanID = LoanManager.approveLoanRequests();
+        activeLoanID = LoanManager.approveLoanRequests2();
     }
 
     // gap

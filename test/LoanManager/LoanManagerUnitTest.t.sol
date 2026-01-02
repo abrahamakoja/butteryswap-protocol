@@ -241,7 +241,7 @@ contract LoanManagerUnitTest is Test {
         testVars.amount = 6e18;
         testVars.originationFee = 1 ether;
         testVars.listingFee = 1 ether;
-        testVars.amountToBorrow = 6 ether;
+        testVars.amountToBorrow = 12 ether;
         testVars.priority = true;
         // bool priority = true;
 
@@ -256,14 +256,28 @@ contract LoanManagerUnitTest is Test {
         );
         vm.stopPrank();
         vm.startPrank(lender);
-        vm.deal(lender, 20 ether);
+        vm.deal(lender, 2000 ether);
 
         uint256 requestID = iLimitMarket.lend{value: 6 ether}();
         uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
         uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
         vm.stopPrank();
         vm.prank(deployer);
         uint256 activeLoanID = iBacker.toast();
+        iLoanManager.getLendRequestDetails(requestID);
+        iLoanManager.getLendRequestDetails(requestID1);
+        iLoanManager.getLendRequestDetails(requestID2);
         iLoanManager.getActiveLoanRequest(activeLoanID);
     }
 

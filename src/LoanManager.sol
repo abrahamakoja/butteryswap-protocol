@@ -73,6 +73,7 @@ contract LoanManager is
         LenderDetails[] lenderDetails;
         uint256 timeApproved;
         uint256 dueDate;
+        uint256 activeLoanID;
     }
 
     struct LenderDetails {
@@ -378,12 +379,12 @@ contract LoanManager is
             ? collateralValue
             : amountToBorrow; //@audit token amounts must be formatted corrrectly in 18 decimals
         borrowRequestDetails.borrower = borrower;
-        borrowRequestDetails.amountToBorrow = eligibleAmountToBorrow;
+        borrowRequestDetails.amountToBorrow = amountToBorrow; // @audit review
         borrowRequestDetails.priority = priority;
         borrowRequestDetails.timeCreated = block.timestamp;
         borrowRequestDetails.interestRate = 10e18; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
-        borrowRequestDetails.mBreadBalance = eligibleAmountToBorrow;
+        borrowRequestDetails.mBreadBalance = amountToBorrow; //@audit
         borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = LoanState.OPEN;
 
@@ -410,7 +411,7 @@ contract LoanManager is
         emit BorrowQueueIncreased(requestID);
         // mint
 
-        Backery.mint(borrower, mBREAD, eligibleAmountToBorrow * 1 ether); //@audit overflow?
+        Backery.mint(borrower, mBREAD, amountToBorrow * 1 ether); //@audit overflow?
 
         // Backery.transferFrom(borrower, address(ProtocolManager), 1, 1);
         return requestID;
@@ -752,6 +753,7 @@ contract LoanManager is
         ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
             activeLoanID
         ];
+        // activeLoanDetails.activeLoanID = activeLoanCount;
 
         console2.log("activeLoanID", activeLoanID);
         console2.log("activeLoanCount", activeLoanCount);
@@ -870,6 +872,7 @@ contract LoanManager is
             activeLoanDetails.lenderDetails.push(lenderDetails);
             activeLoanDetails.timeApproved = block.timestamp;
             activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+            activeLoanDetails.activeLoanID = activeLoanCount;
 
             // emit events
             emit ToastMinted(borrower, amountToBorrow);
@@ -878,10 +881,70 @@ contract LoanManager is
             Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
             // mint crumbs to lender
             Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
+            // return activeLoanID;
         } else {
             // fetch more lend request that can collectively satisfy the borrow request
+            uint256 lendRequest = _deQueue(supplyQueue);
             // use the number to bound a for loop
             // process loan
+            console2.log("delta is above 0", delta);
+            return 0;
+        }
+    }
+    function approveLoanRequests2()
+        external
+        payable
+        backeryIsSet
+        onlyRole(BACKER)
+        nonReentrant
+        returns (uint256 activeLoanID)
+    {
+        //    should never revert
+        if (totalBorrowRequestAmount > totalLendRequestAmount) {
+            console2.log("liquidity low");
+            return 0;
+        }
+        activeLoanCount++;
+        activeLoanID = activeLoanCount;
+        LendRequestDetails storage lendRequestDetails;
+        BorrowRequestDetails storage borrowRequestDetails;
+        ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
+            activeLoanID
+        ];
+
+        // get borrow request
+        uint256 lendRequest = _deQueue(supplyQueue);
+        uint256 borrowRequest = _deQueue(normalQueue);
+        console2.log("borrowRequest", borrowRequest);
+
+        // borrow request check
+        if (borrowRequest == 0) {
+            console2.log("triggered 2", borrowRequest);
+
+            // check priority list
+            borrowRequest = _deQueue(priorityQueue);
+            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+            if (borrowRequestDetails.state != LoanState.OPEN) {
+                // requeue
+                _enQueue(priorityQueue, borrowRequest);
+                emit BorrowRequestReQueued(borrowRequest);
+                return 0; //break
+            }
+            console2.log("triggered prioritized", borrowRequest);
+        } else {
+            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+            // check and change state
+            if (borrowRequestDetails.state != LoanState.OPEN) {
+                // requeue
+                _enQueue(normalQueue, borrowRequest);
+                emit BorrowRequestReQueued(borrowRequest);
+            }
+            console2.log("normal triggerd", borrowRequest);
+        }
+
+        uint256 bound = lendRequestCount <= 4 ? lendRequestCount : 4; // @audit convert to precision remove magic numbers
+        for (uint256 i = 0; i < bound; i++) {
+            console2.log("bound", bound);
         }
     }
     /*//////////////////////////////////////////////////////////////
@@ -1047,6 +1110,7 @@ contract LoanManager is
         ActiveLoanDetails memory activeLoanDetails = _activeLoanDetails[
             activeLoanID
         ];
+
         // tokens = new address[](1);
         // tokens = activeLoanDetails.collateralDetails.tokenDetails[0].token;
         console2.log(activeLoanDetails.collateralDetails.tokenDetails[5].token);
@@ -1089,7 +1153,7 @@ contract LoanManager is
     function getLendRequestDetails(
         uint256 _requestID
     )
-        public
+        external
         view
         returns (
             address lender,
