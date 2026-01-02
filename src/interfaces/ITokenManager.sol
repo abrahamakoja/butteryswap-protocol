@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 interface ITokenManager {
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function totalRequestedTokens() external returns (uint256);
     function requestTokenListing(address token) external payable;
 
     function updateTokenFeeAddress(
@@ -18,7 +19,7 @@ interface ITokenManager {
 
     function emergencyUnListToken(address token) external;
 
-     function getTotalRequestedTokens() external view returns (uint256 );
+    function getTotalRequestedTokens() external view returns (uint256);
 
     function getTotalListedActiveTokens()
         external
@@ -32,17 +33,7 @@ interface ITokenManager {
 
     function getTokenDetails(
         address token
-    )
-        external
-        view
-        returns (
-            address,
-            address,
-            address,
-            uint256,
-            uint8,
-            uint8
-        );
+    ) external view returns (address, address, address, uint256, uint8, uint8);
 
     function checkIsTokenListed(
         address token
@@ -51,4 +42,8 @@ interface ITokenManager {
     function checkIsTokenOperational(
         address token
     ) external view returns (bool operational);
+    function getTotalTokenEthValue(
+        address token,
+        uint256 amount
+    ) external view returns (uint256 tokenEthValue);
 }

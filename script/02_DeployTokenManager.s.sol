@@ -1,20 +1,31 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
-import {Script,console2} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 import {TokenManager} from "../src/TokenManager.sol";
-import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
+import {ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract DeployTokenManager is Script {
     function run() external returns (TokenManager tokenManager) {
-        vm.startBroadcast();
-        // address mostRecentlyDeployedProtocolManager = DevOpsTools
-        //     .get_most_recent_deployment("ProtocolManager", block.chainid);
+        address mostRecentlyDeployedProtocolManager = ProxyDevOpsTools
+            .getMostRecentProxyDeployment(
+                "ProtocolManager",
+                "ERC1967Proxy",
+                block.chainid
+            );
 
-        // tokenManager = new TokenManager(mostRecentlyDeployedProtocolManager);
-        tokenManager = new TokenManager(address(0x34A1D3fff3958843C43aD80F30b94c510645C316));
-        console2.log("Deploy script",address(tokenManager));
+        vm.startBroadcast();
+
+        address proxy = Upgrades.deployUUPSProxy(
+            "TokenManager.sol",
+            abi.encodeCall(
+                TokenManager.initialize,
+                mostRecentlyDeployedProtocolManager
+            )
+        );
+
         vm.stopBroadcast();
-        return tokenManager;
+        return TokenManager(proxy);
     }
 }

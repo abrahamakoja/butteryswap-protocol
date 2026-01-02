@@ -1,0 +1,170 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {IBacker} from "./interfaces/IBacker.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ERC6909Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/ERC6909Upgradeable.sol";
+import {ERC6909MetadataUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/extensions/ERC6909MetadataUpgradeable.sol";
+import {ERC6909TokenSupplyUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC6909/extensions/ERC6909TokenSupplyUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IERC6909} from "@openzeppelin/contracts/interfaces/IERC6909.sol";
+
+contract Backery is
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    ERC6909Upgradeable,
+    ERC6909MetadataUpgradeable,
+    ERC6909TokenSupplyUpgradeable,
+    ReentrancyGuardTransient
+{
+    bytes32 public LOAN_MANAGER;
+
+    IBacker internal Backer;
+    uint256 internal nBREAD; // lenders
+    uint256 internal mBREAD; // borrowers
+    uint256 internal toast;
+    uint256 internal crumbs;
+
+    address public admin;
+
+    IProtocolManager internal ProtocolManager;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address protocolManager) public initializer {
+        __AccessControl_init();
+        __ERC6909_init();
+        __ERC6909Metadata_init();
+        __ERC6909TokenSupply_init();
+
+        LOAN_MANAGER = keccak256("LOAN_MANAGER");
+        ProtocolManager = IProtocolManager(protocolManager);
+        Backer = IBacker(ProtocolManager.Backer());
+
+        admin = ProtocolManager.deployer();
+
+        bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        bool loanManagerRoleGranted = _grantRole(
+            LOAN_MANAGER,
+            ProtocolManager.LoanManager()
+        );
+        require(adminRoleGranted && loanManagerRoleGranted, "grantRole failed");
+
+        nBREAD = 1;
+        mBREAD = 2;
+        toast = 3;
+        crumbs = 4;
+
+        TokenMetadata memory doughMetaData = TokenMetadata({
+            name: "Native Bread",
+            symbol: "nBREAD",
+            decimals: 18
+        });
+        TokenMetadata memory breadMetaData = TokenMetadata({
+            name: "Meme Bread",
+            symbol: "mBREAD",
+            decimals: 18
+        });
+        TokenMetadata memory toastMetaData = TokenMetadata({
+            name: "Toast",
+            symbol: "TOAST",
+            decimals: 18
+        });
+        TokenMetadata memory crumbsMetaData = TokenMetadata({
+            name: "Crumbs",
+            symbol: "CRUMBS",
+            decimals: 18
+        });
+
+        _setName(nBREAD, doughMetaData.name);
+        _setSymbol(nBREAD, doughMetaData.symbol);
+        _setDecimals(nBREAD, doughMetaData.decimals);
+
+        _setName(mBREAD, breadMetaData.name);
+        _setSymbol(mBREAD, breadMetaData.symbol);
+        _setDecimals(mBREAD, breadMetaData.decimals);
+
+        _setName(toast, toastMetaData.name);
+        _setSymbol(toast, toastMetaData.symbol);
+        _setDecimals(toast, toastMetaData.decimals);
+
+        _setName(crumbs, crumbsMetaData.name);
+        _setSymbol(crumbs, crumbsMetaData.symbol);
+        _setDecimals(crumbs, crumbsMetaData.decimals);
+
+        ProtocolManager.updateBackeryContract(address(this), admin);
+    }
+
+    function mint(address to, uint256 id, uint256 amount) external {
+        _mint(to, id, amount);
+    }
+    function burn(address from, uint256 id, uint256 amount) external {
+        _burn(from, id, amount);
+    }
+
+    function getBalance(
+        address owner,
+        uint256 tokenId
+    ) external view returns (uint256 balance) {
+        balance = balanceOf(owner, tokenId);
+        return balance;
+    }
+
+    function getTotalSupply(
+        uint256 ID
+    ) external view returns (uint256 _totalSupply) {
+        _totalSupply = totalSupply(ID);
+        return _totalSupply;
+    }
+
+    function getName(uint256 ID) external view returns (string memory _name) {
+        _name = name(ID);
+        return _name;
+    }
+    function getTokenMetadata(
+        uint256 ID
+    ) external view returns (TokenMetadata memory tokenMetadata) {
+        return
+            tokenMetadata = TokenMetadata({
+                name: name(ID),
+                symbol: symbol(ID),
+                decimals: decimals(ID)
+            });
+    }
+    // initializers
+    function _authorizeUpgrade(address) internal override {}
+
+    function _update(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount
+    )
+        internal
+        virtual
+        override(ERC6909Upgradeable, ERC6909TokenSupplyUpgradeable)
+    {
+        super._update(from, to, id, amount);
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(AccessControlUpgradeable, ERC6909Upgradeable, IERC165)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    // gap
+    uint256[60] private __gap;
+}

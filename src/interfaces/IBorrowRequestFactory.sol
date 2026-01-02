@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 interface IBorrowRequestFactory {
     function createRequest(
@@ -8,7 +8,7 @@ interface IBorrowRequestFactory {
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable;
+    ) external payable returns (address borrowRequest);
 
     function prioritizeLoanRequest(
         address borrower,

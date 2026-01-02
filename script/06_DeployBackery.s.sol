@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.28;
 
-import {Script, console2} from "forge-std/Script.sol";
-import {LimitMarket} from "../src/LimitMarket.sol";
+import {Script} from "forge-std/Script.sol";
+import {Backery} from "../src/Backery.sol";
 import {ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
-contract DeployLimitMarket is Script {
+contract DeployBackery is Script {
     address mostRecentlyDeployedProtocolManager;
-    function run() external returns (LimitMarket limitMarket) {
+
+    function run() external returns (Backery backery) {
         mostRecentlyDeployedProtocolManager = ProxyDevOpsTools
             .getMostRecentProxyDeployment(
                 "ProtocolManager",
@@ -17,17 +19,14 @@ contract DeployLimitMarket is Script {
             );
         vm.startBroadcast();
         address proxy = Upgrades.deployUUPSProxy(
-            "LimitMarket.sol",
+            "Backery.sol",
             abi.encodeCall(
-                LimitMarket.initialize,
+                Backery.initialize,
                 mostRecentlyDeployedProtocolManager
             )
         );
-        console2.log(
-            "limitMarket protocolManager",
-            mostRecentlyDeployedProtocolManager
-        );
+
         vm.stopBroadcast();
-        return LimitMarket(proxy);
+        return Backery(proxy);
     }
 }

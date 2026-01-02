@@ -1,33 +1,36 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {LimitMarket} from "../src/LimitMarket.sol";
+import {LoanManager} from "../src/LoanManager.sol";
 import {ProxyDevOpsTools} from "./ProxyDevOps.s.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {IProtocolManager} from "../src/interfaces/IProtocolManager.sol";
 
-contract DeployLimitMarket is Script {
+contract DeployLoanManager is Script {
     address mostRecentlyDeployedProtocolManager;
-    function run() external returns (LimitMarket limitMarket) {
+
+    function run() external returns (LoanManager loanManager) {
         mostRecentlyDeployedProtocolManager = ProxyDevOpsTools
             .getMostRecentProxyDeployment(
                 "ProtocolManager",
                 "ERC1967Proxy",
                 block.chainid
             );
+
         vm.startBroadcast();
+
         address proxy = Upgrades.deployUUPSProxy(
-            "LimitMarket.sol",
+            "LoanManager.sol",
             abi.encodeCall(
-                LimitMarket.initialize,
-                mostRecentlyDeployedProtocolManager
+                LoanManager.initialize,
+                (mostRecentlyDeployedProtocolManager)
             )
         );
-        console2.log(
-            "limitMarket protocolManager",
-            mostRecentlyDeployedProtocolManager
-        );
+
         vm.stopBroadcast();
-        return LimitMarket(proxy);
+
+        return LoanManager(payable(address(proxy)));
     }
 }

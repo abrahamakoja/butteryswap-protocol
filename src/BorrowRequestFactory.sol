@@ -1,17 +1,42 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
+
+/**
+ * ███████████              █████     █████                                   █████████                                     
+*▒▒███▒▒▒▒▒███            ▒▒███     ▒▒███                                   ███▒▒▒▒▒███                                    
+* ▒███    ▒███ █████ ████ ███████   ███████    ██████  ████████  █████ ████▒███    ▒▒▒  █████ ███ █████  ██████   ████████ 
+* ▒██████████ ▒▒███ ▒███ ▒▒▒███▒   ▒▒▒███▒    ███▒▒███▒▒███▒▒███▒▒███ ▒███ ▒▒█████████ ▒▒███ ▒███▒▒███  ▒▒▒▒▒███ ▒▒███▒▒███
+* ▒███▒▒▒▒▒███ ▒███ ▒███   ▒███      ▒███    ▒███████  ▒███ ▒▒▒  ▒███ ▒███  ▒▒▒▒▒▒▒▒███ ▒███ ▒███ ▒███   ███████  ▒███ ▒███
+* ▒███    ▒███ ▒███ ▒███   ▒███ ███  ▒███ ███▒███▒▒▒   ▒███      ▒███ ▒███  ███    ▒███ ▒▒███████████   ███▒▒███  ▒███ ▒███
+* ███████████  ▒▒████████  ▒▒█████   ▒▒█████ ▒▒██████  █████     ▒▒███████ ▒▒█████████   ▒▒████▒████   ▒▒████████ ▒███████ 
+▒▒▒▒▒▒▒▒▒▒▒    ▒▒▒▒▒▒▒▒    ▒▒▒▒▒     ▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒       ▒▒▒▒▒███  ▒▒▒▒▒▒▒▒▒     ▒▒▒▒ ▒▒▒▒     ▒▒▒▒▒▒▒▒  ▒███▒▒▒                                                                   ███ ▒███                                        ▒███     
+                                                                ▒▒██████                                         █████    
+                                                                 ▒▒▒▒▒▒                                         ▒▒▒▒▒   
+
+ ███████████                      █████                               ████ 
+▒▒███▒▒▒▒▒███                    ▒▒███                               ▒▒███ 
+ ▒███    ▒███ ████████   ██████  ███████    ██████   ██████   ██████  ▒███ 
+ ▒██████████ ▒▒███▒▒███ ███▒▒███▒▒▒███▒    ███▒▒███ ███▒▒███ ███▒▒███ ▒███ 
+ ▒███▒▒▒▒▒▒   ▒███ ▒▒▒ ▒███ ▒███  ▒███    ▒███ ▒███▒███ ▒▒▒ ▒███ ▒███ ▒███ 
+ ▒███         ▒███     ▒███ ▒███  ▒███ ███▒███ ▒███▒███  ███▒███ ▒███ ▒███ 
+ █████        █████    ▒▒██████   ▒▒█████ ▒▒██████ ▒▒██████ ▒▒██████  █████
+▒▒▒▒▒        ▒▒▒▒▒      ▒▒▒▒▒▒     ▒▒▒▒▒   ▒▒▒▒▒▒   ▒▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒ 
+                                                                           
+                                                                           
+                                                                             
+ */
 
 /// @title BorrowRequestFactory
 /// @author ButterySwap Protocol
-/// @notice Explain to an end user what this does
-/// @dev Explain to a developer any extra details
+/// @notice  @audit Explain to an end user what this does
+/// @dev @audit Explain to a developer any extra details
 
-//  debug
-import {Script, console} from "forge-std/Script.sol";
+//  debug @audit
+import {Script, console2} from "forge-std/Script.sol";
 
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
-    //////////////////////////////////////////////////////////////*/
+//////////////////////////////////////////////////////////////*/
 
 import {BorrowRequest} from "./BorrowRequest.sol";
 import {erc20TokenLibrary} from "./libraries/erc20TokenLibrary.sol";
@@ -19,10 +44,17 @@ import {IBorrowRequest} from "./interfaces/IBorrowRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
+contract BorrowRequestFactory is
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    ReentrancyGuardTransient
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -31,6 +63,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     error BorrowRequestFactory__unSupportedToken(address token);
     error BorrowRequestFactory__NoCollateralSent(uint256 collateralAmount);
     error BorrowRequestFactory__InvalidRequest();
+    error BorrowRequestFactory__InvalidAddress();
     error BorrowRequestFactory__insufficientPriorityFee();
     error BorrowRequestFactory__collateralAssetMaxLimitReached();
     error BorrowRequestFactory__providedAssetsOutOfRange(
@@ -43,25 +76,58 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     error BorrowRequestFactory__BorrowRequestFailed();
     error BorrowRequestFactory__PriorityFeePaymentFailed();
     error BorrowRequestFactory__OriginationFeePaymentFailed();
-    error LendRequestFactory__insufficientFeeAmount();
+    error BorrowRequestFactory__insufficientFeeAmount();
     error BorrowRequestFactory__collateralValueMismatch();
     error BorrowRequestFactory__RequestIsPrioritized();
+
+    /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    struct RequestInfo {
+        address borrower;
+        address request;
+        uint256 totalAmountRequested;
+        uint256 position;
+        bool isValid;
+        bool prioritized;
+    }
+
+    struct PriorityList {
+        address request;
+        uint256 position;
+    }
+
+    struct TokenInfo {
+        address tokenAddress;
+        uint256 amount;
+        uint256 price;
+        uint256 ethValueAtRequestTime;
+    }
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant LIMIT_MARKET_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN");
+    bytes32 public limitMarketContract;
 
-    IProtocolManager private immutable s_protocolManager;
+    address private _beacon;
 
-    BorrowRequest[] private s_totalNonPrioritizedBorrowRequest;
+    uint256 private _requestCount;
+    uint256 private _priorityCount;
 
-    BorrowRequest[] private s_prioritizedBorrowRequests;
+    IProtocolManager private _protocolManager;
+
+    BorrowRequest[] private _totalUnPrioritizedRequests;
+
+    BorrowRequest[] private _prioritizedRequests;
 
     mapping(address borrower => address[] borrowRequestAddresses)
         private userToBorrowRequestAddresses;
+    mapping(address borrower => RequestInfo[] requestInfo)
+        private userToRequests;
+    mapping(uint256 index => PriorityList[] priorityList)
+        private indexToPrioritizedRequests;
 
     mapping(address borrowRequest => address borrower)
         private borrowRequestToBorrower;
@@ -77,7 +143,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
 
     mapping(address => bool) private s_isValidContract;
 
-    mapping(address borrowRequest => mapping(address collateral => uint256 value))
+    mapping(address borrowRequest => TokenInfo[] tokenInfo)
         private collateralToValue;
 
     mapping(address borrower => uint256 totalAmountRequested)
@@ -86,6 +152,11 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
+
+    event BorrowRequestFactoryInitialized(
+        address indexed borrowRequestFactoryAddress
+    );
+    event ImplementationUpgraded(address indexed newImplementation);
 
     event BorrowRequestCreated(
         address indexed user,
@@ -109,16 +180,61 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         uint256 indexed priorityFee
     );
 
-    /** CONSTRUCTOR */
-    constructor(address _protocolManager) {
-        s_protocolManager = IProtocolManager(_protocolManager);
-
-        bool roleGranted = _grantRole(
-            LIMIT_MARKET_ADMIN,
-            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+    modifier addressIsValid(address _address) {
+        require(
+            (_address != address(0)),
+            BorrowRequestFactory__InvalidAddress()
         );
-        if (!roleGranted) revert();
+        _;
     }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            PUBLIC FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    function initialize(
+        address protocolManager,
+        address beacon
+    ) public initializer {
+        __AccessControl_init();
+
+        limitMarketContract = keccak256("limitMarketContract");
+        _protocolManager = IProtocolManager(protocolManager);
+        _beacon = beacon;
+        _requestCount = 0;
+        address deployer = _protocolManager.deployer();
+
+        bool adminRoleGranted = _grantRole(DEFAULT_ADMIN_ROLE, deployer);
+
+        bool limitMarketContractRoleGranted = _grantRole(
+            limitMarketContract,
+            _protocolManager.LIMIT_MARKET_CONTRACT_ADDRESS()
+        );
+        require(adminRoleGranted && limitMarketContractRoleGranted);
+        _protocolManager.updateBorrowRequestFactoryContract(
+            address(this),
+            deployer
+        );
+        emit BorrowRequestFactoryInitialized(address(this));
+    }
+
+    function upgradeImplementation(
+        address _newImplementation
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        UpgradeableBeacon(_beacon).upgradeTo({
+            newImplementation: _newImplementation
+        });
+        _beacon = _newImplementation;
+        emit ImplementationUpgraded({newImplementation: _newImplementation});
+    }
+
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
@@ -129,65 +245,79 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     /// @param tokens The list of tokens to be used as collateral
     /// @param borrower The address of the enforcer contract
     /// @param priority The address of the enforcer contract
+    /// @return borrowRequest
     function createRequest(
         uint256[] calldata collateralAmount,
         uint256 loanAmountRequested,
         address[] calldata tokens,
         address borrower,
         bool priority
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    )
+        external
+        payable
+        addressIsValid(borrower)
+        onlyRole(limitMarketContract)
+        nonReentrant
+        returns (address borrowRequest)
+    {
         // @note check health factor of each token
+        // @audit check fee here
         // @audit if value of tokens match requested collateral amount based of ltv
+        // @audit integrate enumerable sets
+        // @audit loanAmountRequested should be checked based off the ltv of supplied tokens
+        // uint256 totalCollateralValue;
+        //@audit change this to a helper function that gets value in eth for tokens
+        // @audit value at creation time would always differ by completion,
+        // do not depend on collateral value for accounting but protocol interest rates at creation
+        // interest should be fetched from limit market before passed to factory.
 
-        /** CHECKS */
-        // uint256 totalCollateralValue; //@audit change this to a helper function that gets value in eth for tokens
+        /// CHECKS
 
-        if (collateralAmount.length != tokens.length)
-            revert BorrowRequestFactory__rangeDataMisMatch();
-
-        if (
-            tokens.length == 0 ||
-            tokens.length > s_protocolManager.MAX_ASSET_LIMIT()
-        ) revert BorrowRequestFactory__InvalidTokenCount(tokens.length);
-
-        _rawCreateRequest(
-            collateralAmount,
-            loanAmountRequested,
-            tokens,
-            borrower,
-            priority
-        );
+        borrowRequest = _rawCreateRequest({
+            _collateralAmount: collateralAmount,
+            _loanAmountRequested: loanAmountRequested,
+            _tokens: tokens,
+            _borrower: borrower,
+            _priority: priority
+        });
     }
 
     function prioritizeLoanRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
+        //@audit merge all three priority fee check using ||
         if (
             msg.value <
-            s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
-        ) revert();
+            _protocolManager.calculate_PriorityFee(borrowRequest.balance)
+        ) revert BorrowRequestFactory__insufficientPriorityFee();
 
         if (msg.value == 0)
             revert BorrowRequestFactory__insufficientPriorityFee();
         if (
             msg.value !=
-            s_protocolManager.calculate_PriorityFee(borrowRequest.balance)
-        ) revert();
+            _protocolManager.calculate_PriorityFee(borrowRequest.balance)
+        ) revert BorrowRequestFactory__insufficientPriorityFee();
 
-        if (s_isValidContract[borrowRequest] == false)
-            revert BorrowRequestFactory__InvalidRequest();
+        require(
+            (s_isValidContract[borrowRequest] == true),
+            BorrowRequestFactory__InvalidRequest()
+        );
 
-        if (s_loanIsPrioritized[borrowRequest] == true)
-            revert BorrowRequestFactory__RequestIsPrioritized();
+        require(
+            (s_loanIsPrioritized[borrowRequest] == false),
+            BorrowRequestFactory__RequestIsPrioritized()
+        );
 
         /** GET LOAN DETAILS */
         (, , , address _borrower, uint8 _state, ) = _getRequestDetails(
             borrowRequest
         );
 
-        if (_state != uint8(LoanConfigLibrary.RequestState.OPEN))
-            revert BorrowRequestFactory__RequestNotOpen();
+        require(
+            (_state == uint8(LoanConfigLibrary.RequestState.OPEN)),
+            BorrowRequestFactory__RequestNotOpen()
+        );
 
         _state = uint8(LoanConfigLibrary.RequestState.PRIORITIZING);
 
@@ -210,7 +340,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata tokens,
         uint256[] calldata collateralAmounts,
         uint256 loanAmountRequested
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
         // @audit if value of tokens match requested collateral amount based of ltv
         // check borrowRequest is valid
         if (s_isValidContract[borrowRequest] == false)
@@ -244,17 +374,17 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         ) revert BorrowRequestFactory__notOwner();
 
         //   check already deposited tokens count is below or equal to max asset limit allowed
-        if (!(_tokens.length <= s_protocolManager.MAX_ASSET_LIMIT())) {
+        if (!(_tokens.length <= _protocolManager.MAX_ASSET_LIMIT())) {
             revert BorrowRequestFactory__collateralAssetMaxLimitReached();
         }
 
         // check if new token length exceeds available slot
         if (
             tokens.length >
-            (s_protocolManager.MAX_ASSET_LIMIT() - _tokens.length)
+            (_protocolManager.MAX_ASSET_LIMIT() - _tokens.length)
         ) {
             revert BorrowRequestFactory__providedAssetsOutOfRange(
-                s_protocolManager.MAX_ASSET_LIMIT(),
+                _protocolManager.MAX_ASSET_LIMIT(),
                 tokens.length
             );
         }
@@ -272,7 +402,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
     function cancelRequest(
         address borrower,
         address borrowRequest
-    ) external payable onlyRole(LIMIT_MARKET_ADMIN) nonReentrant {
+    ) external payable onlyRole(limitMarketContract) nonReentrant {
         if (s_isValidContract[borrowRequest] == false)
             revert BorrowRequestFactory__InvalidRequest();
         /** GET LOAN DETAILS */
@@ -326,21 +456,21 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         )
     {
         return (
-            s_totalNonPrioritizedBorrowRequest.length,
-            s_prioritizedBorrowRequests.length
+            _totalUnPrioritizedRequests.length,
+            _prioritizedRequests.length
         );
     }
 
     function getNonPrioritizedRequestViaIndex(
         uint256 index
     ) external view returns (address request) {
-        return address(s_totalNonPrioritizedBorrowRequest[index]);
+        return address(_totalUnPrioritizedRequests[index]);
     }
 
     function getPrioritizedRequestViaIndex(
         uint256 index
     ) external view returns (address request) {
-        return address(s_prioritizedBorrowRequests[index]);
+        return address(_prioritizedRequests[index]);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -358,133 +488,125 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         address[] calldata _tokens,
         address _borrower,
         bool _priority
-    ) private {
-        /** EFFECTS */
+    ) private returns (address _borrowRequest) {
+        // EFFECTS
         uint256 totalCollateralValue;
         uint256 originationFee;
         uint256 priorityFee;
-        BorrowRequest borrowRequest;
-        try
-            new BorrowRequest(
-                _borrower,
-                _collateralAmount,
-                _loanAmountRequested,
-                _tokens,
-                block.timestamp,
-                address(s_protocolManager)
-            )
-        returns (BorrowRequest _BorrowRequest) {
-            borrowRequest = _BorrowRequest;
-            for (uint256 index = 0; index < _tokens.length; index++) {
-                // check each token is listed
-                if (
-                    !ITokenManager(s_protocolManager.TokenManager())
-                        .checkIsTokenListed(address(_tokens[index]))
-                ) revert BorrowRequestFactory__unSupportedToken(_tokens[index]);
 
-                if (_collateralAmount[index] == 0)
-                    revert BorrowRequestFactory__NoCollateralSent(
-                        _collateralAmount[index]
-                    );
-                totalCollateralValue += s_protocolManager
-                    .calculate_CollateralValue(_collateralAmount[index]);
-
-                collateralToValue[address(borrowRequest)][
-                    _tokens[index]
-                ] += _collateralAmount[index];
-
-                // Reset the allowance to the exact collateralAmount
-                erc20TokenLibrary.approveTokens(
-                    _tokens[index],
-                    address(this),
-                    _collateralAmount[index]
-                );
-            }
-
-            if (_priority) {
-                s_loanIsPrioritized[address(borrowRequest)] = true;
-
-                prioritizedBorrowRequestToBorrower[
-                    address(borrowRequest)
-                ] = address(_borrower);
-
-                s_prioritizedBorrowRequests.push(borrowRequest);
-
-                userToPrioritizedBorrowRequestAddresses[_borrower].push(
-                    address(borrowRequest)
-                );
-            } else {
-                s_totalNonPrioritizedBorrowRequest.push(borrowRequest);
-
-                borrowRequestToBorrower[address(borrowRequest)] = address(
-                    _borrower
-                );
-
-                userToBorrowRequestAddresses[_borrower].push(
-                    address(borrowRequest)
-                );
-            }
-        } catch {
-            revert BorrowRequestFactory__BorrowRequestFailed();
-        }
-
-        if (_loanAmountRequested < totalCollateralValue)
-            revert BorrowRequestFactory__collateralValueMismatch(); //@audit change to ltv check
-
-        priorityFee = s_protocolManager.calculate_PriorityFee(
-            totalCollateralValue
-        );
-
-        originationFee = s_protocolManager.calculate_OriginationFee(
-            totalCollateralValue
-        );
-        if (msg.value == 0) revert LendRequestFactory__insufficientFeeAmount();
-        if (_priority == true && msg.value != (originationFee + priorityFee))
-            revert();
-        if (_priority == false && msg.value != originationFee) revert();
-
-        borrowerToTotalAmountRequested[_borrower] += totalCollateralValue;
-
-        s_isValidContract[address(borrowRequest)] = true;
-
-        /** EMIT EVENTS */
-        emit BorrowRequestCreated(
+        bytes memory initData = abi.encodeWithSelector(
+            bytes4(
+                keccak256(
+                    "initialize(address,uint256[],uint256,address[],uint256,address)"
+                )
+            ),
             _borrower,
-            address(borrowRequest),
-            totalCollateralValue
+            _collateralAmount,
+            _loanAmountRequested,
+            _tokens,
+            block.timestamp,
+            address(_protocolManager)
         );
-        if (_priority == true)
-            emit BorrowRequestPrioritized(address(borrowRequest));
 
-        /** INTERACTIONS */
+        /// INTERACTIONS
 
-        /** COLLECT PRIORITY FEE */
-        if (_priority == true) {
-            /** SUM BOTH PRIORITY AND ORIGINATION FEES TOGETHER */
-            uint256 fee = priorityFee + originationFee;
-            (bool priorityFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
-                value: fee
-            }("");
-            if (!priorityFeePaid)
-                revert BorrowRequestFactory__PriorityFeePaymentFailed();
-        } else {
-            /** COLLECT ORIGINATION FEE */
-            (bool originationFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
-                value: originationFee
-            }("");
-            if (!originationFeePaid)
-                revert BorrowRequestFactory__OriginationFeePaymentFailed();
-        }
+        BeaconProxy borrowRequestProxy = new BeaconProxy(
+            address(_beacon),
+            initData
+        );
 
-        /** TRANSFER TOKENS TO BORROW REQUEST CONTRACT */
         for (uint256 index = 0; index < _tokens.length; index++) {
+            uint256 collateralAmount = _collateralAmount[index];
+            TokenInfo memory tokenInfo = TokenInfo({
+                tokenAddress: _tokens[index],
+                amount: collateralAmount,
+                price: 0,
+                ethValueAtRequestTime: 0
+            });
+
+            collateralToValue[address(borrowRequestProxy)].push(tokenInfo);
+
+            /// @dev transfer tokens to borrowRequest contract
             erc20TokenLibrary.transferFromTokens(
                 _tokens[index],
                 address(_borrower),
-                address(borrowRequest),
-                _collateralAmount[index]
+                address(borrowRequestProxy),
+                collateralAmount
+            );
+
+            //@audit this should capture the sum of all token eth value at request time
+            totalCollateralValue++;
+        }
+
+        priorityFee = _protocolManager.calculate_PriorityFee(
+            totalCollateralValue
+        );
+
+        originationFee = _protocolManager.calculate_OriginationFee(
+            totalCollateralValue
+        );
+
+        RequestInfo memory requestInfo = RequestInfo({
+            borrower: _borrower,
+            request: address(borrowRequestProxy),
+            totalAmountRequested: totalCollateralValue,
+            position: _requestCount,
+            isValid: true,
+            prioritized: _priority
+        });
+
+        userToRequests[_borrower].push(requestInfo);
+
+        if (_priority) {
+            PriorityList memory priorityInfo = PriorityList({
+                request: address(borrowRequestProxy),
+                position: _priorityCount
+            });
+            indexToPrioritizedRequests[_priorityCount].push(priorityInfo);
+            _priorityCount++;
+        }
+
+        _requestCount++;
+
+        borrowerToTotalAmountRequested[_borrower] += totalCollateralValue;
+
+        /// EVENTS
+
+        emit BorrowRequestCreated(
+            _borrower,
+            address(borrowRequestProxy),
+            totalCollateralValue
+        );
+        if (_priority)
+            emit BorrowRequestPrioritized(address(borrowRequestProxy));
+
+        /// INTERACTIONS
+
+        /// @dev collect fee
+        if (_priority) {
+            /// COLLECT ORIGINATION FEE + PRIORITY FEE
+            uint256 fee = priorityFee + originationFee;
+            (bool priorityFeePaid, ) = _protocolManager.FEE_CONTRACT().call{
+                value: fee
+            }("");
+
+            require(
+                priorityFeePaid,
+                BorrowRequestFactory__PriorityFeePaymentFailed()
+            );
+        } else {
+            /// COLLECT ONLY ORIGINATION FEE
+            (bool originationFeePaid, ) = _protocolManager.FEE_CONTRACT().call{
+                value: originationFee
+            }("");
+            require(
+                originationFeePaid,
+                BorrowRequestFactory__OriginationFeePaymentFailed()
             );
         }
+
+        // return borrow request address
+        _borrowRequest = address(borrowRequestProxy);
     }
 
     function _rawPrioritizeLoanRequest(
@@ -500,7 +622,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
             _borrower
         );
 
-        s_prioritizedBorrowRequests.push(BorrowRequest(_borrowRequest));
+        _prioritizedRequests.push(BorrowRequest(_borrowRequest));
 
         userToPrioritizedBorrowRequestAddresses[_borrower].push(
             address(_borrowRequest)
@@ -510,7 +632,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         emit BorrowRequestPrioritized(_borrowRequest, msg.value);
 
         /** COLLECT PRIORITY FEE */
-        (bool priorityFeePaid, ) = address(s_protocolManager.FEE_CONTRACT())
+        (bool priorityFeePaid, ) = address(_protocolManager.FEE_CONTRACT())
             .call{value: msg.value}("");
         if (!priorityFeePaid)
             revert BorrowRequestFactory__PriorityFeePaymentFailed();
@@ -533,7 +655,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         for (uint256 index = 0; index < _collateralAmount.length; index++) {
             totalCollateralValue += _collateralAmount[index];
         }
-        cancellationFee = s_protocolManager.calculateCancellationFee(
+        cancellationFee = _protocolManager.calculateCancellationFee(
             totalCollateralValue
         );
         _state = uint8(LoanConfigLibrary.RequestState.CANCELLED);
@@ -557,7 +679,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
 
         /** BORROWER WITHDRAWS ALL COLLATERAL */
         for (uint256 index = 0; index < _tokens.length; index++) {
-            erc20TokenLibrary.transferTokens(
+            erc20TokenLibrary.transfer(
                 address(_tokens[index]),
                 address(_borrower),
                 erc20TokenLibrary.getBalance(
@@ -568,7 +690,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         }
 
         /** COLLECT CANCELLATION FEE */
-        (bool success, ) = s_protocolManager.FEE_CONTRACT().call{
+        (bool success, ) = _protocolManager.FEE_CONTRACT().call{
             value: cancellationFee
         }("");
         if (!success) {
@@ -594,7 +716,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         // check if asset is supported by protocol / approve and execute transfer within the same loop
         for (uint256 index = 0; index > _tokens.length; index++) {
             if (
-                ITokenManager(s_protocolManager.TokenManager())
+                ITokenManager(_protocolManager.TokenManager())
                     .checkIsTokenListed(address(_tokens[index]))
             ) {
                 revert BorrowRequestFactory__unSupportedToken(
@@ -602,7 +724,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                 );
             }
 
-            totalCollateralValue += s_protocolManager.calculate_CollateralValue(
+            totalCollateralValue += _protocolManager.calculate_CollateralValue(
                 _collateralAmounts[index]
             );
 
@@ -611,9 +733,9 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                 index
             ];
 
-            collateralToValue[address(_borrowRequest)][
-                _tokens[index]
-            ] += _collateralAmounts[index];
+            // collateralToValue[address(_borrowRequest)][
+            //     _tokens[index]
+            // ] += _collateralAmounts[index];
 
             // interactions
 
@@ -651,7 +773,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         );
 
         /** COLLECT ORIGINATION FEE */
-        originationFee = s_protocolManager.calculate_OriginationFee(
+        originationFee = _protocolManager.calculate_OriginationFee(
             totalCollateralValue
         );
 
@@ -661,7 +783,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
         );
 
         if (msg.value != totalCollateralValue) revert();
-        (bool originationFeePaid, ) = s_protocolManager.FEE_CONTRACT().call{
+        (bool originationFeePaid, ) = _protocolManager.FEE_CONTRACT().call{
             value: originationFee
         }("");
 
@@ -673,7 +795,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
                               PRIVATE VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     function _getRequestDetails(
-        address borrowRequest
+        address borrowRequestProxy
     )
         private
         view
@@ -693,7 +815,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
             borrower,
             state,
             timeCreated
-        ) = IBorrowRequest(borrowRequest).getRequestDetails();
+        ) = IBorrowRequest(borrowRequestProxy).getRequestDetails();
 
         return (
             tokens,
@@ -704,4 +826,7 @@ contract BorrowRequestFactory is AccessControl, ReentrancyGuard {
             timeCreated
         );
     }
+
+    // gap
+    uint256[60] private __gap;
 }

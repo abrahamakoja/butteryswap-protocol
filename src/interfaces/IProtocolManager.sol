@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 interface IProtocolManager {
+    function setLimitMarketContractAddress(address limitMarketAddress) external;
     function TokenManager() external returns (address);
+    function LoanManager() external returns (address);
     function FEE_CONTRACT() external returns (address);
+    function UNISWAP_V2_ORACLE_FEE() external returns (uint24);
     function BorrowRequestFactory() external returns (address);
     function Executor() external returns (address);
     function TOKEN_MANAGER_CONTRACT() external returns (address);
-    function LIMIT_MARKET_CONTRACT() external returns (address);
+    function deployer() external returns (address);
+    function LIMIT_MARKET_CONTRACT_ADDRESS() external returns (address);
     function LendRequestFactory() external returns (address);
     function Enforcer() external returns (address);
-    function LimitMarket() external returns (address);
+    // function LimitMarket() external returns (address);
     function calculateCollateralAmountMinusFee(
         uint256
     ) external returns (uint256);
@@ -21,14 +25,29 @@ interface IProtocolManager {
     function calculateCancellationFee(uint256) external returns (uint256);
     function calculateTokenListingFee(address) external returns (uint256);
     function calculateTokenUnListingFee(address) external returns (uint256);
-    function calculateTokenFeeAddressUpdateFee(address) external returns (uint256);
+    function calculateTokenFeeAddressUpdateFee(
+        address
+    ) external returns (uint256);
     function calculate_OriginationFee(uint256) external returns (uint256);
     function calculate_CollateralValue(uint256) external returns (uint256);
     function calculate_PriorityFee(uint256) external returns (uint256);
     function minimumDeposit() external returns (uint256);
     function INDEX_PRECISION() external returns (uint256);
     function SETTLEMENT_FEE() external returns (uint256);
-    function PRIORITY_FEE() external returns (uint256);
     function MAX_ASSET_LIMIT() external returns (uint256);
     function MAX_OWNERS_LIMIT() external returns (uint256);
+
+    function setloanManager(address loanManager, address deployer) external;
+    function updateTokenManagerContract(
+        address tokenManager,
+        address manager
+    ) external;
+    function updateBackeryContract(address backery, address manager) external;
+    function updateBackerContract(address backer, address manager) external;
+    function updateBorrowRequestFactoryContract(
+        address borrowRequestFactory,
+        address manager
+    ) external;
+    function Backery() external returns (address backery);
+    function Backer() external returns (address backer);
 }

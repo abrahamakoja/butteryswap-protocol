@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 //  debug @audit
 import {Script, console} from "forge-std/Script.sol";
@@ -12,9 +12,14 @@ import {LendRequest} from "./LendRequest.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract LendRequestFactory is AccessControl, ReentrancyGuard {
+contract LendRequestFactory is
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    ReentrancyGuard
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -47,10 +52,12 @@ contract LendRequestFactory is AccessControl, ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    bytes32 public constant LIMIT_MARKET = keccak256("LIMIT_MARKET");
+
     bytes32 public constant LIMIT_MARKET_ADMIN =
         keccak256("TOKEN_MANAGER_ADMIN");
 
-    IProtocolManager private immutable protocolManager;
+    IProtocolManager private protocolManager;
 
     LendRequest[] private s_totalNonPrioritizedLendRequest;
 
@@ -107,16 +114,25 @@ contract LendRequestFactory is AccessControl, ReentrancyGuard {
         uint256 indexed priorityFee
     );
 
-    /** CONSTRUCTOR */
-    constructor(address _protocolManager) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _protocolManager) public initializer {
+        __AccessControl_init();
+
         protocolManager = IProtocolManager(_protocolManager);
 
         bool roleGranted = _grantRole(
             LIMIT_MARKET_ADMIN,
-            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT()
+            IProtocolManager(_protocolManager).LIMIT_MARKET_CONTRACT_ADDRESS()
         );
         if (!roleGranted) revert();
     }
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     function getNonPrioritizedRequestViaIndex(
         uint256 index
@@ -679,4 +695,7 @@ contract LendRequestFactory is AccessControl, ReentrancyGuard {
 
         return (lender, state, timeCreated);
     }
+
+    // gap
+    uint256[60] private __gap;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 /**
  * @title BorrowRequest v1
@@ -30,7 +30,9 @@ contract BorrowRequest {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    IProtocolManager private immutable protocolManager;
+    IProtocolManager private protocolManager;
+
+    bool private initialized;
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -55,14 +57,15 @@ contract BorrowRequest {
         _;
     }
 
-    constructor(
+    function initialize(
         address borrower,
         uint256[] memory collateralAmount,
         uint256 loanAmountRequested,
         address[] memory token,
         uint256 _timeCreated,
         address _protocolManager
-    ) {
+    ) external payable {
+        require(!initialized, "Already initialized");
         s_borrowRequest = LoanConfigLibrary.createBorrowRequest(
             borrower,
             collateralAmount,
@@ -71,6 +74,7 @@ contract BorrowRequest {
             _timeCreated
         );
         protocolManager = IProtocolManager(_protocolManager);
+        initialized = true;
     }
 
     /*//////////////////////////////////////////////////////////////

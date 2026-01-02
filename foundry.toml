@@ -1,27 +1,28 @@
 [profile.default]
-optimizer = true
-optimizer_runs = 200
+auto_detect_solc=true
+# optimizer = true
+# optimizer_runs = 50
 src = "src"
 out = "out"
 libs = ["lib"]
 ffi = true
-fs_permissions = [{ access = "read", path = "./broadcast" }]
+ast = true
+offline=true
+build_info = true
+bytecode_hash = "none"
+extra_output = ["storageLayout"]
+fs_permissions = [{ access = "read", path = "/"}]
 cache = true
 cache_path = 'cache'
 broadcast = 'broadcast'
-remappings = [
-    '@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/',
-    '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/',
-    '@chainlink/contracts/=lib/foundry-chainlink-toolkit/lib/chainlink-brownie-contracts/contracts/',
-    '@uniswap/v4-core/=lib/v4-core/',
-    'solmate/=lib/v4-core/lib/solmate/',
-    '@uniswap/v4-periphery/=lib/v4-periphery/',
-]
 
 
+# @audit remove in production
 [profile.solx]
-solc_version = "/home/oxAkoja/.local/bin/solx"
-
+# solc_version = "/home/oxAkoja/.local/bin/solx"
+# offline=true
+# auto_detect_solc=true
+# via_ir = true
 
 [fuzz]
 runs = 1000
@@ -35,6 +36,10 @@ depth = 128
 show_metrics = true
 fail_on_revert = true
 show_progress = true
+
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
 
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

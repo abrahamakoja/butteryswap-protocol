@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.28;
 
 /**
  * @title TokenManager
@@ -15,12 +15,16 @@ import {Script, console2} from "forge-std/Script.sol";
 /*//////////////////////////////////////////////////////////////
                                  IMPORT
     //////////////////////////////////////////////////////////////*/
-
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract TokenManager is ReentrancyGuard, AccessControl {
+contract TokenManager is
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    ReentrancyGuardTransient
+{
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -69,15 +73,14 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         tokenOperationalState _tokenOperationalState;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /*/////////////////                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                /////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant TOKEN_MANAGER_ADMIN =
-        keccak256("TOKEN_MANAGER_ADMIN");
+    bytes32 public TOKEN_MANAGER_ADMIN;
 
-    IProtocolManager private immutable protocolManager;
-    uint256 private totalRequestedTokens;
+    IProtocolManager private protocolManager;
+    uint256 public totalRequestedTokens;
     uint256 private totalListedTokens;
     uint256 private totalTokensToUnList;
     uint256 private totalUnListedTokens;
@@ -122,7 +125,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     //////////////////////////////////////////////////////////////*/
 
     modifier isValidAddress(address token) {
-        if (token == address(0)) revert TokenManager__InvalidTokenAddress();
+        require((token != address(0)), TokenManager__InvalidTokenAddress());
         _;
     }
 
@@ -158,17 +161,36 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         _;
     }
 
-    /// @notice contract constructor.
-    constructor(address _protocolManager) {
-        protocolManager = IProtocolManager(_protocolManager);
-
-        bool roleGranted = _grantRole(
-            TOKEN_MANAGER_ADMIN,
-            IProtocolManager(_protocolManager).TOKEN_MANAGER_CONTRACT()
-        );
-        if (!roleGranted) revert();
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
+    /// @notice contract constructor.
+    function initialize(address _protocolManager) public initializer {
+        __AccessControl_init();
+        protocolManager = IProtocolManager(_protocolManager);
+
+        TOKEN_MANAGER_ADMIN = keccak256("TOKEN_MANAGER_ADMIN");
+
+        _grantRole(
+            DEFAULT_ADMIN_ROLE,
+            IProtocolManager(_protocolManager).deployer()
+        );
+        _grantRole(
+            TOKEN_MANAGER_ADMIN,
+            IProtocolManager(_protocolManager).deployer()
+        );
+
+        // updateTokenManagerContract
+        protocolManager.updateTokenManagerContract(address(this), msg.sender);
+
+        // storage variables
+        totalRequestedTokens = 0;
+    }
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -188,8 +210,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
         if (
-            msg.value !=
-            protocolManager.calculateTokenListingFee(address(token))
+            msg.value < protocolManager.calculateTokenListingFee(address(token))
         ) revert TokenManager__invalidAmount();
 
         /// effects
@@ -210,6 +231,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         s_tokenDetails[address(token)] = _tokenDetails;
         /// @dev maps the token address to it's index on the que
         s_requestedTokenToIndex[address(token)] = index;
+        console2.log("request index:", index);
         s_requestedTokenIndexToAddress[index] = address(token);
         s_isListed[address(token)] = false;
         totalRequestedTokens++;
@@ -240,8 +262,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
     {
         if (msg.value == 0) revert TokenManager__invalidAmount();
         if (
-            msg.value !=
-            protocolManager.calculateTokenFeeAddressUpdateFee(token)
+            msg.value < protocolManager.calculateTokenFeeAddressUpdateFee(token)
         ) revert TokenManager__invalidAmount();
 
         if (s_tokenDetails[address(token)].marketOwner != address(msg.sender))
@@ -275,10 +296,12 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         if (index > totalRequestedTokens) {
             revert TokenManager__LimitExceeded();
         }
+        // console2.log("index ::", index);
 
         /// Effects
         /// @dev get the address of the token attached to the inputted index
         address token = s_requestedTokenIndexToAddress[index];
+        console2.log("index token::", index, token);
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -287,23 +310,26 @@ contract TokenManager is ReentrancyGuard, AccessControl {
             revert TokenManager__TokenIsListed();
         }
         uint256 _totalListedTokens = totalListedTokens;
+        // console2.log("index _totalListedTokens before::", _totalListedTokens);
         uint256 newIndex = _totalListedTokens +
             protocolManager.INDEX_PRECISION();
 
+        console2.log("index newIndex ::", newIndex);
         /// @dev update token listing detail
         s_tokenDetails[token]._tokenListingState = tokenListingState.LISTED;
-        /// @dev update token operational detail
+        // /// @dev update token operational detail
         s_tokenDetails[token]._tokenOperationalState = tokenOperationalState
             .ACTIVE;
         s_listedTokenToIndex[token] = newIndex;
         s_listedTokenIndexToAddress[newIndex] = address(token);
-        /// @dev update s_isListed mapping to true
+        // /// @dev update s_isListed mapping to true
         s_isListed[token] = true;
 
+        totalListedTokens += 1;
+        console2.log("index totalListedTokens ::", totalListedTokens);
         delete s_requestedTokenIndexToAddress[index];
         delete s_requestedTokenToIndex[token];
-        totalRequestedTokens--;
-        totalListedTokens++;
+        console2.log("index totalRequestedTokens ::", totalRequestedTokens);
 
         // emit
         emit tokenListed(address(token));
@@ -438,7 +464,7 @@ contract TokenManager is ReentrancyGuard, AccessControl {
 
     function checkIsTokenListed(
         address token
-    ) external view isValidAddress(token) returns (bool isListed) {
+    ) public view isValidAddress(token) returns (bool isListed) {
         if (
             s_tokenDetails[token]._tokenListingState ==
             tokenListingState.LISTED &&
@@ -465,5 +491,25 @@ contract TokenManager is ReentrancyGuard, AccessControl {
         } else {
             return operational = false;
         }
+    }
+
+    function getTotalTokenEthValue(
+        address token,
+        uint256 amount
+    ) public view returns (uint256 tokenEthValue) {
+        // verify token is supported
+        require(checkIsTokenListed(token), "token is not listed"); // @audit change to custom error
+
+        // verify collateralAmount is not 0 for any token
+        require(amount != 0);
+
+        // get eth value of token and add it to total eth value
+        tokenEthValue = 1; // @audit use oracle to get value
+        // ensure collateral amount is over or equal to minimum allowed ammount
+
+        // return eth value
+        require(tokenEthValue != 0, "tokenEthValue is 0");
+
+        return tokenEthValue;
     }
 }

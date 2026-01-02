@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -15,17 +14,13 @@ library erc20TokenLibrary {
         address token,
         address owner,
         address spender
-    ) internal view returns(uint256 _allowance){
+    ) internal view returns (uint256 _allowance) {
         IERC20 _token = IERC20(token);
         _allowance = _token.allowance(owner, spender);
         return _allowance;
     }
 
-    function transferTokens(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
+    function transfer(address token, address to, uint256 amount) internal {
         IERC20 _token = IERC20(token);
         _token.safeTransfer(to, amount);
     }
@@ -36,7 +31,19 @@ library erc20TokenLibrary {
         uint256 amount
     ) internal {
         IERC20 _token = IERC20(token);
-        _token.forceApprove(spender, amount*10**18);
+        _token.forceApprove(spender, amount * 10 ** 18);
+    }
+
+    function IncreaseAllowance(
+        address token,
+        address spender,
+        uint256 amount
+    ) internal {
+        require(token != address(0), "token address is 0x0");
+        require(spender != address(0), "spender address is 0x0");
+        require(amount != 0, "cannot increase allowance to 0");
+        IERC20 _token = IERC20(token);
+        _token.safeIncreaseAllowance(spender, amount);
     }
 
     function transferFromTokens(
@@ -89,8 +96,6 @@ library erc20TokenLibrary {
 //       _allowance =  _token.allowance(owner, spender);
 //       return _allowance;
 //     }
-
-
 
 //     function transferTokens(
 //         address token,
