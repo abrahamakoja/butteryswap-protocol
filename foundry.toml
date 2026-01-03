@@ -20,8 +20,8 @@ broadcast = 'broadcast'
 # @audit remove in production
 [profile.solx]
 # solc_version = "/home/oxAkoja/.local/bin/solx"
-# offline=true
-# auto_detect_solc=true
+offline=true
+auto_detect_solc=true
 # via_ir = true
 
 [fuzz]

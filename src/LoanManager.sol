@@ -94,6 +94,7 @@ contract LoanManager is
         uint256 requestID;
     }
 
+    // @audit add details on amount to payback
     struct BorrowRequestDetails {
         address borrower;
         uint256 amountToBorrow;
@@ -900,51 +901,138 @@ contract LoanManager is
         returns (uint256 activeLoanID)
     {
         //    should never revert
-        if (totalBorrowRequestAmount > totalLendRequestAmount) {
+        if (totalLendRequestAmount == 0) {
             console2.log("liquidity low");
             return 0;
         }
         activeLoanCount++;
         activeLoanID = activeLoanCount;
-        LendRequestDetails storage lendRequestDetails;
-        BorrowRequestDetails storage borrowRequestDetails;
+
+        uint256 normalBorrowRequest = _deQueue(normalQueue);
+        // uint256 priorityBorrowRequest = _deQueue(priorityQueue);
+        BorrowRequestDetails
+            storage normalBorrowRequestDetails = _borrowRequestDetails[
+                normalBorrowRequest
+            ];
+        // BorrowRequestDetails storage priorityBorrowRequestDetails;
         ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
             activeLoanID
         ];
 
-        // get borrow request
-        uint256 lendRequest = _deQueue(supplyQueue);
-        uint256 borrowRequest = _deQueue(normalQueue);
-        console2.log("borrowRequest", borrowRequest);
+        LoanState normalBorrowRequestState = normalBorrowRequestDetails.state;
+        // process normalBorrowRequest data
 
-        // borrow request check
-        if (borrowRequest == 0) {
-            console2.log("triggered 2", borrowRequest);
+        // check state
+        if (
+            normalBorrowRequest != 0 &&
+            normalBorrowRequestState == LoanState.OPEN
+        ) {
+            normalBorrowRequestDetails.state = LoanState.UPDATING;
+            // get relevant borrow request values
 
-            // check priority list
-            borrowRequest = _deQueue(priorityQueue);
-            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
-            if (borrowRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(priorityQueue, borrowRequest);
-                emit BorrowRequestReQueued(borrowRequest);
-                return 0; //break
+            address borrower = normalBorrowRequestDetails.borrower;
+            uint256 amountToBorrow = normalBorrowRequestDetails.amountToBorrow;
+            uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
+
+            uint256[] memory lendRequests;
+            address[] memory lenders;
+
+            // process loan
+            // get ammount to borrow,
+            // fetch a lend request add to the array lendrequestID
+            // chek the amount to lend
+            // add amount to lend to the variable
+            // compare the amount to lend to amount to borrow
+            // if less, keep loop and adding more requestId to the array
+            // stop when the amount is same
+
+            console2.log("amount to borrow", amountToBorrow);
+            // console2.log("amount to borrow", amountToLend);
+
+            for (uint i; i < 3; i++) {
+                uint256 lendRequest;
+                uint256 amountToLend;
+                address lender;
+                LenderDetails memory lenderDetails;
+
+                console2.log("loop", i);
+                console2.log("amount to borrow", amountToBorrow);
+                lendRequest = _deQueue(supplyQueue);
+                LendRequestDetails memory lendRequestDetails;
+                lendRequestDetails = _lendRequestDetails[lendRequest];
+
+                // check state/ skip if state is closed
+                if (lendRequestDetails.state != LoanState.OPEN) {
+                    // re-queue to the end of the list
+                    _enQueue(supplyQueue, lendRequest);
+                    emit LendRequestReQueued(lendRequest);
+
+                    // break
+                    continue;
+                }
+
+                //  uint256 smallestAmount = amountToBorrow > amountToLend
+                //     ? amountToBorrow
+                //     : amountToLend;
+
+                // proceed if state is open
+                // fetch Lend request values
+                lender = lendRequestDetails.lender; //tract
+                amountToLend += lendRequestDetails.amountToLend;
+
+                // populate ActiveLoanDetails with relevant data
+
+                // fetch Lender details for active loan
+
+                // return 0;
+
+                lenderDetails.lender = lender;
+                lenderDetails.amountLended = amountToLend;
+                lenderDetails.expectedReturn = amountToPayBack;
+                lenderDetails.requestID = lendRequest;
+
+                // populate the active loan struct
+
+                // collateral details
+                activeLoanDetails
+                    .collateralDetails
+                    .tokenDetails = normalBorrowRequestDetails.tokenDetails;
+
+                // borrower Details
+                activeLoanDetails
+                    .borrowerDetails
+                    .amountBorrowed = amountToBorrow;
+                activeLoanDetails.borrowerDetails.borrower = borrower;
+                activeLoanDetails
+                    .borrowerDetails
+                    .amountToPayBack = amountToPayBack;
+                activeLoanDetails
+                    .borrowerDetails
+                    .requestID = normalBorrowRequest;
+
+                // lender details
+                activeLoanDetails.lenderDetails.push(lenderDetails);
+                // time of approval
+                activeLoanDetails.timeApproved = block.timestamp;
+                // due date for loan repayment
+                activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+                // active loan ID
+                activeLoanDetails.activeLoanID = activeLoanCount;
+
+                // add lender to list
+                lenders[i] = lender;
+                // add lend request to list
+                lendRequests[i] = lendRequest;
+
+                console2.log("lendRequest", lendRequest);
+                console2.log("_amountToLend", amountToLend);
+                console2.log("lenderRequestID", lendRequest);
+                // return activeLoanID;
             }
-            console2.log("triggered prioritized", borrowRequest);
         } else {
-            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
-            // check and change state
-            if (borrowRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(normalQueue, borrowRequest);
-                emit BorrowRequestReQueued(borrowRequest);
-            }
-            console2.log("normal triggerd", borrowRequest);
-        }
-
-        uint256 bound = lendRequestCount <= 4 ? lendRequestCount : 4; // @audit convert to precision remove magic numbers
-        for (uint256 i = 0; i < bound; i++) {
-            console2.log("bound", bound);
+            emit BorrowRequestReQueued(normalBorrowRequest);
+            // re-queue to the end of the list
+            _enQueue(normalQueue, normalBorrowRequest);
         }
     }
     /*//////////////////////////////////////////////////////////////

@@ -238,29 +238,59 @@ contract LoanManagerUnitTest is Test {
         TestVars memory testVars;
         address[] memory _tokens;
         testVars.num = 6;
-        testVars.amount = 6e18;
+        testVars.amount = 100e18;
         testVars.originationFee = 1 ether;
         testVars.listingFee = 1 ether;
         testVars.amountToBorrow = 12 ether;
         testVars.priority = true;
-        // bool priority = true;
 
-        (testVars.requestID, _tokens, testVars.collateralAmount) = _quickSetup(
+        testVars.collateralAmount = _collateralAmount(
+            testVars.amount,
+            testVars.num
+        );
+        testVars.tokens = _addTokens(
             testVars.listingFee,
             testVars.num,
             borrower,
-            testVars.amount,
-            testVars.amountToBorrow,
-            testVars.priority,
-            testVars.originationFee
+            testVars.collateralAmount
         );
+
+        _increaseTokenAllowance(testVars.tokens, testVars.collateralAmount);
+        vm.startPrank(borrower);
+        address[] memory asset;
+        uint256[] memory assetAmount;
+        for (uint i = 0; i < 3; i++) {
+            asset = new address[](1);
+            assetAmount = new uint256[](1);
+            asset[0] = testVars.tokens[i];
+            assetAmount[0] = testVars.collateralAmount[i];
+            _borrow(
+                testVars.originationFee,
+                asset,
+                assetAmount,
+                1 ether,
+                false
+            );
+
+            console2.log("milk");
+        }
+        for (uint i = 3; i < 6; i++) {
+            asset = new address[](1);
+            assetAmount = new uint256[](1);
+            asset[0] = testVars.tokens[i];
+            assetAmount[0] = testVars.collateralAmount[i];
+            _borrow(testVars.originationFee, asset, assetAmount, 1 ether, true);
+
+            console2.log("fuck");
+        }
         vm.stopPrank();
+        // return;
         vm.startPrank(lender);
         vm.deal(lender, 2000 ether);
 
         uint256 requestID = iLimitMarket.lend{value: 6 ether}();
-        uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
-        uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
+        // uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
+        // uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
@@ -275,10 +305,10 @@ contract LoanManagerUnitTest is Test {
         vm.stopPrank();
         vm.prank(deployer);
         uint256 activeLoanID = iBacker.toast();
-        iLoanManager.getLendRequestDetails(requestID);
-        iLoanManager.getLendRequestDetails(requestID1);
-        iLoanManager.getLendRequestDetails(requestID2);
-        iLoanManager.getActiveLoanRequest(activeLoanID);
+        // iLoanManager.getLendRequestDetails(requestID);
+        // iLoanManager.getLendRequestDetails(requestID1);
+        // iLoanManager.getLendRequestDetails(requestID2);
+        // iLoanManager.getActiveLoanRequest(activeLoanID);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -315,6 +345,32 @@ contract LoanManagerUnitTest is Test {
         return (requestID, _tokens, collateralAmount);
         vm.stopPrank();
     }
+    function _quickSetup2(
+        uint256 listingFee,
+        uint256 num,
+        address user,
+        uint256 amount,
+        uint256 amountToBorrow,
+        bool priority,
+        uint256 originationFee
+    )
+        internal
+        returns (address[] memory _tokens, uint256[] memory collateralAmount)
+    {
+        collateralAmount = _collateralAmount(amount, num);
+        _tokens = _addTokens(listingFee, num, user, collateralAmount);
+        vm.startPrank(user);
+        _increaseTokenAllowance(_tokens, collateralAmount);
+        // requestID = _borrow(
+        //     originationFee,
+        //     _tokens,
+        //     collateralAmount,
+        //     amountToBorrow,
+        //     priority
+        // );
+        return (_tokens, collateralAmount);
+        vm.stopPrank();
+    }
 
     function _collateralAmount(
         uint256 amount,
@@ -346,6 +402,7 @@ contract LoanManagerUnitTest is Test {
         address[] memory tokens,
         uint256[] memory collateralAmount
     ) internal {
+        vm.startPrank(borrower);
         for (uint256 i = 0; i < tokens.length; i++) {
             erc20TokenLibrary.IncreaseAllowance(
                 tokens[i],
@@ -353,6 +410,7 @@ contract LoanManagerUnitTest is Test {
                 collateralAmount[i]
             );
         }
+        vm.stopPrank();
     }
 
     function _addTokens(
