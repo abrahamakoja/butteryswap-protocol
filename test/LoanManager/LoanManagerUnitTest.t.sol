@@ -268,7 +268,7 @@ contract LoanManagerUnitTest is Test {
                 testVars.originationFee,
                 asset,
                 assetAmount,
-                1 ether,
+                8 ether,
                 false
             );
 
@@ -279,7 +279,7 @@ contract LoanManagerUnitTest is Test {
             assetAmount = new uint256[](1);
             asset[0] = testVars.tokens[i];
             assetAmount[0] = testVars.collateralAmount[i];
-            _borrow(testVars.originationFee, asset, assetAmount, 1 ether, true);
+            _borrow(testVars.originationFee, asset, assetAmount, 8 ether, true);
 
             console2.log("fuck");
         }
@@ -308,7 +308,7 @@ contract LoanManagerUnitTest is Test {
         // iLoanManager.getLendRequestDetails(requestID);
         // iLoanManager.getLendRequestDetails(requestID1);
         // iLoanManager.getLendRequestDetails(requestID2);
-        // iLoanManager.getActiveLoanRequest(activeLoanID);
+        iLoanManager.getActiveLoanRequest(activeLoanID);
     }
 
     /*//////////////////////////////////////////////////////////////

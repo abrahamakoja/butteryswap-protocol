@@ -934,8 +934,8 @@ contract LoanManager is
             uint256 amountToBorrow = normalBorrowRequestDetails.amountToBorrow;
             uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
 
-            uint256[] memory lendRequests;
             address[] memory lenders;
+            uint256[] memory lendRequests;
 
             // process loan
             // get ammount to borrow,
@@ -946,21 +946,23 @@ contract LoanManager is
             // if less, keep loop and adding more requestId to the array
             // stop when the amount is same
 
-            console2.log("amount to borrow", amountToBorrow);
+            console2.log("amount to borrow before while loop", amountToBorrow);
             // console2.log("amount to borrow", amountToLend);
 
-            for (uint i; i < 3; i++) {
+            while (amountToBorrow > 0) {
+                // for (uint i; i < 3; i++) {
+
                 uint256 lendRequest;
                 uint256 amountToLend;
                 address lender;
                 LenderDetails memory lenderDetails;
 
-                console2.log("loop", i);
-                console2.log("amount to borrow", amountToBorrow);
                 lendRequest = _deQueue(supplyQueue);
                 LendRequestDetails memory lendRequestDetails;
                 lendRequestDetails = _lendRequestDetails[lendRequest];
+                uint256 delta;
 
+                console2.log("amount to borrow in loop", amountToBorrow);
                 // check state/ skip if state is closed
                 if (lendRequestDetails.state != LoanState.OPEN) {
                     // re-queue to the end of the list
@@ -1019,16 +1021,48 @@ contract LoanManager is
                 // active loan ID
                 activeLoanDetails.activeLoanID = activeLoanCount;
 
-                // add lender to list
-                lenders[i] = lender;
-                // add lend request to list
-                lendRequests[i] = lendRequest;
+                // check delta between borrow amount and available liquidity
+                delta = amountToBorrow < amountToLend
+                    ? 0
+                    : amountToBorrow - amountToLend;
 
-                console2.log("lendRequest", lendRequest);
+                if (delta != 0) {
+                    console2.log("delta is not 0", delta);
+                    uint256 numOfLenders = lenders.length;
+                    console2.log("numOfLenders", numOfLenders);
+                    // break;
+                    address[] memory _lenders = new address[](numOfLenders + 1);
+                    uint256[] memory _lendRequests = new uint256[](
+                        numOfLenders + 1
+                    );
+                    // add lender to list
+                    _lenders[numOfLenders] = lender;
+                    lenders = _lenders;
+
+                    // add lend request to list
+                    _lendRequests[numOfLenders] = lendRequest;
+                    lendRequests = _lendRequests;
+                    amountToBorrow = delta;
+                    console2.log("amountToBorrow at end", amountToBorrow);
+                    continue;
+                }
+                amountToBorrow = delta;
+
+                // logs
+                // console2.log("lendRequest", lendRequest);
                 console2.log("_amountToLend", amountToLend);
-                console2.log("lenderRequestID", lendRequest);
-                // return activeLoanID;
+                console2.log("lend request", lendRequest);
+                console2.log("amount after ", amountToBorrow);
+                console2.log("delta after", delta);
+                // emit events
+                emit ToastMinted(borrower, amountToBorrow);
+                emit CrumbsMinted(lender, amountToPayBack);
+                // mint toast to borrower
+                Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+                // mint crumbs to lender
+                Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
             }
+            return activeLoanID;
         } else {
             emit BorrowRequestReQueued(normalBorrowRequest);
             // re-queue to the end of the list
