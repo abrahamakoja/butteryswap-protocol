@@ -94,7 +94,7 @@ interface ILoanManager {
     function approveLoanRequests2()
         external
         payable
-        returns (uint256 activeLoanID);
+        returns (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID);
     function getActiveLoanRequest(
         uint256 activeLoanID
     ) external view; /*view returns (address[] memory tokens);*/

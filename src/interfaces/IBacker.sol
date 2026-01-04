@@ -2,5 +2,8 @@
 pragma solidity ^0.8.28;
 
 interface IBacker {
-    function toast() external payable returns (uint256 activeLoanID);
+    function toast()
+        external
+        payable
+        returns (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID);
 }

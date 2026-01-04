@@ -160,7 +160,8 @@ contract LoanManager is
 
     IBackery internal Backery;
 
-    uint256 internal activeLoanCount;
+    uint256 internal normalActiveLoanCount;
+    uint256 internal prioritizedActiveLoanCount;
     uint256 internal nextBorrowerID;
     uint256 internal nextLenderID;
     uint256 internal nBREAD;
@@ -288,7 +289,8 @@ contract LoanManager is
 
         admin = ProtocolManager.deployer();
         nextBorrowerID = 1;
-        activeLoanCount = 0;
+        normalActiveLoanCount = 0;
+        prioritizedActiveLoanCount = 0;
         nextLenderID = 1;
         nBREAD = 1;
         mBREAD = 2;
@@ -381,7 +383,7 @@ contract LoanManager is
             : amountToBorrow; //@audit token amounts must be formatted corrrectly in 18 decimals
         borrowRequestDetails.borrower = borrower;
         borrowRequestDetails.amountToBorrow = amountToBorrow; // @audit review
-        borrowRequestDetails.priority = priority;
+
         borrowRequestDetails.timeCreated = block.timestamp;
         borrowRequestDetails.interestRate = 10e18; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
@@ -395,11 +397,15 @@ contract LoanManager is
         borrowRequestCount++;
         nextBorrowerID++;
 
-        console2.log("this priority", priority);
-        if (priority) {
+        console2.log("this priority before if clause is", priority);
+        if (priority == true) {
+            borrowRequestDetails.priority = priority;
             _enQueue(priorityQueue, requestID);
+            console2.log("this priority is true", priority);
             emit BorrowRequestPrioritized(requestID);
         } else {
+            borrowRequestDetails.priority = priority;
+            console2.log("this priority is false", priority);
             _enQueue(normalQueue, requestID);
         }
 
@@ -740,24 +746,24 @@ contract LoanManager is
     //     backeryIsSet
     //     onlyRole(BACKER)
     //     nonReentrant
-    //     returns (uint256 activeLoanID)
+    //     returns (uint256 normalActiveLoanID)
     // {
     //     //    should never revert
     //     if (totalBorrowRequestAmount > totalLendRequestAmount) {
     //         console2.log("liquidity low");
     //         return 0;
     //     }
-    //     activeLoanCount++;
-    //     activeLoanID = activeLoanCount;
+    //     normalActiveLoanCount++;
+    //     normalActiveLoanID = normalActiveLoanCount;
     //     LendRequestDetails storage lendRequestDetails;
     //     BorrowRequestDetails storage borrowRequestDetails;
     //     ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
-    //         activeLoanID
+    //         normalActiveLoanID
     //     ];
-    //     // activeLoanDetails.activeLoanID = activeLoanCount;
+    //     // activeLoanDetails.normalActiveLoanID = normalActiveLoanCount;
 
-    //     console2.log("activeLoanID", activeLoanID);
-    //     console2.log("activeLoanCount", activeLoanCount);
+    //     console2.log("normalActiveLoanID", normalActiveLoanID);
+    //     console2.log("normalActiveLoanCount", normalActiveLoanCount);
 
     //     // get borrow request
     //     uint256 lendRequest = _deQueue(supplyQueue);
@@ -873,7 +879,7 @@ contract LoanManager is
     //         activeLoanDetails.lenderDetails.push(lenderDetails);
     //         activeLoanDetails.timeApproved = block.timestamp;
     //         activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
-    //         activeLoanDetails.activeLoanID = activeLoanCount;
+    //         activeLoanDetails.normalActiveLoanID = normalActiveLoanCount;
 
     //         // emit events
     //         emit ToastMinted(borrower, amountToBorrow);
@@ -882,7 +888,7 @@ contract LoanManager is
     //         Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
     //         // mint crumbs to lender
     //         Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
-    //         // return activeLoanID;
+    //         // return normalActiveLoanID;
     //     } else {
     //         // fetch more lend request that can collectively satisfy the borrow request
     //         uint256 lendRequest = _deQueue(supplyQueue);
@@ -898,31 +904,265 @@ contract LoanManager is
         backeryIsSet
         onlyRole(BACKER)
         nonReentrant
-        returns (uint256 activeLoanID)
+        returns (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID)
     {
         //    should never revert
         if (totalLendRequestAmount == 0) {
             console2.log("liquidity low");
+            return (0, 0);
+        }
+
+        prioritizedActiveLoanID = _createPrioritizedActiveLoan();
+        normalActiveLoanID = _createNormalActiveLoan();
+
+        return (normalActiveLoanID, prioritizedActiveLoanID);
+    }
+    /*//////////////////////////////////////////////////////////////
+                 PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _enQueue(Queue storage q, uint256 ID) private {
+        if (q.tail != 0) {
+            q.nodes[q.tail].next = ID;
+            q.nodes[ID].prev = q.tail;
+        } else {
+            q.head = ID;
+        }
+        q.tail = ID;
+    }
+
+    function _removeFromQueue(Queue storage q, uint256 ID) private {
+        Node storage n = q.nodes[ID];
+
+        uint256 prev = n.prev;
+        uint next = n.next;
+
+        if (prev != 0) {
+            q.nodes[prev].next = next;
+        } else {
+            q.head = next;
+        }
+
+        if (next != 0) {
+            q.nodes[next].prev = prev;
+        } else {
+            q.tail = prev;
+        }
+
+        delete q.nodes[ID];
+    }
+
+    function _deQueue(Queue storage q) private returns (uint256 ID) {
+        ID = q.head;
+        if (ID == 0) {
+            console2.log("triggered 3", q.head);
             return 0;
         }
-        activeLoanCount++;
-        activeLoanID = activeLoanCount;
+        // require(ID != 0, "empty Queue");
 
+        uint next = q.nodes[ID].next;
+
+        q.head = next;
+
+        if (next != 0) {
+            q.nodes[next].prev = 0;
+        } else {
+            q.tail = 0;
+        }
+
+        delete q.nodes[ID];
+    }
+
+    function _createPrioritizedActiveLoan() private returns (uint256 activeID) {
+        prioritizedActiveLoanCount++;
+        activeID = prioritizedActiveLoanCount;
+        uint256 priorityBorrowRequest = _deQueue(priorityQueue);
+        BorrowRequestDetails
+            storage priorityBorrowRequestDetails = _borrowRequestDetails[
+                priorityBorrowRequest
+            ];
+        ActiveLoanDetails
+            storage prioritizedActiveLoanDetails = _activeLoanDetails[activeID];
+        // check state
+        // process priorityBorrowRequest data
+        LoanState prioritizedBorrowRequestState = priorityBorrowRequestDetails
+            .state;
+        if (
+            priorityBorrowRequest != 0 &&
+            prioritizedBorrowRequestState == LoanState.OPEN
+        ) {
+            prioritizedBorrowRequestState = LoanState.UPDATING;
+            // get relevant borrow request values
+
+            address borrower = priorityBorrowRequestDetails.borrower;
+            uint256 amountToBorrow = priorityBorrowRequestDetails
+                .amountToBorrow;
+            uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
+            uint256 toastAmount;
+            address[] memory lenders;
+            uint256[] memory lendRequests;
+            uint256[] memory crumbsAmount;
+
+            // process loan
+            // get ammount to borrow,
+            // fetch a lend request add to the array lendrequestID
+            // chek the amount to lend
+            // add amount to lend to the variable
+            // compare the amount to lend to amount to borrow
+            // if less, keep loop and adding more requestId to the array
+            // stop when the amount is same
+
+            console2.log("amount to borrow before while loop", amountToBorrow);
+            // console2.log("amount to borrow", amountToLend);
+
+            while (amountToBorrow > 0) {
+                // for (uint i; i < 3; i++) {
+
+                uint256 lendRequest;
+                uint256 amountToLend;
+                address lender;
+                LenderDetails memory lenderDetails;
+
+                lendRequest = _deQueue(supplyQueue);
+                LendRequestDetails memory lendRequestDetails;
+                lendRequestDetails = _lendRequestDetails[lendRequest];
+                uint256 delta;
+
+                console2.log("amount to borrow in loop", amountToBorrow);
+                // check state/ skip if state is closed
+                if (lendRequestDetails.state != LoanState.OPEN) {
+                    // re-queue to the end of the list
+                    _enQueue(supplyQueue, lendRequest);
+                    emit LendRequestReQueued(lendRequest);
+
+                    // break
+                    continue;
+                }
+
+                //  uint256 smallestAmount = amountToBorrow > amountToLend
+                //     ? amountToBorrow
+                //     : amountToLend;
+
+                // proceed if state is open
+                // fetch Lend request values
+                lender = lendRequestDetails.lender; //tract
+                amountToLend += lendRequestDetails.amountToLend;
+
+                // populate prioritizedActiveLoanDetails with relevant data
+
+                // fetch Lender details for active loan
+
+                // return 0;
+
+                lenderDetails.requestID = lendRequest;
+
+                // populate the active loan struct
+
+                // collateral details
+                prioritizedActiveLoanDetails
+                    .collateralDetails
+                    .tokenDetails = priorityBorrowRequestDetails.tokenDetails;
+
+                // borrower Details
+                prioritizedActiveLoanDetails
+                    .borrowerDetails
+                    .amountBorrowed = amountToBorrow;
+                prioritizedActiveLoanDetails
+                    .borrowerDetails
+                    .borrower = borrower;
+                prioritizedActiveLoanDetails
+                    .borrowerDetails
+                    .amountToPayBack = amountToPayBack;
+                prioritizedActiveLoanDetails
+                    .borrowerDetails
+                    .requestID = priorityBorrowRequest;
+
+                // time of approval
+                prioritizedActiveLoanDetails.timeApproved = block.timestamp;
+                // due date for loan repayment
+                prioritizedActiveLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+                // active loan ID
+                prioritizedActiveLoanDetails
+                    .activeLoanID = prioritizedActiveLoanCount;
+
+                // check delta between borrow amount and available liquidity
+                delta = amountToBorrow < amountToLend
+                    ? 0
+                    : amountToBorrow - amountToLend;
+
+                if (delta != 0) {
+                    console2.log("delta is not 0", delta);
+                    uint256 numOfLenders = lenders.length;
+                    console2.log("numOfLenders", numOfLenders);
+                    // break;
+                    lenderDetails.amountLended += amountToLend; //move
+                    lenderDetails.expectedReturn = amountToPayBack; //move
+                    address[] memory _lenders = new address[](numOfLenders + 1);
+                    uint256[] memory _lendRequests = new uint256[](
+                        numOfLenders + 1
+                    );
+                    // add lender to list
+                    _lenders[numOfLenders] = lender;
+                    lenders = _lenders;
+
+                    // add lend request to list
+                    // lenderDetails.lender[numOfLenders] = lender;
+
+                    _lendRequests[numOfLenders] = lendRequest;
+                    lendRequests = _lendRequests;
+                    amountToBorrow = delta;
+                    console2.log("amountToBorrow at end", amountToBorrow);
+
+                    continue;
+                }
+                // add lender to list
+                amountToBorrow = delta;
+                console2.log("amountToBorrow at end", amountToBorrow);
+                console2.log("delta at end", delta);
+
+                // lender details
+                lenderDetails.lender = lenders;
+                prioritizedActiveLoanDetails.lenderDetails.push(lenderDetails);
+
+                // logs
+                // console2.log("lendRequest", lendRequest);
+                console2.log("_amountToLend", amountToLend);
+                console2.log("lend request", lendRequest);
+                console2.log("amount after ", amountToBorrow);
+                console2.log("delta after", delta);
+
+                // emit events
+                emit ToastMinted(borrower, amountToBorrow);
+                emit CrumbsMinted(lender, amountToPayBack);
+                emit CrumbsMinted(lender, amountToPayBack);
+
+                for (uint i = 0; i < lenders.length; i++) {
+                    // mint crumbs to lender
+                    Backery.mint(lenders[i], crumbs, amountToPayBack); //@audit overflow?
+                }
+                // mint crumbs to lender
+                Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+            }
+        } else {
+            emit BorrowRequestReQueued(priorityBorrowRequest);
+            // re-queue to the end of the list
+            _enQueue(priorityQueue, priorityBorrowRequest);
+        }
+    }
+
+    function _createNormalActiveLoan() private returns (uint256 activeID) {
+        normalActiveLoanCount++;
+        activeID = normalActiveLoanCount;
         uint256 normalBorrowRequest = _deQueue(normalQueue);
-        // uint256 priorityBorrowRequest = _deQueue(priorityQueue);
         BorrowRequestDetails
             storage normalBorrowRequestDetails = _borrowRequestDetails[
                 normalBorrowRequest
             ];
-        // BorrowRequestDetails storage priorityBorrowRequestDetails;
         ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
-            activeLoanID
+            activeID
         ];
-
         LoanState normalBorrowRequestState = normalBorrowRequestDetails.state;
-        // process normalBorrowRequest data
-
-        // check state
+        // process normal borrow request
         if (
             normalBorrowRequest != 0 &&
             normalBorrowRequestState == LoanState.OPEN
@@ -1016,7 +1256,7 @@ contract LoanManager is
                 // due date for loan repayment
                 activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
                 // active loan ID
-                activeLoanDetails.activeLoanID = activeLoanCount;
+                activeLoanDetails.activeLoanID = normalActiveLoanCount;
 
                 // check delta between borrow amount and available liquidity
                 delta = amountToBorrow < amountToLend
@@ -1065,71 +1305,15 @@ contract LoanManager is
                 // mint crumbs to lender
                 Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
             }
-            return activeLoanID;
         } else {
             emit BorrowRequestReQueued(normalBorrowRequest);
             // re-queue to the end of the list
             _enQueue(normalQueue, normalBorrowRequest);
         }
     }
-    /*//////////////////////////////////////////////////////////////
-                 PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    function _enQueue(Queue storage q, uint256 ID) private {
-        if (q.tail != 0) {
-            q.nodes[q.tail].next = ID;
-            q.nodes[ID].prev = q.tail;
-        } else {
-            q.head = ID;
-        }
-        q.tail = ID;
-    }
-
-    function _removeFromQueue(Queue storage q, uint256 ID) private {
-        Node storage n = q.nodes[ID];
-
-        uint256 prev = n.prev;
-        uint next = n.next;
-
-        if (prev != 0) {
-            q.nodes[prev].next = next;
-        } else {
-            q.head = next;
-        }
-
-        if (next != 0) {
-            q.nodes[next].prev = prev;
-        } else {
-            q.tail = prev;
-        }
-
-        delete q.nodes[ID];
-    }
-
-    function _deQueue(Queue storage q) private returns (uint256 ID) {
-        ID = q.head;
-        if (ID == 0) {
-            console2.log("triggered 3", q.head);
-            return 0;
-        }
-        // require(ID != 0, "empty Queue");
-
-        uint next = q.nodes[ID].next;
-
-        q.head = next;
-
-        if (next != 0) {
-            q.nodes[next].prev = 0;
-        } else {
-            q.tail = 0;
-        }
-
-        delete q.nodes[ID];
-    }
 
     /*//////////////////////////////////////////////////////////////
-                              PUBLIC PURE/VIEW FUNCTIONS
+                  PRIVATE/ PUBLIC PURE/VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     function getTotalBorrowRequestCount() public view returns (uint256 count) {
@@ -1231,16 +1415,16 @@ contract LoanManager is
         return (tokens, balance);
     }
 
-    function getActiveLoanRequest(uint256 activeLoanID) external view {
+    function getActiveLoanRequest(uint256 normalActiveLoanID) external view {
         ActiveLoanDetails memory activeLoanDetails = _activeLoanDetails[
-            activeLoanID
+            normalActiveLoanID
         ];
 
         // tokens = new address[](1);
         // tokens = activeLoanDetails.collateralDetails.tokenDetails[0].token;
         console2.log(activeLoanDetails.collateralDetails.tokenDetails[0].token);
         console2.log(activeLoanDetails.borrowerDetails.amountToPayBack);
-        console2.log(activeLoanID);
+        console2.log(normalActiveLoanID);
     }
 
     function getBorrowRequestDetails(
@@ -1303,9 +1487,8 @@ contract LoanManager is
     }
 
     /*//////////////////////////////////////////////////////////////
-                              PRIVATE VIEW FUNCTIONS
+                              GAP
     //////////////////////////////////////////////////////////////*/
 
-    // gap
     uint256[60] private __gap;
 }

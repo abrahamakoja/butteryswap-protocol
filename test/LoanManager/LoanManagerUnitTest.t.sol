@@ -259,6 +259,7 @@ contract LoanManagerUnitTest is Test {
         vm.startPrank(borrower);
         address[] memory asset;
         uint256[] memory assetAmount;
+        uint256 counter;
         for (uint i = 0; i < 3; i++) {
             asset = new address[](1);
             assetAmount = new uint256[](1);
@@ -271,7 +272,7 @@ contract LoanManagerUnitTest is Test {
                 8 ether,
                 false
             );
-
+            counter++;
             console2.log("milk");
         }
         for (uint i = 3; i < 6; i++) {
@@ -279,10 +280,17 @@ contract LoanManagerUnitTest is Test {
             assetAmount = new uint256[](1);
             asset[0] = testVars.tokens[i];
             assetAmount[0] = testVars.collateralAmount[i];
-            _borrow(testVars.originationFee, asset, assetAmount, 8 ether, true);
+            _borrow(
+                testVars.originationFee,
+                asset,
+                assetAmount,
+                12 ether,
+                true
+            );
 
             console2.log("fuck");
         }
+        // return;
         vm.stopPrank();
         // return;
         vm.startPrank(lender);
@@ -304,11 +312,20 @@ contract LoanManagerUnitTest is Test {
         iLimitMarket.lend{value: 6 ether}();
         vm.stopPrank();
         vm.prank(deployer);
-        uint256 activeLoanID = iBacker.toast();
+        (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID) = iBacker
+            .toast();
+        (
+            uint256 normalActiveLoanID2,
+            uint256 prioritizedActiveLoanID2
+        ) = iBacker.toast();
         // iLoanManager.getLendRequestDetails(requestID);
         // iLoanManager.getLendRequestDetails(requestID1);
         // iLoanManager.getLendRequestDetails(requestID2);
-        iLoanManager.getActiveLoanRequest(activeLoanID);
+        iLoanManager.getActiveLoanRequest(normalActiveLoanID);
+        iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
+        iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
+        iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
+        console2.log("counter", counter);
     }
 
     /*//////////////////////////////////////////////////////////////

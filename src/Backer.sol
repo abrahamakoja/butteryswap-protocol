@@ -105,9 +105,10 @@ contract Backer is
         loanManagerIsSet
         onlyRole(BACKER_ADMIN)
         nonReentrant
-        returns (uint256 activeLoanID)
+        returns (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID)
     {
-        activeLoanID = LoanManager.approveLoanRequests2();
+        (normalActiveLoanID, prioritizedActiveLoanID) = LoanManager
+            .approveLoanRequests2();
     }
 
     // gap
