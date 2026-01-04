@@ -77,7 +77,7 @@ contract LoanManager is
     }
 
     struct LenderDetails {
-        address lender;
+        address[] lender;
         uint256 amountLended;
         uint256 expectedReturn;
         uint256 requestID;
@@ -734,164 +734,164 @@ contract LoanManager is
                              TOAST FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function approveLoanRequests()
-        external
-        payable
-        backeryIsSet
-        onlyRole(BACKER)
-        nonReentrant
-        returns (uint256 activeLoanID)
-    {
-        //    should never revert
-        if (totalBorrowRequestAmount > totalLendRequestAmount) {
-            console2.log("liquidity low");
-            return 0;
-        }
-        activeLoanCount++;
-        activeLoanID = activeLoanCount;
-        LendRequestDetails storage lendRequestDetails;
-        BorrowRequestDetails storage borrowRequestDetails;
-        ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
-            activeLoanID
-        ];
-        // activeLoanDetails.activeLoanID = activeLoanCount;
+    // function approveLoanRequests()
+    //     external
+    //     payable
+    //     backeryIsSet
+    //     onlyRole(BACKER)
+    //     nonReentrant
+    //     returns (uint256 activeLoanID)
+    // {
+    //     //    should never revert
+    //     if (totalBorrowRequestAmount > totalLendRequestAmount) {
+    //         console2.log("liquidity low");
+    //         return 0;
+    //     }
+    //     activeLoanCount++;
+    //     activeLoanID = activeLoanCount;
+    //     LendRequestDetails storage lendRequestDetails;
+    //     BorrowRequestDetails storage borrowRequestDetails;
+    //     ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
+    //         activeLoanID
+    //     ];
+    //     // activeLoanDetails.activeLoanID = activeLoanCount;
 
-        console2.log("activeLoanID", activeLoanID);
-        console2.log("activeLoanCount", activeLoanCount);
+    //     console2.log("activeLoanID", activeLoanID);
+    //     console2.log("activeLoanCount", activeLoanCount);
 
-        // get borrow request
-        uint256 lendRequest = _deQueue(supplyQueue);
-        uint256 borrowRequest = _deQueue(normalQueue);
-        console2.log("borrowRequest", borrowRequest);
+    //     // get borrow request
+    //     uint256 lendRequest = _deQueue(supplyQueue);
+    //     uint256 borrowRequest = _deQueue(normalQueue);
+    //     console2.log("borrowRequest", borrowRequest);
 
-        //  lend request check
-        if (lendRequest == 0) {
-            console2.log("lendRequest 2", lendRequest);
+    //     //  lend request check
+    //     if (lendRequest == 0) {
+    //         console2.log("lendRequest 2", lendRequest);
 
-            // check  list again
-            lendRequest = _deQueue(priorityQueue);
-            lendRequestDetails = _lendRequestDetails[lendRequest];
-            if (lendRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(supplyQueue, lendRequest);
-                emit LendRequestReQueued(lendRequest);
-                return 0; //break
-            }
-            console2.log("lend lendRequest if clause", lendRequest);
-        } else {
-            lendRequestDetails = _lendRequestDetails[lendRequest];
-            // check and change state
-            if (lendRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(supplyQueue, lendRequest);
-                emit LendRequestReQueued(lendRequest);
-                return 0; //break
-            }
-            console2.log("normal triggerd", lendRequest);
-        }
+    //         // check  list again
+    //         lendRequest = _deQueue(priorityQueue);
+    //         lendRequestDetails = _lendRequestDetails[lendRequest];
+    //         if (lendRequestDetails.state != LoanState.OPEN) {
+    //             // requeue
+    //             _enQueue(supplyQueue, lendRequest);
+    //             emit LendRequestReQueued(lendRequest);
+    //             return 0; //break
+    //         }
+    //         console2.log("lend lendRequest if clause", lendRequest);
+    //     } else {
+    //         lendRequestDetails = _lendRequestDetails[lendRequest];
+    //         // check and change state
+    //         if (lendRequestDetails.state != LoanState.OPEN) {
+    //             // requeue
+    //             _enQueue(supplyQueue, lendRequest);
+    //             emit LendRequestReQueued(lendRequest);
+    //             return 0; //break
+    //         }
+    //         console2.log("normal triggerd", lendRequest);
+    //     }
 
-        // borrow request check
-        if (borrowRequest == 0) {
-            console2.log("triggered 2", borrowRequest);
+    //     // borrow request check
+    //     if (borrowRequest == 0) {
+    //         console2.log("triggered 2", borrowRequest);
 
-            // check priority list
-            borrowRequest = _deQueue(priorityQueue);
-            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
-            if (borrowRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(priorityQueue, borrowRequest);
-                emit BorrowRequestReQueued(borrowRequest);
-                return 0; //break
-            }
-            console2.log("triggered prioritized", borrowRequest);
-        } else {
-            borrowRequestDetails = _borrowRequestDetails[borrowRequest];
-            // check and change state
-            if (borrowRequestDetails.state != LoanState.OPEN) {
-                // requeue
-                _enQueue(normalQueue, borrowRequest);
-                emit BorrowRequestReQueued(borrowRequest);
-            }
-            console2.log("normal triggerd", borrowRequest);
-        }
+    //         // check priority list
+    //         borrowRequest = _deQueue(priorityQueue);
+    //         borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+    //         if (borrowRequestDetails.state != LoanState.OPEN) {
+    //             // requeue
+    //             _enQueue(priorityQueue, borrowRequest);
+    //             emit BorrowRequestReQueued(borrowRequest);
+    //             return 0; //break
+    //         }
+    //         console2.log("triggered prioritized", borrowRequest);
+    //     } else {
+    //         borrowRequestDetails = _borrowRequestDetails[borrowRequest];
+    //         // check and change state
+    //         if (borrowRequestDetails.state != LoanState.OPEN) {
+    //             // requeue
+    //             _enQueue(normalQueue, borrowRequest);
+    //             emit BorrowRequestReQueued(borrowRequest);
+    //         }
+    //         console2.log("normal triggerd", borrowRequest);
+    //     }
 
-        lendRequestDetails.state = LoanState.UPDATING;
-        borrowRequestDetails.state = LoanState.UPDATING;
+    //     lendRequestDetails.state = LoanState.UPDATING;
+    //     borrowRequestDetails.state = LoanState.UPDATING;
 
-        // get relevant borrow request values
-        uint256 amountToBorrow = borrowRequestDetails.amountToBorrow;
-        address borrower = borrowRequestDetails.borrower;
-        uint256 borrowerRequestID = borrowRequestDetails.requestID;
+    //     // get relevant borrow request values
+    //     uint256 amountToBorrow = borrowRequestDetails.amountToBorrow;
+    //     address borrower = borrowRequestDetails.borrower;
+    //     uint256 borrowerRequestID = borrowRequestDetails.requestID;
 
-        // get relevant lend request values
-        uint256 amountToLend = lendRequestDetails.amountToLend;
-        address lender = lendRequestDetails.lender;
-        uint256 lenderRequestID = lendRequestDetails.requestID;
+    //     // get relevant lend request values
+    //     uint256 amountToLend = lendRequestDetails.amountToLend;
+    //     address lender = lendRequestDetails.lender;
+    //     uint256 lenderRequestID = lendRequestDetails.requestID;
 
-        // check delta between borrow amount and available liquidity
-        uint256 delta = amountToBorrow < amountToLend
-            ? 0
-            : amountToBorrow - amountToLend;
+    //     // check delta between borrow amount and available liquidity
+    //     uint256 delta = amountToBorrow < amountToLend
+    //         ? 0
+    //         : amountToBorrow - amountToLend;
 
-        // mint to borrow if delta is 0
-        if (delta == 0) {
-            uint256 amountToPayBack = amountToBorrow +
-                borrowRequestDetails.interestRate;
-            uint256 lDelta = lendRequestDetails.amountToLend - amountToBorrow;
+    //     // mint to borrow if delta is 0
+    //     if (delta == 0) {
+    //         uint256 amountToPayBack = amountToBorrow +
+    //             borrowRequestDetails.interestRate;
+    //         uint256 lDelta = lendRequestDetails.amountToLend - amountToBorrow;
 
-            // update lender request state
-            if (lDelta > 0) {
-                lendRequestDetails.state = LoanState.OPEN;
-            } else {
-                lendRequestDetails.state = LoanState.SETTLED;
-            }
+    //         // update lender request state
+    //         if (lDelta > 0) {
+    //             lendRequestDetails.state = LoanState.OPEN;
+    //         } else {
+    //             lendRequestDetails.state = LoanState.SETTLED;
+    //         }
 
-            // update borrower request state
-            borrowRequestDetails.state = LoanState.SETTLED;
+    //         // update borrower request state
+    //         borrowRequestDetails.state = LoanState.SETTLED;
 
-            // fetch LenderDetails
-            LenderDetails memory lenderDetails;
-            lenderDetails.lender = lender;
-            lenderDetails.amountLended = amountToLend;
-            lenderDetails.expectedReturn = amountToPayBack;
-            lenderDetails.requestID = lenderRequestID;
+    //         // fetch LenderDetails
+    //         LenderDetails memory lenderDetails;
+    //         lenderDetails.lender = lender;
+    //         lenderDetails.amountLended = amountToLend;
+    //         lenderDetails.expectedReturn = amountToPayBack;
+    //         lenderDetails.requestID = lenderRequestID;
 
-            // populate the active loan struct
+    //         // populate the active loan struct
 
-            // collateral details
-            activeLoanDetails
-                .collateralDetails
-                .tokenDetails = borrowRequestDetails.tokenDetails;
+    //         // collateral details
+    //         activeLoanDetails
+    //             .collateralDetails
+    //             .tokenDetails = borrowRequestDetails.tokenDetails;
 
-            // borrower Details
-            activeLoanDetails.borrowerDetails.amountBorrowed = amountToBorrow;
-            activeLoanDetails.borrowerDetails.borrower = borrower;
-            activeLoanDetails.borrowerDetails.amountToPayBack = amountToPayBack;
-            activeLoanDetails.borrowerDetails.requestID = borrowerRequestID;
+    //         // borrower Details
+    //         activeLoanDetails.borrowerDetails.amountBorrowed = amountToBorrow;
+    //         activeLoanDetails.borrowerDetails.borrower = borrower;
+    //         activeLoanDetails.borrowerDetails.amountToPayBack = amountToPayBack;
+    //         activeLoanDetails.borrowerDetails.requestID = borrowerRequestID;
 
-            // lender details
-            activeLoanDetails.lenderDetails.push(lenderDetails);
-            activeLoanDetails.timeApproved = block.timestamp;
-            activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
-            activeLoanDetails.activeLoanID = activeLoanCount;
+    //         // lender details
+    //         activeLoanDetails.lenderDetails.push(lenderDetails);
+    //         activeLoanDetails.timeApproved = block.timestamp;
+    //         activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+    //         activeLoanDetails.activeLoanID = activeLoanCount;
 
-            // emit events
-            emit ToastMinted(borrower, amountToBorrow);
-            emit CrumbsMinted(lender, amountToPayBack);
-            // mint toast to borrower
-            Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
-            // mint crumbs to lender
-            Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
-            // return activeLoanID;
-        } else {
-            // fetch more lend request that can collectively satisfy the borrow request
-            uint256 lendRequest = _deQueue(supplyQueue);
-            // use the number to bound a for loop
-            // process loan
-            console2.log("delta is above 0", delta);
-            return 0;
-        }
-    }
+    //         // emit events
+    //         emit ToastMinted(borrower, amountToBorrow);
+    //         emit CrumbsMinted(lender, amountToPayBack);
+    //         // mint toast to borrower
+    //         Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+    //         // mint crumbs to lender
+    //         Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
+    //         // return activeLoanID;
+    //     } else {
+    //         // fetch more lend request that can collectively satisfy the borrow request
+    //         uint256 lendRequest = _deQueue(supplyQueue);
+    //         // use the number to bound a for loop
+    //         // process loan
+    //         console2.log("delta is above 0", delta);
+    //         return 0;
+    //     }
+    // }
     function approveLoanRequests2()
         external
         payable
@@ -988,9 +988,8 @@ contract LoanManager is
 
                 // return 0;
 
-                lenderDetails.lender = lender;
-                lenderDetails.amountLended = amountToLend;
-                lenderDetails.expectedReturn = amountToPayBack;
+                lenderDetails.amountLended = amountToLend; //move
+                lenderDetails.expectedReturn = amountToPayBack; //move
                 lenderDetails.requestID = lendRequest;
 
                 // populate the active loan struct
@@ -1012,8 +1011,6 @@ contract LoanManager is
                     .borrowerDetails
                     .requestID = normalBorrowRequest;
 
-                // lender details
-                activeLoanDetails.lenderDetails.push(lenderDetails);
                 // time of approval
                 activeLoanDetails.timeApproved = block.timestamp;
                 // due date for loan repayment
@@ -1040,13 +1037,19 @@ contract LoanManager is
                     lenders = _lenders;
 
                     // add lend request to list
+                    // lenderDetails.lender[numOfLenders] = lender;
                     _lendRequests[numOfLenders] = lendRequest;
                     lendRequests = _lendRequests;
                     amountToBorrow = delta;
                     console2.log("amountToBorrow at end", amountToBorrow);
                     continue;
                 }
+                // add lender to list
                 amountToBorrow = delta;
+
+                // lender details
+                lenderDetails.lender = lenders;
+                activeLoanDetails.lenderDetails.push(lenderDetails);
 
                 // logs
                 // console2.log("lendRequest", lendRequest);
@@ -1235,7 +1238,8 @@ contract LoanManager is
 
         // tokens = new address[](1);
         // tokens = activeLoanDetails.collateralDetails.tokenDetails[0].token;
-        console2.log(activeLoanDetails.collateralDetails.tokenDetails[5].token);
+        console2.log(activeLoanDetails.collateralDetails.tokenDetails[0].token);
+        console2.log(activeLoanDetails.borrowerDetails.amountToPayBack);
         console2.log(activeLoanID);
     }
 
