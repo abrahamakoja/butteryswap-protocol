@@ -77,10 +77,10 @@ contract LoanManager is
     }
 
     struct LenderDetails {
-        address[] lender;
-        uint256 amountLended;
-        uint256 expectedReturn;
-        uint256 requestID;
+        address[] lenders;
+        uint256[] amountLended;
+        uint256[] expectedReturns;
+        uint256[] requestID;
     }
 
     struct CollateralDetails {
@@ -101,6 +101,7 @@ contract LoanManager is
         bool priority;
         uint256 timeCreated;
         uint256 interestRate;
+        uint256 amountToPayBack;
         uint256 dueDate;
         uint256 mBreadBalance;
         uint256 requestID;
@@ -348,6 +349,7 @@ contract LoanManager is
         returns (uint256 requestID)
     {
         uint256 collateralValue;
+
         requestID = nextBorrowerID;
         console2.log("function ID", nextBorrowerID);
         console2.log("function requestID", requestID);
@@ -377,19 +379,24 @@ contract LoanManager is
                 collateralAmount[i]
             ); // @audit change to token library
         }
-
+        uint256 interestRate = 10e18; // @audit fix
         uint256 eligibleAmountToBorrow = collateralValue <= amountToBorrow
             ? collateralValue
             : amountToBorrow; //@audit token amounts must be formatted corrrectly in 18 decimals
+        uint256 amountToPayBack = _calculateAmountToPayBack(
+            interestRate,
+            eligibleAmountToBorrow
+        );
         borrowRequestDetails.borrower = borrower;
         borrowRequestDetails.amountToBorrow = amountToBorrow; // @audit review
 
         borrowRequestDetails.timeCreated = block.timestamp;
-        borrowRequestDetails.interestRate = 10e18; // @audit fix
+        borrowRequestDetails.interestRate = interestRate; // @audit fix
         borrowRequestDetails.dueDate = block.timestamp + 7 days; // @audit fix
         borrowRequestDetails.mBreadBalance = amountToBorrow; //@audit
         borrowRequestDetails.requestID = requestID;
         borrowRequestDetails.state = LoanState.OPEN;
+        borrowRequestDetails.amountToPayBack = amountToPayBack;
 
         borrowerToRequestsID[borrower].push(requestID);
 
@@ -913,9 +920,9 @@ contract LoanManager is
         }
 
         prioritizedActiveLoanID = _createPrioritizedActiveLoan();
-        normalActiveLoanID = _createNormalActiveLoan();
+        // normalActiveLoanID = _createNormalActiveLoan();
 
-        return (normalActiveLoanID, prioritizedActiveLoanID);
+        return (normalActiveLoanID, 0);
     }
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
@@ -973,16 +980,24 @@ contract LoanManager is
         delete q.nodes[ID];
     }
 
-    function _createPrioritizedActiveLoan() private returns (uint256 activeID) {
+    function _createPrioritizedActiveLoan()
+        internal
+        returns (uint256 activeID)
+    {
         prioritizedActiveLoanCount++;
-        activeID = prioritizedActiveLoanCount;
+        uint256 _activeID = prioritizedActiveLoanCount;
+
         uint256 priorityBorrowRequest = _deQueue(priorityQueue);
+
         BorrowRequestDetails
             storage priorityBorrowRequestDetails = _borrowRequestDetails[
                 priorityBorrowRequest
             ];
+
         ActiveLoanDetails
-            storage prioritizedActiveLoanDetails = _activeLoanDetails[activeID];
+            storage prioritizedActiveLoanDetails = _activeLoanDetails[
+                _activeID
+            ];
         // check state
         // process priorityBorrowRequest data
         LoanState prioritizedBorrowRequestState = priorityBorrowRequestDetails
@@ -991,42 +1006,35 @@ contract LoanManager is
             priorityBorrowRequest != 0 &&
             prioritizedBorrowRequestState == LoanState.OPEN
         ) {
-            prioritizedBorrowRequestState = LoanState.UPDATING;
-            // get relevant borrow request values
+            priorityBorrowRequestDetails.state = LoanState.UPDATING;
 
+            // get relevant borrow request values
             address borrower = priorityBorrowRequestDetails.borrower;
+
             uint256 amountToBorrow = priorityBorrowRequestDetails
                 .amountToBorrow;
             uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
-            uint256 toastAmount;
+            // uint256 toastAmount;
+
             address[] memory lenders;
             uint256[] memory lendRequests;
-            uint256[] memory crumbsAmount;
-
-            // process loan
-            // get ammount to borrow,
-            // fetch a lend request add to the array lendrequestID
-            // chek the amount to lend
-            // add amount to lend to the variable
-            // compare the amount to lend to amount to borrow
-            // if less, keep loop and adding more requestId to the array
-            // stop when the amount is same
+            uint256[] memory amountLended;
+            uint256[] memory expectedReturn;
+            LenderDetails memory lenderDetails;
 
             console2.log("amount to borrow before while loop", amountToBorrow);
             // console2.log("amount to borrow", amountToLend);
 
+            // for (uint256 i = 0; i < 3; i++) {
             while (amountToBorrow > 0) {
-                // for (uint i; i < 3; i++) {
+                uint256 lendRequest = _deQueue(supplyQueue);
 
-                uint256 lendRequest;
-                uint256 amountToLend;
-                address lender;
-                LenderDetails memory lenderDetails;
-
-                lendRequest = _deQueue(supplyQueue);
-                LendRequestDetails memory lendRequestDetails;
-                lendRequestDetails = _lendRequestDetails[lendRequest];
-                uint256 delta;
+                LendRequestDetails
+                    memory lendRequestDetails = _lendRequestDetails[
+                        lendRequest
+                    ];
+                uint256 interestRate = priorityBorrowRequestDetails
+                    .interestRate;
 
                 console2.log("amount to borrow in loop", amountToBorrow);
                 // check state/ skip if state is closed
@@ -1037,279 +1045,356 @@ contract LoanManager is
 
                     // break
                     continue;
-                }
+                } else {
+                    // proceed if state is open
+                    uint256 amountToLend = lendRequestDetails.amountToLend;
+                    address lender = lendRequestDetails.lender;
 
-                //  uint256 smallestAmount = amountToBorrow > amountToLend
-                //     ? amountToBorrow
-                //     : amountToLend;
+                    // check delta between borrow amount and available liquidity
+                    // determins if more than one lend request would be needed to setlle the borrow request
+                    uint256 delta = amountToBorrow < amountToLend
+                        ? 0
+                        : amountToBorrow - amountToLend;
 
-                // proceed if state is open
-                // fetch Lend request values
-                lender = lendRequestDetails.lender; //tract
-                amountToLend += lendRequestDetails.amountToLend;
+                    if (delta != 0) {
+                        (
+                            lenders,
+                            lendRequests,
+                            expectedReturn,
+                            amountLended
+                        ) = _appendLender(
+                            lenders,
+                            lendRequests,
+                            amountLended,
+                            expectedReturn,
+                            lender,
+                            lendRequest,
+                            interestRate,
+                            amountToLend
+                        );
+                        // captures relevant arrays if more lenders needed
 
-                // populate prioritizedActiveLoanDetails with relevant data
+                        // console2.log("num of lenders", lendersCount);
 
-                // fetch Lender details for active loan
+                        // lendersCount++;
+                        // console2.log("num of lenders++", lendersCount);
 
-                // return 0;
+                        // uint256 numOfLenders = lenders.length;
+                        // address[] memory _lenders = new address[](numOfLenders + 1);
+                        // uint256[] memory _lendRequests = new uint256[](
+                        //     numOfLenders + 1
+                        // );
+                        // uint256[] memory _expectedReturn = new uint256[](
+                        //     numOfLenders + 1
+                        // );
+                        // // fetch Lend request values
 
-                lenderDetails.requestID = lendRequest;
+                        // // add lender to list and update array
+                        // _lenders[numOfLenders] = lendRequestDetails.lender; //tract;
+                        // console2.log("here??");
 
-                // populate the active loan struct
+                        // lenders = _lenders;
 
-                // collateral details
-                prioritizedActiveLoanDetails
-                    .collateralDetails
-                    .tokenDetails = priorityBorrowRequestDetails.tokenDetails;
+                        // // add lend request to list and update array
+                        // _lendRequests[numOfLenders] = lendRequest;
+                        // lendRequests = _lendRequests;
 
-                // borrower Details
-                prioritizedActiveLoanDetails
-                    .borrowerDetails
-                    .amountBorrowed = amountToBorrow;
-                prioritizedActiveLoanDetails
-                    .borrowerDetails
-                    .borrower = borrower;
-                prioritizedActiveLoanDetails
-                    .borrowerDetails
-                    .amountToPayBack = amountToPayBack;
-                prioritizedActiveLoanDetails
-                    .borrowerDetails
-                    .requestID = priorityBorrowRequest;
+                        // _expectedReturn[numOfLenders] = _calculateProfitOnLend(
+                        //     interestRate,
+                        //     amountToLend
+                        // );
+                        // expectedReturn = _expectedReturn;
 
-                // time of approval
-                prioritizedActiveLoanDetails.timeApproved = block.timestamp;
-                // due date for loan repayment
-                prioritizedActiveLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
-                // active loan ID
-                prioritizedActiveLoanDetails
-                    .activeLoanID = prioritizedActiveLoanCount;
+                        // console2.log("amountToBorrow at end", amountToBorrow);
+                    }
 
-                // check delta between borrow amount and available liquidity
-                delta = amountToBorrow < amountToLend
-                    ? 0
-                    : amountToBorrow - amountToLend;
-
-                if (delta != 0) {
-                    console2.log("delta is not 0", delta);
-                    uint256 numOfLenders = lenders.length;
-                    console2.log("numOfLenders", numOfLenders);
-                    // break;
-                    lenderDetails.amountLended += amountToLend; //move
-                    lenderDetails.expectedReturn = amountToPayBack; //move
-                    address[] memory _lenders = new address[](numOfLenders + 1);
-                    uint256[] memory _lendRequests = new uint256[](
-                        numOfLenders + 1
-                    );
-                    // add lender to list
-                    _lenders[numOfLenders] = lender;
-                    lenders = _lenders;
-
-                    // add lend request to list
-                    // lenderDetails.lender[numOfLenders] = lender;
-
-                    _lendRequests[numOfLenders] = lendRequest;
-                    lendRequests = _lendRequests;
                     amountToBorrow = delta;
-                    console2.log("amountToBorrow at end", amountToBorrow);
+
+                    console2.log(">>>>", amountToBorrow, delta);
 
                     continue;
                 }
-                // add lender to list
-                amountToBorrow = delta;
-                console2.log("amountToBorrow at end", amountToBorrow);
-                console2.log("delta at end", delta);
-
-                // lender details
-                lenderDetails.lender = lenders;
-                prioritizedActiveLoanDetails.lenderDetails.push(lenderDetails);
-
-                // logs
-                // console2.log("lendRequest", lendRequest);
-                console2.log("_amountToLend", amountToLend);
-                console2.log("lend request", lendRequest);
-                console2.log("amount after ", amountToBorrow);
-                console2.log("delta after", delta);
-
-                // emit events
-                emit ToastMinted(borrower, amountToBorrow);
-                emit CrumbsMinted(lender, amountToPayBack);
-                emit CrumbsMinted(lender, amountToPayBack);
-
-                for (uint i = 0; i < lenders.length; i++) {
-                    // mint crumbs to lender
-                    Backery.mint(lenders[i], crumbs, amountToPayBack); //@audit overflow?
-                }
-                // mint crumbs to lender
-                Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
             }
+            console2.log("before return +++++", amountToBorrow);
+            return 0;
+
+            // lender details
+            lenderDetails.lenders = lenders;
+            lenderDetails.amountLended = amountLended; //move
+            lenderDetails.expectedReturns = expectedReturn; //move
+            lenderDetails.requestID = lendRequests;
+
+            // populate the active loan struct
+            // collateral details
+            prioritizedActiveLoanDetails
+                .collateralDetails
+                .tokenDetails = priorityBorrowRequestDetails.tokenDetails;
+
+            // update borrower Details
+            // borrower
+            prioritizedActiveLoanDetails.borrowerDetails.borrower = borrower;
+            // amount borrowed
+            prioritizedActiveLoanDetails
+                .borrowerDetails
+                .amountBorrowed = amountToBorrow;
+            // amount to pay back
+            prioritizedActiveLoanDetails
+                .borrowerDetails
+                .amountToPayBack = amountToPayBack;
+            // borrow request ID
+            prioritizedActiveLoanDetails
+                .borrowerDetails
+                .requestID = priorityBorrowRequest;
+
+            // time of approval
+            prioritizedActiveLoanDetails.timeApproved = block.timestamp;
+            // due date for loan repayment
+            prioritizedActiveLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+            // active loan ID
+            prioritizedActiveLoanDetails
+                .activeLoanID = prioritizedActiveLoanCount;
+
+            // update lenders data
+            prioritizedActiveLoanDetails.lenderDetails.push(lenderDetails);
+
+            // logs
+            // console2.log("lendRequest", lendRequest);
+
+            for (uint256 i = 0; i < lenders.length; i++) {
+                emit CrumbsMinted(lenders[i], expectedReturn[i]);
+                // mint crumbs to lender
+                Backery.mint(lenders[i], crumbs, amountToPayBack); //@audit overflow?
+            }
+            // emit events
+            emit ToastMinted(borrower, amountToBorrow);
+            // mint crumbs to lender
+            Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+
+            activeID = _activeID;
         } else {
             emit BorrowRequestReQueued(priorityBorrowRequest);
             // re-queue to the end of the list
             _enQueue(priorityQueue, priorityBorrowRequest);
+
+            activeID = 0;
         }
     }
 
-    function _createNormalActiveLoan() private returns (uint256 activeID) {
-        normalActiveLoanCount++;
-        activeID = normalActiveLoanCount;
-        uint256 normalBorrowRequest = _deQueue(normalQueue);
-        BorrowRequestDetails
-            storage normalBorrowRequestDetails = _borrowRequestDetails[
-                normalBorrowRequest
-            ];
-        ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
-            activeID
-        ];
-        LoanState normalBorrowRequestState = normalBorrowRequestDetails.state;
-        // process normal borrow request
-        if (
-            normalBorrowRequest != 0 &&
-            normalBorrowRequestState == LoanState.OPEN
-        ) {
-            normalBorrowRequestDetails.state = LoanState.UPDATING;
-            // get relevant borrow request values
+    // function _createNormalActiveLoan() private returns (uint256 activeID) {
+    //     normalActiveLoanCount++;
+    //     activeID = normalActiveLoanCount;
+    //     uint256 normalBorrowRequest = _deQueue(normalQueue);
+    //     BorrowRequestDetails
+    //         storage normalBorrowRequestDetails = _borrowRequestDetails[
+    //             normalBorrowRequest
+    //         ];
+    //     ActiveLoanDetails storage activeLoanDetails = _activeLoanDetails[
+    //         activeID
+    //     ];
+    //     LoanState normalBorrowRequestState = normalBorrowRequestDetails.state;
+    //     // process normal borrow request
+    //     if (
+    //         normalBorrowRequest != 0 &&
+    //         normalBorrowRequestState == LoanState.OPEN
+    //     ) {
+    //         normalBorrowRequestDetails.state = LoanState.UPDATING;
+    //         // get relevant borrow request values
 
-            address borrower = normalBorrowRequestDetails.borrower;
-            uint256 amountToBorrow = normalBorrowRequestDetails.amountToBorrow;
-            uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
+    //         address borrower = normalBorrowRequestDetails.borrower;
+    //         uint256 amountToBorrow = normalBorrowRequestDetails.amountToBorrow;
+    //         uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
 
-            address[] memory lenders;
-            uint256[] memory lendRequests;
+    //         address[] memory lenders;
+    //         uint256[] memory lendRequests;
 
-            // process loan
-            // get ammount to borrow,
-            // fetch a lend request add to the array lendrequestID
-            // chek the amount to lend
-            // add amount to lend to the variable
-            // compare the amount to lend to amount to borrow
-            // if less, keep loop and adding more requestId to the array
-            // stop when the amount is same
+    //         // process loan
+    //         // get ammount to borrow,
+    //         // fetch a lend request add to the array lendrequestID
+    //         // chek the amount to lend
+    //         // add amount to lend to the variable
+    //         // compare the amount to lend to amount to borrow
+    //         // if less, keep loop and adding more requestId to the array
+    //         // stop when the amount is same
 
-            console2.log("amount to borrow before while loop", amountToBorrow);
-            // console2.log("amount to borrow", amountToLend);
+    //         console2.log("amount to borrow before while loop", amountToBorrow);
+    //         // console2.log("amount to borrow", amountToLend);
 
-            while (amountToBorrow > 0) {
-                // for (uint i; i < 3; i++) {
+    //         while (amountToBorrow > 0) {
+    //             // for (uint i; i < 3; i++) {
 
-                uint256 lendRequest;
-                uint256 amountToLend;
-                address lender;
-                LenderDetails memory lenderDetails;
+    //             uint256 lendRequest;
+    //             uint256 amountToLend;
+    //             address lender;
+    //             LenderDetails memory lenderDetails;
 
-                lendRequest = _deQueue(supplyQueue);
-                LendRequestDetails memory lendRequestDetails;
-                lendRequestDetails = _lendRequestDetails[lendRequest];
-                uint256 delta;
+    //             lendRequest = _deQueue(supplyQueue);
+    //             LendRequestDetails memory lendRequestDetails;
+    //             lendRequestDetails = _lendRequestDetails[lendRequest];
+    //             uint256 delta;
 
-                console2.log("amount to borrow in loop", amountToBorrow);
-                // check state/ skip if state is closed
-                if (lendRequestDetails.state != LoanState.OPEN) {
-                    // re-queue to the end of the list
-                    _enQueue(supplyQueue, lendRequest);
-                    emit LendRequestReQueued(lendRequest);
+    //             console2.log("amount to borrow in loop", amountToBorrow);
+    //             // check state/ skip if state is closed
+    //             if (lendRequestDetails.state != LoanState.OPEN) {
+    //                 // re-queue to the end of the list
+    //                 _enQueue(supplyQueue, lendRequest);
+    //                 emit LendRequestReQueued(lendRequest);
 
-                    // break
-                    continue;
-                }
+    //                 // break
+    //                 continue;
+    //             }
 
-                //  uint256 smallestAmount = amountToBorrow > amountToLend
-                //     ? amountToBorrow
-                //     : amountToLend;
+    //             //  uint256 smallestAmount = amountToBorrow > amountToLend
+    //             //     ? amountToBorrow
+    //             //     : amountToLend;
 
-                // proceed if state is open
-                // fetch Lend request values
-                lender = lendRequestDetails.lender; //tract
-                amountToLend += lendRequestDetails.amountToLend;
+    //             // proceed if state is open
+    //             // fetch Lend request values
+    //             lender = lendRequestDetails.lender; //tract
+    //             amountToLend += lendRequestDetails.amountToLend;
 
-                // populate ActiveLoanDetails with relevant data
+    //             // populate ActiveLoanDetails with relevant data
 
-                // fetch Lender details for active loan
+    //             // fetch Lender details for active loan
 
-                // return 0;
+    //             // return 0;
 
-                lenderDetails.amountLended = amountToLend; //move
-                lenderDetails.expectedReturn = amountToPayBack; //move
-                lenderDetails.requestID = lendRequest;
+    //             lenderDetails.amountLended = amountToLend; //move
+    //             lenderDetails.expectedReturn = amountToPayBack; //move
+    //             lenderDetails.requestID = lendRequest;
 
-                // populate the active loan struct
+    //             // populate the active loan struct
 
-                // collateral details
-                activeLoanDetails
-                    .collateralDetails
-                    .tokenDetails = normalBorrowRequestDetails.tokenDetails;
+    //             // collateral details
+    //             activeLoanDetails
+    //                 .collateralDetails
+    //                 .tokenDetails = normalBorrowRequestDetails.tokenDetails;
 
-                // borrower Details
-                activeLoanDetails
-                    .borrowerDetails
-                    .amountBorrowed = amountToBorrow;
-                activeLoanDetails.borrowerDetails.borrower = borrower;
-                activeLoanDetails
-                    .borrowerDetails
-                    .amountToPayBack = amountToPayBack;
-                activeLoanDetails
-                    .borrowerDetails
-                    .requestID = normalBorrowRequest;
+    //             // borrower Details
+    //             activeLoanDetails
+    //                 .borrowerDetails
+    //                 .amountBorrowed = amountToBorrow;
+    //             activeLoanDetails.borrowerDetails.borrower = borrower;
+    //             activeLoanDetails
+    //                 .borrowerDetails
+    //                 .amountToPayBack = amountToPayBack;
+    //             activeLoanDetails
+    //                 .borrowerDetails
+    //                 .requestID = normalBorrowRequest;
 
-                // time of approval
-                activeLoanDetails.timeApproved = block.timestamp;
-                // due date for loan repayment
-                activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
-                // active loan ID
-                activeLoanDetails.activeLoanID = normalActiveLoanCount;
+    //             // time of approval
+    //             activeLoanDetails.timeApproved = block.timestamp;
+    //             // due date for loan repayment
+    //             activeLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+    //             // active loan ID
+    //             activeLoanDetails.activeLoanID = normalActiveLoanCount;
 
-                // check delta between borrow amount and available liquidity
-                delta = amountToBorrow < amountToLend
-                    ? 0
-                    : amountToBorrow - amountToLend;
+    //             // check delta between borrow amount and available liquidity
+    //             delta = amountToBorrow < amountToLend
+    //                 ? 0
+    //                 : amountToBorrow - amountToLend;
 
-                if (delta != 0) {
-                    console2.log("delta is not 0", delta);
-                    uint256 numOfLenders = lenders.length;
-                    console2.log("numOfLenders", numOfLenders);
-                    // break;
-                    address[] memory _lenders = new address[](numOfLenders + 1);
-                    uint256[] memory _lendRequests = new uint256[](
-                        numOfLenders + 1
-                    );
-                    // add lender to list
-                    _lenders[numOfLenders] = lender;
-                    lenders = _lenders;
+    //             if (delta != 0) {
+    //                 console2.log("delta is not 0", delta);
+    //                 uint256 numOfLenders = lenders.length;
+    //                 console2.log("numOfLenders", numOfLenders);
+    //                 // break;
+    //                 address[] memory _lenders = new address[](numOfLenders + 1);
+    //                 uint256[] memory _lendRequests = new uint256[](
+    //                     numOfLenders + 1
+    //                 );
+    //                 // add lender to list
+    //                 _lenders[numOfLenders] = lender;
+    //                 lenders = _lenders;
 
-                    // add lend request to list
-                    // lenderDetails.lender[numOfLenders] = lender;
-                    _lendRequests[numOfLenders] = lendRequest;
-                    lendRequests = _lendRequests;
-                    amountToBorrow = delta;
-                    console2.log("amountToBorrow at end", amountToBorrow);
-                    continue;
-                }
-                // add lender to list
-                amountToBorrow = delta;
+    //                 // add lend request to list
+    //                 // lenderDetails.lender[numOfLenders] = lender;
+    //                 _lendRequests[numOfLenders] = lendRequest;
+    //                 lendRequests = _lendRequests;
+    //                 amountToBorrow = delta;
+    //                 console2.log("amountToBorrow at end", amountToBorrow);
+    //                 continue;
+    //             }
+    //             // add lender to list
+    //             amountToBorrow = delta;
 
-                // lender details
-                lenderDetails.lender = lenders;
-                activeLoanDetails.lenderDetails.push(lenderDetails);
+    //             // lender details
+    //             lenderDetails.lender = lenders;
+    //             activeLoanDetails.lenderDetails.push(lenderDetails);
 
-                // logs
-                // console2.log("lendRequest", lendRequest);
-                console2.log("_amountToLend", amountToLend);
-                console2.log("lend request", lendRequest);
-                console2.log("amount after ", amountToBorrow);
-                console2.log("delta after", delta);
-                // emit events
-                emit ToastMinted(borrower, amountToBorrow);
-                emit CrumbsMinted(lender, amountToPayBack);
-                // mint toast to borrower
-                Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
-                // mint crumbs to lender
-                Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
-            }
-        } else {
-            emit BorrowRequestReQueued(normalBorrowRequest);
-            // re-queue to the end of the list
-            _enQueue(normalQueue, normalBorrowRequest);
-        }
+    //             // logs
+    //             // console2.log("lendRequest", lendRequest);
+    //             console2.log("_amountToLend", amountToLend);
+    //             console2.log("lend request", lendRequest);
+    //             console2.log("amount after ", amountToBorrow);
+    //             console2.log("delta after", delta);
+    //             // emit events
+    //             emit ToastMinted(borrower, amountToBorrow);
+    //             emit CrumbsMinted(lender, amountToPayBack);
+    //             // mint toast to borrower
+    //             Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
+    //             // mint crumbs to lender
+    //             Backery.mint(lender, crumbs, amountToPayBack); //@audit overflow?
+    //         }
+    //     } else {
+    //         emit BorrowRequestReQueued(normalBorrowRequest);
+    //         // re-queue to the end of the list
+    //         _enQueue(normalQueue, normalBorrowRequest);
+    //     }
+    // }
+
+    function _calculateAmountToPayBack(
+        uint256 interestRate,
+        uint256 amountToBorrow
+    ) private pure returns (uint256 amountToPayBack) {
+        return (amountToBorrow * 100) / interestRate; //@audit fix
+    }
+
+    function _calculateProfitOnLend(
+        uint256 interestRate,
+        uint256 amountToLend
+    ) private pure returns (uint256 potentialProfit) {
+        return (amountToLend * 100) / interestRate; // @audit fix
+    }
+
+    function _appendLender(
+        address[] memory lenders,
+        uint256[] memory lendRequests,
+        uint256[] memory amountLended,
+        uint256[] memory expectedReturn,
+        address lender,
+        uint256 lendRequest,
+        uint256 interestRate,
+        uint256 amountToLend
+    )
+        internal
+        pure
+        returns (
+            address[] memory,
+            uint256[] memory,
+            uint256[] memory,
+            uint256[] memory
+        )
+    {
+        uint256 n = lenders.length;
+
+        address[] memory nl = new address[](n + 1);
+        uint256[] memory nr = new uint256[](n + 1);
+        uint256[] memory ne = new uint256[](n + 1);
+        uint256[] memory na = new uint256[](n + 1);
+
+        // for (uint256 i = 0; i < n; i++) {
+        //     nl[i] = lenders[i];
+        //     nr[i] = lendRequests[i];
+        //     ne[i] = expectedReturn[i];
+        //     na[i] = amountLended[i];
+        // }
+
+        nl[n] = lender;
+        nr[n] = lendRequest;
+        ne[n] = _calculateProfitOnLend(interestRate, amountToLend);
+        na[n] = amountToLend;
+
+        return (nl, nr, ne, na);
     }
 
     /*//////////////////////////////////////////////////////////////

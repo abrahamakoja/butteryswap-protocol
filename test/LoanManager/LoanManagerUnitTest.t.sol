@@ -314,17 +314,17 @@ contract LoanManagerUnitTest is Test {
         vm.prank(deployer);
         (uint256 normalActiveLoanID, uint256 prioritizedActiveLoanID) = iBacker
             .toast();
-        (
-            uint256 normalActiveLoanID2,
-            uint256 prioritizedActiveLoanID2
-        ) = iBacker.toast();
+        // (
+        //     uint256 normalActiveLoanID2,
+        //     uint256 prioritizedActiveLoanID2
+        // ) = iBacker.toast();
         // iLoanManager.getLendRequestDetails(requestID);
         // iLoanManager.getLendRequestDetails(requestID1);
         // iLoanManager.getLendRequestDetails(requestID2);
         iLoanManager.getActiveLoanRequest(normalActiveLoanID);
         iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
-        iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
-        iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
+        // iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
+        // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
         console2.log("counter", counter);
     }
 
