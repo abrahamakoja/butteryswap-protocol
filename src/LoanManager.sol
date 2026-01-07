@@ -916,13 +916,14 @@ contract LoanManager is
         //    should never revert
         if (totalLendRequestAmount == 0) {
             console2.log("liquidity low");
-            return (0, 0);
+            return (70, 0);
         }
 
         prioritizedActiveLoanID = _createPrioritizedActiveLoan();
+        console2.log("prioritizedActiveLoanID ", prioritizedActiveLoanID);
         // normalActiveLoanID = _createNormalActiveLoan();
 
-        return (normalActiveLoanID, 0);
+        return (normalActiveLoanID, prioritizedActiveLoanID);
     }
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
@@ -986,6 +987,7 @@ contract LoanManager is
     {
         prioritizedActiveLoanCount++;
         uint256 _activeID = prioritizedActiveLoanCount;
+        console2.log("_activeID <<<<", _activeID);
 
         uint256 priorityBorrowRequest = _deQueue(priorityQueue);
 
@@ -1056,6 +1058,7 @@ contract LoanManager is
                         ? 0
                         : amountToBorrow - amountToLend;
 
+                    uint256 numOfLenders = lenders.length;
                     if (delta != 0) {
                         (
                             lenders,
@@ -1063,7 +1066,7 @@ contract LoanManager is
                             expectedReturn,
                             amountLended
                         ) = _appendLender(
-                            lenders,
+                            numOfLenders,
                             lendRequests,
                             amountLended,
                             expectedReturn,
@@ -1074,12 +1077,11 @@ contract LoanManager is
                         );
                         // captures relevant arrays if more lenders needed
 
-                        // console2.log("num of lenders", lendersCount);
+                        console2.log("num of lenders fuck", lenders[0]);
 
                         // lendersCount++;
                         // console2.log("num of lenders++", lendersCount);
 
-                        // uint256 numOfLenders = lenders.length;
                         // address[] memory _lenders = new address[](numOfLenders + 1);
                         // uint256[] memory _lendRequests = new uint256[](
                         //     numOfLenders + 1
@@ -1116,7 +1118,8 @@ contract LoanManager is
                 }
             }
             console2.log("before return +++++", amountToBorrow);
-            return 0;
+            console2.log("num of lenders dammmnnnnnn", lenders.length);
+            // return 0;
 
             // lender details
             lenderDetails.lenders = lenders;
@@ -1161,6 +1164,7 @@ contract LoanManager is
             // console2.log("lendRequest", lendRequest);
 
             for (uint256 i = 0; i < lenders.length; i++) {
+                console2.log("looper +++++", lenders[i]);
                 emit CrumbsMinted(lenders[i], expectedReturn[i]);
                 // mint crumbs to lender
                 Backery.mint(lenders[i], crumbs, amountToPayBack); //@audit overflow?
@@ -1169,15 +1173,20 @@ contract LoanManager is
             emit ToastMinted(borrower, amountToBorrow);
             // mint crumbs to lender
             Backery.mint(borrower, toast, amountToBorrow); //@audit overflow?
-
+            console2.log("a---ctiveID <<<<", _activeID);
+            console2.log("activeID <<<<", activeID);
             activeID = _activeID;
+            return activeID;
         } else {
             emit BorrowRequestReQueued(priorityBorrowRequest);
             // re-queue to the end of the list
             _enQueue(priorityQueue, priorityBorrowRequest);
 
-            activeID = 0;
+            _activeID = 0;
         }
+
+        // console2.log("activeID <<<<", activeID);
+        // console2.log("_activeID <<<<", _activeID);
     }
 
     // function _createNormalActiveLoan() private returns (uint256 activeID) {
@@ -1357,9 +1366,8 @@ contract LoanManager is
     }
 
     function _appendLender(
-        address[] memory lenders,
-        uint256[] memory lendRequests,
-        uint256[] memory amountLended,
+        numOfLenders,
+        lendRequest,
         uint256[] memory expectedReturn,
         address lender,
         uint256 lendRequest,
