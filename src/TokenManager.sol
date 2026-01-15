@@ -419,13 +419,13 @@ contract TokenManager is
     }
 
     /// @notice This function returns the array of pending token requests addresses.
-    function getRequestedTokenID()
+    function getAllRequestedTokenID()
         external
         view
         onlyRole(TOKEN_MANAGER_ADMIN)
         returns (uint256[] memory requestID)
     {
-        uint256 requestDelta = totalRequestedTokens - lastApproved;
+        uint256 requestDelta = _PendingRequests();
         uint256 index = lastApproved;
         console2.log("lastApproved", lastApproved);
         index = index + 1;
@@ -481,8 +481,23 @@ contract TokenManager is
         return isListed;
     }
 
-    function getTotalRequestedTokens() external view returns (uint256) {
+    function getTotalTokenRequestCount()
+        external
+        view
+        returns (uint256 totalRequestCount)
+    {
         return totalRequestedTokens;
+    }
+    function getTotalPendingRequests()
+        external
+        view
+        returns (uint256 totalPendingRequests)
+    {
+        totalPendingRequests = _PendingRequests();
+        return totalPendingRequests;
+    }
+    function _PendingRequests() internal view returns (uint256) {
+        return totalRequestedTokens - lastApproved;
     }
 
     function checkIsTokenOperational(

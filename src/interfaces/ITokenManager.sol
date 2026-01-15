@@ -26,10 +26,18 @@ interface ITokenManager {
         view
         returns (address[] memory activeTokens);
 
-    function getRequestedTokenID()
+    function getAllRequestedTokenID()
         external
         view
         returns (uint256[] memory requestID);
+    function getTotalTokenRequestCount()
+        external
+        view
+        returns (uint256 totalRequestCount);
+    function getTotalPendingRequests()
+        external
+        view
+        returns (uint256 totalPendingRequests);
 
     function getTokenDetails(
         address token

@@ -286,7 +286,7 @@ contract LoanManagerUnitTest is Test {
                 testVars.originationFee,
                 asset,
                 assetAmount,
-                12 ether,
+                24 ether,
                 true
             );
 
@@ -302,6 +302,10 @@ contract LoanManagerUnitTest is Test {
         // uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
         // uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
+        vm.stopPrank();
+        address lender2 = vm.randomAddress();
+        vm.startPrank(lender2);
+        vm.deal(lender2, 2000 ether);
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
@@ -323,8 +327,8 @@ contract LoanManagerUnitTest is Test {
         // iLoanManager.getLendRequestDetails(requestID);
         // iLoanManager.getLendRequestDetails(requestID1);
         // iLoanManager.getLendRequestDetails(requestID2);
-        iLoanManager.getActiveLoanRequest(normalActiveLoanID);
-        iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
+        // iLoanManager.getActiveLoanRequest(normalActiveLoanID);
+        // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
         // iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
         // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
         console2.log("counter", counter);
@@ -463,7 +467,7 @@ contract LoanManagerUnitTest is Test {
         // approve
         vm.startPrank(deployer);
         uint requestCount = iTokenManager.totalRequestedTokens();
-        uint256[] memory requestID = iTokenManager.getRequestedTokenID();
+        uint256[] memory requestID = iTokenManager.getAllRequestedTokenID();
         console2.log("requestID length", requestID.length);
 
         for (uint256 i = 0; i < requestID.length; i++) {
@@ -471,7 +475,15 @@ contract LoanManagerUnitTest is Test {
 
             iTokenManager.approveTokenRequest(requestID[i]);
         }
-
+        console2.log(
+            "pending request",
+            iTokenManager.getTotalPendingRequests()
+        );
+        console2.log(
+            "getTotalTokenRequestCount ",
+            iTokenManager.getTotalTokenRequestCount()
+        );
+        iTokenManager.getAllRequestedTokenID();
         vm.stopPrank();
     }
 }
