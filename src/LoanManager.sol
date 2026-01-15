@@ -1067,8 +1067,6 @@ contract LoanManager is
                             amountLended
                         ) = _appendLender(
                             numOfLenders,
-                            lendRequests,
-                            amountLended,
                             expectedReturn,
                             lender,
                             lendRequest,
@@ -1366,8 +1364,7 @@ contract LoanManager is
     }
 
     function _appendLender(
-        numOfLenders,
-        lendRequest,
+        uint256 numOfLenders,
         uint256[] memory expectedReturn,
         address lender,
         uint256 lendRequest,
@@ -1383,7 +1380,7 @@ contract LoanManager is
             uint256[] memory
         )
     {
-        uint256 n = lenders.length;
+        uint256 n = numOfLenders;
 
         address[] memory nl = new address[](n + 1);
         uint256[] memory nr = new uint256[](n + 1);

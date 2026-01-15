@@ -255,6 +255,8 @@ contract LoanManagerUnitTest is Test {
             testVars.collateralAmount
         );
 
+        // return;
+
         _increaseTokenAllowance(testVars.tokens, testVars.collateralAmount);
         vm.startPrank(borrower);
         address[] memory asset;
@@ -350,8 +352,8 @@ contract LoanManagerUnitTest is Test {
     {
         collateralAmount = _collateralAmount(amount, num);
         _tokens = _addTokens(listingFee, num, user, collateralAmount);
-        vm.startPrank(user);
         _increaseTokenAllowance(_tokens, collateralAmount);
+        vm.startPrank(user);
         requestID = _borrow(
             originationFee,
             _tokens,
@@ -438,8 +440,8 @@ contract LoanManagerUnitTest is Test {
     ) private returns (address[] memory tokens) {
         vm.startPrank(user);
 
-        tokens = new address[](num);
-        for (uint256 i = 0; i < num; i++) {
+        tokens = new address[](collateralAmount.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
             string memory name = "meme coin";
 
             ERC20Mock token = new ERC20Mock(
@@ -450,17 +452,26 @@ contract LoanManagerUnitTest is Test {
             );
             tokens[i] = address(token);
         }
+
         // request
         for (uint256 i = 0; i < tokens.length; i++) {
+            console2.log(tokens[i]);
             iTokenManager.requestTokenListing{value: listingFee}(tokens[i]);
         }
         vm.stopPrank();
 
         // approve
         vm.startPrank(deployer);
-        for (uint256 i = 0; i <= iTokenManager.totalRequestedTokens(); i++) {
-            iTokenManager.approveTokenRequest(i);
+        uint requestCount = iTokenManager.totalRequestedTokens();
+        uint256[] memory requestID = iTokenManager.getRequestedTokenID();
+        console2.log("requestID length", requestID.length);
+
+        for (uint256 i = 0; i < requestID.length; i++) {
+            console2.log("requestID", requestID[i]);
+
+            iTokenManager.approveTokenRequest(requestID[i]);
         }
+
         vm.stopPrank();
     }
 }
