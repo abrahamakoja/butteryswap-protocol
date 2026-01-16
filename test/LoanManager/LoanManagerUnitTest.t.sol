@@ -286,7 +286,7 @@ contract LoanManagerUnitTest is Test {
                 testVars.originationFee,
                 asset,
                 assetAmount,
-                24 ether,
+                60 ether,
                 true
             );
 
@@ -302,11 +302,11 @@ contract LoanManagerUnitTest is Test {
         // uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
         // uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
+        iLimitMarket.lend{value: 6 ether}();
         vm.stopPrank();
         address lender2 = vm.randomAddress();
         vm.startPrank(lender2);
         vm.deal(lender2, 2000 ether);
-        iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
