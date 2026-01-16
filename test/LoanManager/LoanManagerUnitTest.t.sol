@@ -233,7 +233,7 @@ contract LoanManagerUnitTest is Test {
     }
 
     function testApproveLoanRequests() external {
-        vm.deal(borrower, 100 ether);
+        vm.deal(borrower, 1000 ether);
 
         TestVars memory testVars;
         address[] memory _tokens;
@@ -259,48 +259,23 @@ contract LoanManagerUnitTest is Test {
 
         _increaseTokenAllowance(testVars.tokens, testVars.collateralAmount);
         vm.startPrank(borrower);
-        address[] memory asset;
-        uint256[] memory assetAmount;
-        uint256 counter;
-        for (uint i = 0; i < 3; i++) {
-            asset = new address[](1);
-            assetAmount = new uint256[](1);
-            asset[0] = testVars.tokens[i];
-            assetAmount[0] = testVars.collateralAmount[i];
-            _borrow(
-                testVars.originationFee,
-                asset,
-                assetAmount,
-                8 ether,
-                false
-            );
-            counter++;
-            console2.log("milk");
-        }
-        for (uint i = 3; i < 6; i++) {
-            asset = new address[](1);
-            assetAmount = new uint256[](1);
-            asset[0] = testVars.tokens[i];
-            assetAmount[0] = testVars.collateralAmount[i];
-            _borrow(
-                testVars.originationFee,
-                asset,
-                assetAmount,
-                60 ether,
-                true
-            );
 
-            console2.log("fuck");
-        }
-        // return;
+        _borrow(
+            testVars.originationFee,
+            testVars.tokens,
+            testVars.collateralAmount,
+            60 ether,
+            true
+        );
+
         vm.stopPrank();
-        // return;
+
         vm.startPrank(lender);
         vm.deal(lender, 2000 ether);
 
-        uint256 requestID = iLimitMarket.lend{value: 6 ether}();
-        // uint256 requestID1 = iLimitMarket.lend{value: 6 ether}();
-        // uint256 requestID2 = iLimitMarket.lend{value: 6 ether}();
+        uint256 requestID = iLimitMarket.lend{value: 30 ether}();
+        console2.log("jaja", requestID);
+
         iLimitMarket.lend{value: 6 ether}();
         iLimitMarket.lend{value: 6 ether}();
         vm.stopPrank();
@@ -331,7 +306,7 @@ contract LoanManagerUnitTest is Test {
         iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
         // iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
         // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
-        console2.log("counter", counter);
+        // console2.log("counter", counter);
     }
 
     /*//////////////////////////////////////////////////////////////
