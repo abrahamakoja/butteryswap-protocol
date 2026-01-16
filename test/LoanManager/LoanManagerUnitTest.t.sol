@@ -328,7 +328,7 @@ contract LoanManagerUnitTest is Test {
         // iLoanManager.getLendRequestDetails(requestID1);
         // iLoanManager.getLendRequestDetails(requestID2);
         // iLoanManager.getActiveLoanRequest(normalActiveLoanID);
-        // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
+        iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID);
         // iLoanManager.getActiveLoanRequest(normalActiveLoanID2);
         // iLoanManager.getActiveLoanRequest(prioritizedActiveLoanID2);
         console2.log("counter", counter);

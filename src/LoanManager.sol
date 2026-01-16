@@ -95,14 +95,6 @@ contract LoanManager is
         TokenDetails[] tokenDetails;
         LoanState state;
     }
-    struct LendRequestDetails {
-        address lender;
-        uint256 amountToLend;
-        uint256 timeCreated;
-        uint256 nBreadBalance;
-        uint256 requestID;
-        LoanState state;
-    }
 
     struct TokenDetails {
         address token;
@@ -133,6 +125,14 @@ contract LoanManager is
         uint256 totalAmountLended;
         uint256 totalBorrowed;
         LenderData[] lenderData;
+    }
+    struct LendRequestDetails {
+        address lender;
+        uint256 amountToLend;
+        uint256 timeCreated;
+        uint256 nBreadBalance;
+        uint256 requestID;
+        LoanState state;
     }
 
     struct LenderData {
@@ -853,11 +853,12 @@ contract LoanManager is
         uint256 priorityBorrowRequest = _deQueue(priorityQueue);
 
         BorrowRequestDetails
-            memory priorityBorrowRequestDetails = _borrowRequestDetails[
+            storage priorityBorrowRequestDetails = _borrowRequestDetails[
                 priorityBorrowRequest
             ];
 
-        ActiveLoanDetails memory prioritizedActiveLoanDetails;
+        ActiveLoanDetails
+            storage prioritizedActiveLoanDetails = _activeLoanDetails[activeID];
         // check state
         // process priorityBorrowRequest data
         LoanState prioritizedBorrowRequestState = priorityBorrowRequestDetails
@@ -889,30 +890,53 @@ contract LoanManager is
             amountToBorrow: amountToBorrow
         });
 
-        SupplyData memory supplyData;
-
-        supplyData.totalAmountLended;
-        supplyData.totalBorrowed;
-        supplyData.lenderData = new LenderData[](lendersNeeded);
+        prioritizedActiveLoanDetails.supplyData.totalAmountLended;
+        prioritizedActiveLoanDetails.supplyData.totalBorrowed;
+        prioritizedActiveLoanDetails.supplyData.lenderData = new LenderData[](
+            lendersNeeded
+        );
         console2.log(" lendersNeeded", lendersNeeded);
 
         for (uint i = 0; i < lendersNeeded; i++) {
-            LenderData memory lenderData;
             uint256 amountLended;
             uint256 supplyID = _deQueue(supplyQueue);
 
-            lenderData.lendRequestDetails = _lendRequestDetails[supplyID];
+            prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails = _lendRequestDetails[supplyID];
             console2.log(
                 "this is new lender",
-                lenderData.lendRequestDetails.lender
+                prioritizedActiveLoanDetails
+                    .supplyData
+                    .lenderData[i]
+                    .lendRequestDetails
+                    .lender
             );
 
             // check state/ skip if state is closed
-            if (lenderData.lendRequestDetails.state != LoanState.OPEN) {
+            if (
+                prioritizedActiveLoanDetails
+                    .supplyData
+                    .lenderData[i]
+                    .lendRequestDetails
+                    .state != LoanState.OPEN
+            ) {
                 // re-queue to the end of the list
-                _enQueue(supplyQueue, lenderData.lendRequestDetails.requestID);
+                _enQueue(
+                    supplyQueue,
+                    prioritizedActiveLoanDetails
+                        .supplyData
+                        .lenderData[i]
+                        .lendRequestDetails
+                        .requestID
+                );
                 emit LendRequestReQueued({
-                    requestID: lenderData.lendRequestDetails.requestID
+                    requestID: prioritizedActiveLoanDetails
+                        .supplyData
+                        .lenderData[i]
+                        .lendRequestDetails
+                        .requestID
                 });
                 break;
             }
@@ -920,29 +944,50 @@ contract LoanManager is
 
             // check delta between borrow amount and available liquidity
             // determins if more than one lend request would be needed to setlle the borrow request
-            uint256 amountTolend = lenderData.lendRequestDetails.amountToLend;
+            uint256 amountTolend = prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails
+                .amountToLend;
             console2.log("amount amountTolend", amountTolend);
-
-            amountLended = lenderData.lendRequestDetails.amountToLend;
-            supplyData.totalAmountLended += amountLended;
-
-            supplyData.lenderData[i] = lenderData;
+            // amount to lend
+            amountLended = prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails
+                .amountToLend;
+            prioritizedActiveLoanDetails
+                .supplyData
+                .totalAmountLended += amountLended;
         }
 
-        console2.log("final supplyData count", supplyData.lenderData.length);
+        console2.log(
+            "final supplyData count",
+            prioritizedActiveLoanDetails.supplyData.lenderData.length
+        );
 
-        console2.log(">>>> total", supplyData.lenderData.length);
-        uint counter = supplyData.lenderData.length;
+        console2.log(
+            ">>>> total",
+            prioritizedActiveLoanDetails.supplyData.lenderData.length
+        );
+        uint counter = prioritizedActiveLoanDetails
+            .supplyData
+            .lenderData
+            .length;
         for (uint256 i = 0; i < counter; i++) {
             // lender
-            address lender = supplyData.lenderData[i].lendRequestDetails.lender;
+            address lender = prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails
+                .lender;
             console2.log("?? lender", lender, i);
         }
 
         // populate the active loan struct
         // collateral details
-        // prioritizedActiveLoanDetails
-        //     .collateral = priorityBorrowRequestDetails.tokenDetails;
+        prioritizedActiveLoanDetails.collateral = priorityBorrowRequestDetails
+            .tokenDetails;
 
         // update borrower Details
         // borrower
@@ -968,18 +1013,31 @@ contract LoanManager is
         prioritizedActiveLoanDetails.activeLoanID = prioritizedActiveLoanCount;
 
         // update lenders data
-        prioritizedActiveLoanDetails.supplyData = supplyData;
+        prioritizedActiveLoanDetails.supplyData = prioritizedActiveLoanDetails
+            .supplyData;
 
         // update mapping
-        // _activeLoanDetails[_activeID] = prioritizedActiveLoanDetails;
+        // _activeLoanDetails[activeID] = prioritizedActiveLoanDetails;
 
-        uint256 count = supplyData.lenderData.length;
-        console2.log("before looper ??", supplyData.lenderData.length, count);
+        uint256 count = prioritizedActiveLoanDetails
+            .supplyData
+            .lenderData
+            .length;
+        console2.log(
+            "before looper ??",
+            prioritizedActiveLoanDetails.supplyData.lenderData.length,
+            count
+        );
         for (uint256 i = 0; i < count; i++) {
             // lender
-            address lender = supplyData.lenderData[i].lendRequestDetails.lender;
+            address lender = prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails
+                .lender;
             // amount to lend
-            uint256 amountToLend = supplyData
+            uint256 amountToLend = prioritizedActiveLoanDetails
+                .supplyData
                 .lenderData[i]
                 .lendRequestDetails
                 .amountToLend;
@@ -989,8 +1047,11 @@ contract LoanManager is
                 amountToLend
             );
             // update lend request state
-            supplyData.lenderData[i].lendRequestDetails.state !=
-                LoanState.APPROVED;
+            prioritizedActiveLoanDetails
+                .supplyData
+                .lenderData[i]
+                .lendRequestDetails
+                .state != LoanState.APPROVED;
 
             console2.log("looper +++++", lender, i);
             emit CrumbsMinted(lender, expectedReturn);
@@ -1003,8 +1064,6 @@ contract LoanManager is
         emit ToastMinted(borrower, amountToBorrow);
         // mint crumbs to lender
         Backery.mint({to: borrower, id: toast, amount: amountToBorrow}); //@audit overflow?
-
-        console2.log("activeID <<<<", activeID);
 
         console2.log("activeID <<<<", activeID);
         return activeID;
