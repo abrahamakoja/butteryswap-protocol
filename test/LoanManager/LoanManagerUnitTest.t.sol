@@ -273,7 +273,7 @@ contract LoanManagerUnitTest is Test {
         vm.startPrank(lender);
         vm.deal(lender, 2000 ether);
 
-        uint256 requestID = iLimitMarket.lend{value: 30 ether}();
+        uint256 requestID = iLimitMarket.lend{value: 300 ether}();
         console2.log("jaja", requestID);
 
         iLimitMarket.lend{value: 6 ether}();

@@ -1034,41 +1034,28 @@ contract LoanManager is
 
     function _getNumberOfLendersNeeded(
         uint256 amountToBorrow
-    ) internal returns (uint256 lendersNeeded) {
+    ) internal view returns (uint256 lendersNeeded) {
         uint256 tmpAmount = amountToBorrow;
-        console2.log(" amountToBorrow", amountToBorrow);
-        console2.log(" tmpAmount", tmpAmount);
-        uint256 id1 = _peek(supplyQueue, 0);
 
-        if (
-            _lendRequestDetails[id1].amountToLend > tmpAmount &&
-            _lendRequestDetails[id1].state == LoanState.OPEN
-        ) {
-            tmpAmount = 0;
-            lendersNeeded = 1;
-            console2.log(
-                " tmpAmount in while if grater ",
-                tmpAmount,
-                id1,
-                _lendRequestDetails[id1].amountToLend
-            );
-            return lendersNeeded;
+        uint256 current = supplyQueue.head;
+        if (current == 0) return 0;
+
+        LendRequestDetails storage first = _lendRequestDetails[current];
+        if (first.state == LoanState.OPEN && first.amountToLend >= tmpAmount) {
+            return 1;
         }
-        uint256 index;
-        while (tmpAmount != 0) {
-            uint256 id2 = _peek(supplyQueue, index);
-            if (_lendRequestDetails[id2].state != LoanState.OPEN) break;
-            // check amount
+
+        while (current != 0 && tmpAmount != 0) {
+            LendRequestDetails storage lend = _lendRequestDetails[current];
+
+            if (lend.state != LoanState.OPEN) break;
+
             lendersNeeded++;
-            console2.log(
-                " tmpAmount in while ",
-                tmpAmount,
-                id2,
-                _lendRequestDetails[id2].amountToLend
-            );
-            tmpAmount -= _lendRequestDetails[id2].amountToLend;
+            tmpAmount -= lend.amountToLend;
+
+            current = supplyQueue.nodes[current].next;
         }
-        console2.log("final tmpAmount", tmpAmount);
+
         return lendersNeeded;
     }
 
