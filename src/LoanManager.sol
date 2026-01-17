@@ -771,12 +771,13 @@ contract LoanManager is
         //    should never revert
         if (totalLendRequestAmount == 0) {
             console2.log("liquidity low");
-            return (70, 0);
+            return (0, 0);
         }
 
         prioritizedActiveLoanID = _createPrioritizedActiveLoan();
         console2.log("prioritizedActiveLoanID ", prioritizedActiveLoanID);
-        // normalActiveLoanID = _createNormalActiveLoan();
+        normalActiveLoanID = _createNormalActiveLoan();
+        console2.log("normalActiveLoanID ", normalActiveLoanID);
 
         return (normalActiveLoanID, prioritizedActiveLoanID);
     }
@@ -1017,6 +1018,176 @@ contract LoanManager is
         console2.log("activeID <<<<", activeID);
         return activeID;
     }
+    function _createNormalActiveLoan() internal returns (uint256 activeID) {
+        // @bookmark @audit this is where the memory issue begin
+        normalActiveLoanCount++;
+        activeID = normalActiveLoanCount;
+        console2.log("normalActiveLoanCount <<<<", normalActiveLoanCount);
+        console2.log("activeID <<<<", activeID);
+        uint256 normalBorrowRequest = _deQueue(priorityQueue);
+        console2.log("normalBorrowRequest <<<<", normalBorrowRequest);
+
+        BorrowRequestDetails
+            storage normalBorrowRequestDetails = _borrowRequestDetails[
+                normalBorrowRequest
+            ];
+
+        ActiveLoanDetails
+            storage prioritizedActiveLoanDetails = _activeLoanDetails[activeID];
+        // check state
+        // process priorityBorrowRequest data
+        LoanState normalBorrowRequestState = normalBorrowRequestDetails.state;
+
+        if (
+            normalBorrowRequest == 0 &&
+            normalBorrowRequestState != LoanState.OPEN
+        ) {
+            emit BorrowRequestReQueued(normalBorrowRequest);
+            // re-queue to the end of the list
+            _enQueue(priorityQueue, normalBorrowRequest);
+
+            activeID = 0;
+            return activeID;
+        }
+
+        // change state
+        normalBorrowRequestDetails.state = LoanState.UPDATING;
+
+        // get relevant borrow request values
+        address borrower = normalBorrowRequestDetails.borrower;
+
+        uint256 amountToBorrow = normalBorrowRequestDetails.amountToBorrow;
+        console2.log("amount to borrow", amountToBorrow);
+        uint256 amountToPayBack = amountToBorrow + 1 ether; // @audit fix this
+        uint256 interestRate = normalBorrowRequestDetails.interestRate;
+        uint256 lendersNeeded = _getNumberOfLendersNeeded({
+            amountToBorrow: amountToBorrow
+        });
+
+        console2.log(" lendersNeeded", lendersNeeded);
+
+        SupplyData[] memory supplyData = new SupplyData[](lendersNeeded);
+        for (uint i = 0; i < lendersNeeded; i++) {
+            uint256 amountLended;
+            uint256 supplyID = _deQueue(supplyQueue);
+
+            supplyData[i].lendRequestDetails = _lendRequestDetails[supplyID];
+            console2.log(
+                "this is new lender",
+                supplyData[i].lendRequestDetails.lender
+            );
+
+            // check state/ skip if state is closed
+            if (supplyData[i].lendRequestDetails.state != LoanState.OPEN) {
+                // re-queue to the end of the list
+                _enQueue(
+                    supplyQueue,
+                    supplyData[i].lendRequestDetails.requestID
+                );
+                emit LendRequestReQueued({
+                    requestID: supplyData[i].lendRequestDetails.requestID
+                });
+                break;
+            }
+            // proceed if state is open
+
+            // check delta between borrow amount and available liquidity
+            // determins if more than one lend request would be needed to setlle the borrow request
+            uint256 amountTolend = supplyData[i]
+                .lendRequestDetails
+                .amountToLend;
+            console2.log("amount amountTolend", amountTolend);
+
+            amountLended = supplyData[i].lendRequestDetails.amountToLend;
+            prioritizedActiveLoanDetails.totalAmountLended += amountLended;
+
+            prioritizedActiveLoanDetails.supplyData.push(supplyData[i]);
+        }
+        console2.log(
+            "final amount lended",
+            prioritizedActiveLoanDetails.totalAmountLended
+        );
+
+        uint counter = prioritizedActiveLoanDetails.supplyData.length;
+
+        // populate the active loan struct
+        // collateral details
+        prioritizedActiveLoanDetails.collateral = normalBorrowRequestDetails
+            .tokenDetails;
+
+        // update borrower Details
+        // borrower
+        prioritizedActiveLoanDetails.borrowerRequestDetails.borrower = borrower;
+        // amount borrowed
+        prioritizedActiveLoanDetails
+            .borrowerRequestDetails
+            .amountToBorrow = amountToBorrow;
+        // amount to pay back
+        prioritizedActiveLoanDetails
+            .borrowerRequestDetails
+            .amountToPayBack = amountToPayBack;
+        // borrow request ID
+        prioritizedActiveLoanDetails
+            .borrowerRequestDetails
+            .requestID = normalBorrowRequest;
+
+        // time of approval
+        prioritizedActiveLoanDetails.timeApproved = block.timestamp;
+        // due date for loan repayment
+        prioritizedActiveLoanDetails.dueDate = block.timestamp + 7 days; // @audit fix later
+        // active loan ID
+        prioritizedActiveLoanDetails.activeLoanID = prioritizedActiveLoanCount;
+
+        // update lenders data
+        // prioritizedActiveLoanDetails.supplyData = supplyData;
+
+        uint256 count = prioritizedActiveLoanDetails.supplyData.length;
+        console2.log(
+            "before looper ??",
+            prioritizedActiveLoanDetails.supplyData.length,
+            count
+        );
+        for (uint256 i = 0; i < count; i++) {
+            // lender
+            address lender = prioritizedActiveLoanDetails
+                .supplyData[i]
+                .lendRequestDetails
+                .lender;
+            // amount to lend
+            uint256 amountToLend = prioritizedActiveLoanDetails
+                .supplyData[i]
+                .lendRequestDetails
+                .amountToLend;
+            // expected return
+            uint256 expectedReturn = _calculateProfitOnLend(
+                interestRate,
+                amountToLend
+            );
+            // update lend request state
+            prioritizedActiveLoanDetails
+                .supplyData[i]
+                .lendRequestDetails
+                .state = LoanState.APPROVED;
+
+            console2.log("looper +++++", lender, i);
+            emit CrumbsMinted(lender, expectedReturn);
+            // mint crumbs to lender
+            Backery.mint({to: lender, id: crumbs, amount: expectedReturn}); //@audit
+        }
+
+        // settle borrower
+        // emit events
+        emit ToastMinted(borrower, amountToBorrow);
+        // update borrowrequest state
+        prioritizedActiveLoanDetails.borrowerRequestDetails.state = LoanState
+            .APPROVED;
+
+        // mint crumbs to lender
+        Backery.mint({to: borrower, id: toast, amount: amountToBorrow}); //@audit overflow?
+
+        console2.log("activeID <<<<", activeID);
+        return activeID;
+    }
 
     function _calculateAmountToPayBack(
         uint256 interestRate,
@@ -1051,6 +1222,9 @@ contract LoanManager is
             if (lend.state != LoanState.OPEN) break;
 
             lendersNeeded++;
+            if (lend.amountToLend >= tmpAmount) {
+                break; // this lender finishes the borrow
+            }
             tmpAmount -= lend.amountToLend;
 
             current = supplyQueue.nodes[current].next;
@@ -1189,7 +1363,7 @@ contract LoanManager is
         ];
 
         address token;
-        token = activeLoanDetails.collateral[5].token;
+        token = activeLoanDetails.collateral[0].token;
         console2.log(token);
         console2.log(activeLoanDetails.borrowerRequestDetails.amountToPayBack);
         console2.log(normalActiveLoanID);
