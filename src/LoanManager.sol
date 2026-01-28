@@ -18,9 +18,15 @@ import {IProtocolManager} from "./interfaces/IProtocolManager.sol";
 import {ITokenManager} from "./interfaces/ITokenManager.sol";
 import {IBackery} from "./interfaces/IBackery.sol";
 import {LoanConfigLibrary} from "./libraries/LoanConfigLibrary.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {
+    ReentrancyGuardTransient
+} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {
+    AccessControlUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {
+    UUPSUpgradeable
+} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 // new
 
@@ -128,8 +134,6 @@ contract LoanManager is
         uint256 interestRate;
         uint256 delta;
     }
-
-    // struct SupplyData {}
 
     struct SupplyData {
         uint256 expectedReturn;
@@ -781,6 +785,7 @@ contract LoanManager is
 
         return (normalActiveLoanID, prioritizedActiveLoanID);
     }
+
     /*//////////////////////////////////////////////////////////////
                  PUBLIC, PRIVATE AND INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -814,15 +819,6 @@ contract LoanManager is
         }
 
         delete q.nodes[ID];
-    }
-
-    function _peek(
-        Queue storage q,
-        uint256 index
-    ) internal returns (uint256 ID) {
-        ID = q.nodes[index].next;
-
-        return ID;
     }
 
     function _deQueue(Queue storage q) private returns (uint256 ID) {
@@ -1018,8 +1014,9 @@ contract LoanManager is
         console2.log("activeID <<<<", activeID);
         return activeID;
     }
+
     function _createNormalActiveLoan() internal returns (uint256 activeID) {
-        // @bookmark @audit this is where the memory issue begin
+        //  @audit this is where the memory issue begin
         normalActiveLoanCount++;
         activeID = normalActiveLoanCount;
         console2.log("normalActiveLoanCount <<<<", normalActiveLoanCount);
@@ -1233,27 +1230,6 @@ contract LoanManager is
         return lendersNeeded;
     }
 
-    function _appendData(
-        uint256 lendersCount,
-        SupplyData memory lenderData
-    ) internal returns (SupplyData[] memory data) {
-        data = new SupplyData[](lendersCount + 1);
-        uint256 totalAmountLended;
-        uint256 n = 1;
-
-        for (uint256 i = 0; i < n; i++) {
-            console2.log(
-                " >>info ",
-                lendersCount,
-                i,
-                lenderData.lendRequestDetails.lender
-            );
-            data[lendersCount] = lenderData;
-            totalAmountLended += lenderData.lendRequestDetails.amountToLend;
-        }
-        return data;
-    }
-
     /*//////////////////////////////////////////////////////////////
                   PRIVATE/ PUBLIC PURE/VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -1286,6 +1262,7 @@ contract LoanManager is
 
         return (tokens, amountDeposited, tokenValue);
     }
+
     function getBorrowRequestTokenDetails(
         uint256 requestID
     )
@@ -1310,15 +1287,6 @@ contract LoanManager is
         }
 
         return (tokens, amountDeposited, tokenValue);
-    }
-
-    //@audit might remove
-    function isRequestPrioritized(
-        uint256 requestID
-    ) public view returns (bool) {
-        require(requestID != 0, "invalid ID");
-        BorrowRequestDetails memory details = _borrowRequestDetails[requestID];
-        return details.priority;
     }
 
     function getBorrowerRequestsID(
