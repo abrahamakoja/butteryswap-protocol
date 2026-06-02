@@ -1,19 +1,10 @@
-## Foundry
+## Buttery swap protocol
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Buttery swap is a lending and borrowing protocol for erc-20 tokens, it uses a FIFO matching system and a UUPS Proxy for loan request factory.
 
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
+### Start
+- connect to an EVM test net, and deploy script in the script directory, all scripts are labelled chronologically so you know which to install first.
 
 ### Build
 
